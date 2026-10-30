@@ -3,10 +3,11 @@ import '../styles/global.css';
 import Header from '../components/Header.astro';
 import EventCard from '../components/EventCard.astro';
 import Lightbox from '../components/Lightbox.astro';
-import events from '../data/events.json';
+import { getEvents } from '../lib/events.js';
 
+const events = await getEvents();
 const featured = events.filter(e => e.featured);
-const upcoming = events.filter(e => !e.featured).sort((a, b) => new Date(a.start) - new Date(b.start));
+const upcoming = events.filter(e => !e.featured);
 ---
 
 <html lang="en">

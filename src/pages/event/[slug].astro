@@ -2,9 +2,10 @@
 import '../../styles/global.css';
 import Header from '../../components/Header.astro';
 import Lightbox from '../../components/Lightbox.astro';
-import events from '../../data/events.json';
+import { getEvents } from '../../lib/events.js';
 
-export function getStaticPaths() {
+export async function getStaticPaths() {
+  const events = await getEvents();
   return events.map(event => ({
     params: { slug: event.slug },
     props: { event },
