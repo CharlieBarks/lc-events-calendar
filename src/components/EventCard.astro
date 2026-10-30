@@ -1,0 +1,19 @@
+---
+const { event, featured = false } = Astro.props;
+const start = new Date(event.start);
+const dateStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const timeStr = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+---
+
+<article class:list={['event-card', { featured }]} data-category={event.category || ''} data-start={event.start}>
+  <a href={`/event/${event.slug}`}>
+    {event.image && (
+      <img src={event.image} alt={event.title} loading="lazy" class="lightbox-trigger" data-full={event.image} />
+    )}
+    <div class="card-content">
+      <h3>{event.title}</h3>
+      <p class="meta">{dateStr} · {timeStr} · {event.venue}</p>
+      {event.category && <span class="category">{event.category}</span>}
+    </div>
+  </a>
+</article>

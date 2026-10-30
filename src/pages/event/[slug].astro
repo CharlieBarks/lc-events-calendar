@@ -1,0 +1,75 @@
+---
+import '../../styles/global.css';
+import Header from '../../components/Header.astro';
+import Lightbox from '../../components/Lightbox.astro';
+import events from '../../data/events.json';
+
+export function getStaticPaths() {
+  return events.map(event => ({
+    params: { slug: event.slug },
+    props: { event },
+  }));
+}
+
+const { event } = Astro.props;
+const startDate = new Date(event.start);
+const formattedDate = startDate.toLocaleDateString('en-US', {
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+});
+const formattedTime = startDate.toLocaleTimeString('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+});
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{event.title} | Live Love Las Cruces</title>
+    <meta name="description" content={event.description.slice(0, 160)} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet" />
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Event",
+      "name": event.title,
+      "startDate": event.start,
+      "endDate": event.end || event.start,
+      "location": {
+        "@type": "Place",
+        "name": event.venue,
+        "address": event.address || "Las Cruces, NM"
+      },
+      "description": event.description,
+      "image": event.image,
+      "eventStatus": "https://schema.org/EventScheduled",
+      "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode"
+    })} />
+  </head>
+  <body>
+    <Header />
+    <main class="event-detail">
+      <article>
+        {event.image && (
+          <img src={event.image} alt={event.title} class="event-hero-image lightbox-trigger" data-full={event.image} />
+        )}
+        <h1>{event.title}</h1>
+        <p class="meta">
+          <time datetime={event.start}>{formattedDate} at {formattedTime}</time>
+          <span> · {event.venue}</span>
+          {event.category && <span class="category">{event.category}</span>}
+        </p>
+        <div class="description" set:html={event.description} />
+        {event.url && (
+          <p><a href={event.url} class="button" target="_blank" rel="noopener">More info / Tickets</a></p>
+        )}
+      </article>
+    </main>
+    <Lightbox />
+  </body>
+</html>

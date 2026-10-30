@@ -1,0 +1,101 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import EventCard from '../components/EventCard.astro';
+import Lightbox from '../components/Lightbox.astro';
+import events from '../data/events.json';
+
+const featured = events.filter(e => e.featured);
+const upcoming = events.filter(e => !e.featured).sort((a, b) => new Date(a.start) - new Date(b.start));
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Las Cruces Events Calendar | Live Love Las Cruces</title>
+    <meta name="description" content="What's happening in Las Cruces this week — live music, local events, and community happenings. Curated for the Mesilla Valley." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <Header />
+    <main>
+      <section class="hero">
+        <h1>What’s Happening in Las Cruces</h1>
+        <p>Live music, local events, and community happenings — curated for the Mesilla Valley.</p>
+        <p><a href="/submit" class="button">Add an Event</a></p>
+      </section>
+
+      <section class="filters">
+        <div class="filter-group">
+          <label for="category-filter">Category</label>
+          <select id="category-filter">
+            <option value="">All categories</option>
+            <option>Live Music</option>
+            <option>Market</option>
+            <option>Community</option>
+            <option>Family</option>
+            <option>Sports</option>
+            <option>Arts & Culture</option>
+            <option>Food & Drink</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="date-filter">Date</label>
+          <input type="date" id="date-filter" />
+        </div>
+        <button type="button" id="clear-filters" class="button secondary">Clear</button>
+      </section>
+
+      {featured.length > 0 && (
+        <section class="featured">
+          <h2>Featured</h2>
+          <div class="grid" id="featured-grid">
+            {featured.map(event => <EventCard event={event} featured />)}
+          </div>
+        </section>
+      )}
+
+      <section class="upcoming">
+        <h2>Upcoming Events</h2>
+        <div class="grid" id="upcoming-grid">
+          {upcoming.map(event => <EventCard event={event} />)}
+        </div>
+      </section>
+    </main>
+    <Lightbox />
+
+    <script>
+      const categoryFilter = document.getElementById('category-filter');
+      const dateFilter = document.getElementById('date-filter');
+      const clearBtn = document.getElementById('clear-filters');
+      const cards = document.querySelectorAll('.event-card');
+
+      function applyFilters() {
+        const cat = categoryFilter.value;
+        const date = dateFilter.value;
+
+        cards.forEach(card => {
+          const cardCat = card.dataset.category || '';
+          const cardStart = card.dataset.start || '';
+          const cardDate = cardStart.slice(0, 10);
+
+          const catMatch = !cat || cardCat === cat;
+          const dateMatch = !date || cardDate === date;
+
+          card.style.display = (catMatch && dateMatch) ? '' : 'none';
+        });
+      }
+
+      categoryFilter?.addEventListener('change', applyFilters);
+      dateFilter?.addEventListener('change', applyFilters);
+      clearBtn?.addEventListener('click', () => {
+        categoryFilter.value = '';
+        dateFilter.value = '';
+        applyFilters();
+      });
+    </script>
+  </body>
+</html>

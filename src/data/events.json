@@ -1,0 +1,46 @@
+[
+  {
+    "slug": "farmers-market-downtown",
+    "title": "Farmers & Crafts Market of Las Cruces",
+    "start": "2026-11-01T08:00:00-06:00",
+    "end": "2026-11-01T13:00:00-06:00",
+    "venue": "Downtown Main Street",
+    "address": "Main Street, Las Cruces, NM",
+    "category": "Market",
+    "description": "The award-winning outdoor Farmers & Crafts Market spanning seven blocks of North Main Street. Local produce, crafts, food, and live music.",
+    "image": "https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=800",
+    "featured": true,
+    "url": "https://www.farmersmarketlc.com/"
+  },
+  {
+    "slug": "jazz-at-rio-grande-winery",
+    "title": "Live Jazz at Rio Grande Winery",
+    "start": "2026-11-02T18:00:00-06:00",
+    "venue": "Rio Grande Winery",
+    "category": "Live Music",
+    "description": "An evening of live jazz with local musicians. Wine tasting and light bites available.",
+    "image": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800",
+    "featured": false,
+    "url": "https://riograndewinery.com/"
+  },
+  {
+    "slug": "nmsu-aggies-football",
+    "title": "NMSU Aggies Football",
+    "start": "2026-11-07T18:00:00-07:00",
+    "venue": "Aggie Memorial Stadium",
+    "category": "Sports",
+    "description": "New Mexico State University Aggies take the field at Aggie Memorial Stadium.",
+    "image": "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=800",
+    "featured": true
+  },
+  {
+    "slug": "branigan-library-book-club",
+    "title": "Branigan Library Book Club",
+    "start": "2026-11-05T18:30:00-07:00",
+    "venue": "Thomas Branigan Memorial Library",
+    "category": "Community",
+    "description": "Monthly book discussion. All welcome. Copies available at the library.",
+    "image": "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=800",
+    "featured": false
+  }
+]

@@ -1,0 +1,110 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Submit an Event | Live Love Las Cruces</title>
+    <meta name="description" content="Submit your Las Cruces event. Upload a social graphic and we’ll help extract the details." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <Header />
+    <main class="submit-page">
+      <h1>Submit an Event</h1>
+      <p class="lead">Upload your social media graphic (or paste details). We’ll extract what we can — you fill in anything missing.</p>
+
+      <form id="event-form" class="submit-form">
+        <div class="form-group">
+          <label for="image">Event graphic (optional but helpful)</label>
+          <input type="file" id="image" name="image" accept="image/*" />
+          <div id="image-preview" class="image-preview" hidden></div>
+          <p class="hint">JPG, PNG, or WebP. We’ll read the text on the flyer.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="title">Event title *</label>
+          <input type="text" id="title" name="title" required />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="start">Start date & time *</label>
+            <input type="datetime-local" id="start" name="start" required />
+          </div>
+          <div class="form-group">
+            <label for="end">End date & time</label>
+            <input type="datetime-local" id="end" name="end" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="venue">Venue *</label>
+          <input type="text" id="venue" name="venue" required />
+        </div>
+
+        <div class="form-group">
+          <label for="category">Category</label>
+          <select id="category" name="category">
+            <option value="">Select…</option>
+            <option>Live Music</option>
+            <option>Market</option>
+            <option>Community</option>
+            <option>Family</option>
+            <option>Sports</option>
+            <option>Arts & Culture</option>
+            <option>Food & Drink</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="4"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="url">Ticket / more info link</label>
+          <input type="url" id="url" name="url" placeholder="https://" />
+        </div>
+
+        <button type="submit" class="button">Submit for review</button>
+        <p id="status" class="status" aria-live="polite"></p>
+      </form>
+    </main>
+
+    <script>
+      const form = document.getElementById('event-form');
+      const imageInput = document.getElementById('image');
+      const preview = document.getElementById('image-preview');
+      const status = document.getElementById('status');
+
+      imageInput?.addEventListener('change', () => {
+        const file = imageInput.files?.[0];
+        if (!file) {
+          preview.hidden = true;
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          preview.innerHTML = `<img src="${reader.result}" alt="Preview" />`;
+          preview.hidden = false;
+          status.textContent = 'Image ready. In the full version, AI will pre-fill the fields below from the graphic.';
+        };
+        reader.readAsDataURL(file);
+      });
+
+      form?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        status.textContent = 'Thanks — your event has been submitted for review. (This is a demo form; wire it to your approval queue or Worker.)';
+        form.reset();
+        preview.hidden = true;
+      });
+    </script>
+  </body>
+</html>

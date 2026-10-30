@@ -1,0 +1,181 @@
+:root {
+  --header-bg: rgb(3, 7, 18);
+  --text: #0d0d0d;
+  --muted: #555;
+  --bg: #ffffff;
+  --accent: #1a5f7a;
+  --card-border: #eee;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.5;
+}
+
+h1, h2, h3 {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 0 0 0.5rem;
+}
+
+header {
+  background: var(--header-bg);
+  color: white;
+  padding: 1rem 0;
+}
+
+header .container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+header a { color: white; text-decoration: none; }
+header nav a { margin-left: 1.5rem; }
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.hero { margin-bottom: 2.5rem; }
+.hero h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); }
+.hero .button { margin-top: 1rem; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.event-card {
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.event-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+.event-card.featured { border-color: var(--accent); }
+
+.event-card img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  display: block;
+}
+
+.card-content { padding: 1rem 1.1rem 1.25rem; }
+.card-content h3 { font-size: 1.25rem; margin-bottom: 0.35rem; }
+.meta { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.category {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  background: #f0f4f8;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+.event-detail article { max-width: 720px; }
+.event-hero-image {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+}
+.event-detail .meta { font-size: 1.05rem; color: var(--muted); margin-bottom: 1.5rem; }
+.button {
+  display: inline-block;
+  background: var(--header-bg);
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.submit-page { max-width: 640px; }
+.submit-page .lead { color: var(--muted); margin-bottom: 2rem; }
+.submit-form .form-group { margin-bottom: 1.25rem; }
+.submit-form label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+.submit-form input,
+.submit-form select,
+.submit-form textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font: inherit;
+}
+.submit-form .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.submit-form .hint { font-size: 0.85rem; color: var(--muted); margin: 0.35rem 0 0; }
+.image-preview img { max-width: 100%; max-height: 240px; border-radius: 8px; margin-top: 0.5rem; }
+.status { margin-top: 1rem; font-weight: 500; }
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: var(--radius);
+}
+.filter-group { display: flex; flex-direction: column; gap: 0.35rem; }
+.filter-group label { font-size: 0.85rem; font-weight: 600; }
+.filter-group select,
+.filter-group input { padding: 0.5rem 0.65rem; border: 1px solid #ddd; border-radius: 8px; font: inherit; }
+.button.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid #ccc;
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+.lightbox[hidden] { display: none; }
+.lightbox img {
+  max-width: 95vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.lightbox-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 2.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+.lightbox-trigger { cursor: zoom-in; }
+
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; }
+  header .container { flex-direction: column; gap: 0.75rem; }
+  .filters { flex-direction: column; align-items: stretch; }
+}
