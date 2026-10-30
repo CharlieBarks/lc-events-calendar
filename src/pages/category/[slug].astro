@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import Agenda from '../../components/Agenda.astro';
+import EventCard from '../../components/EventCard.astro';
 import Newsletter from '../../components/Newsletter.astro';
 import { SITE, CATEGORIES, breadcrumbJsonLd } from '../../lib/site.js';
 import { getEvents } from '../../lib/events.js';
@@ -14,14 +15,15 @@ export async function getStaticPaths() {
 
 const { slug } = Astro.params;
 const cat = CATEGORIES[slug];
-const { events } = await getEvents();
-const list = events.filter((e) => e.category === slug);
+const { events, dated, ongoing } = await getEvents();
+const list = dated.filter((e) => e.category === slug);
+const onView = ongoing.filter((e) => e.category === slug);
 const others = Object.keys(CATEGORIES).filter((k) => k !== slug && events.some((e) => e.category === k));
 const path = `/category/${slug}/`;
 const jsonLd = [
   {
     '@context': 'https://schema.org', '@type': 'ItemList', name: cat.seo,
-    itemListElement: list.slice(0, 30).map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })),
+    itemListElement: [...onView, ...list].slice(0, 30).map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })),
   },
   breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: cat.plural, path }]),
 ];
@@ -35,14 +37,20 @@ const jsonLd = [
         <div>
           <h1>{cat.seo}</h1>
           <p class="lede">{cat.blurb}</p>
-          <p class="count">{list.length} upcoming</p>
+          <p class="count">{list.length} upcoming{onView.length > 0 && ` · ${onView.length} on view now`}</p>
         </div>
       </div>
     </div>
   </section>
   <section class="section">
     <div class="wrap">
-      <Agenda events={list} headingLevel={2} initialDays={14} />
+      {onView.length > 0 && (
+        <div class="onview">
+          <h2>On view now</h2>
+          <ul class="grid" role="list">{onView.map((e) => <EventCard event={e} />)}</ul>
+        </div>
+      )}
+      {list.length > 0 && <Agenda events={list} headingLevel={2} initialDays={14} />}
       <div class="more">
         <span>More to explore:</span>
         <div class="chips">{others.map((k) => <a class="chip" href={`/category/${k}/`}><span class="dot" style={`background:${CATEGORIES[k].color};margin-right:8px`} aria-hidden="true"></span>{CATEGORIES[k].plural}</a>)}</div>
@@ -60,5 +68,7 @@ const jsonLd = [
   .title div { display: flex; flex-direction: column; gap: 12px; }
   .head .lede { color: rgba(255,255,255,.9); }
   .count { font-weight: 700; }
+  .onview { margin-bottom: 40px; display: flex; flex-direction: column; gap: 16px; }
+  .onview h2 { font-size: 1.6rem; }
   .more { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; color: var(--muted); font-weight: 600; }
 </style>

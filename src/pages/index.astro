@@ -7,7 +7,7 @@ import { SITE, CATEGORIES } from '../lib/site.js';
 import { getEvents, shortVenue } from '../lib/events.js';
 import { dateKey, todayWall, addDays, shortDate, weekendRange } from '../lib/time.js';
 
-const { events, series } = await getEvents();
+const { events: all, dated: events, ongoing, series } = await getEvents();
 const today = todayWall();
 const weekEnd = dateKey(addDays(today, 6));
 const thisWeek = events.filter((e) => e.date <= weekEnd).length;
@@ -20,7 +20,7 @@ const picks = [
   ...events.filter((e) => e.featured && e.date <= soon),
   ...events.filter((e) => !e.featured && !e.compact && e.image && e.date <= soon),
 ].filter((e, i, a) => a.findIndex((x) => x.title === e.title) === i).slice(0, 3);
-const usedCats = Object.keys(CATEGORIES).filter((k) => events.some((e) => e.category === k));
+const usedCats = Object.keys(CATEGORIES).filter((k) => all.some((e) => e.category === k));
 
 const jsonLd = [
   {
@@ -35,7 +35,7 @@ const jsonLd = [
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: 'Upcoming events in Las Cruces, NM',
-    itemListElement: events.slice(0, 30).map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })),
+    itemListElement: all.slice(0, 30).map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })),
   },
 ];
 ---
@@ -89,6 +89,20 @@ const jsonLd = [
     </div>
   </section>
 
+  {ongoing.length > 0 && (
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <h2>On view now</h2>
+            <p>Exhibits and shows you can catch any day they're open. No rush, but don't sleep on them.</p>
+          </div>
+        </div>
+        <ul class="grid" role="list">{ongoing.map((e) => <EventCard event={e} />)}</ul>
+      </div>
+    </section>
+  )}
+
   {series.length > 0 && (
     <section class="section section-white">
       <div class="wrap">
@@ -128,7 +142,7 @@ const jsonLd = [
           <li><a class="cat" href={`/category/${k}/`} style={`--c:${CATEGORIES[k].color}`}>
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" set:html={CATEGORIES[k].icon} />
             <span class="cat-name">{CATEGORIES[k].plural}</span>
-            <span class="cat-n">{events.filter((e) => e.category === k).length} upcoming</span>
+            <span class="cat-n">{all.filter((e) => e.category === k).length} upcoming</span>
           </a></li>
         ))}
       </ul>

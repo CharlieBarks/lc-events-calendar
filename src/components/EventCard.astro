@@ -10,9 +10,9 @@ const row = layout === 'row';
 const Heading = `h${headingLevel}`;
 ---
 <li class="item" data-date={event.date} data-cat={event.category}><a class:list={['card', { big, row }]} href={`/event/${event.slug}/`}>
-  <EventArt event={event} height={big ? 230 : row ? 132 : 170} eager={eager} showDate={!row} compact={row} />
+  <EventArt event={event} height={big ? 230 : row ? 132 : 170} eager={eager} showDate={!row && !event.ongoing} compact={row} />
   <div class="body">
-    <p class="when">{row ? timeRange(event.start, event.end) : `${shortDate(event.start)} · ${timeRange(event.start, event.end)}`}</p>
+    <p class="when">{event.ongoing ? event.series.when : row ? timeRange(event.start, event.end) : `${shortDate(event.start)} · ${timeRange(event.start, event.end)}`}</p>
     <Heading class="name">{event.title}</Heading>
     <p class="where">{shortVenue(event)}</p>
     {(event.price || (PREVIEW && event.sample)) && (

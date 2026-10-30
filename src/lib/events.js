@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import lllcEvents from '../data/events.json';
 import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW } from './site.js';
-import { wall, dateKey, todayWall, weekday, timeLabel } from './time.js';
+import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
 const EVENTS_URL = 'https://lc-events-proxy.cf2-99b.workers.dev';
 const CITYSPARK_URL = 'https://cityspark-export.cf2-99b.workers.dev/events.json';
@@ -157,6 +157,9 @@ export async function getEvents() {
         : gap >= 28 && gap <= 35 ? `Monthly on ${day}s`
         : `${day}s`;
       const s = {
+        // Exhibits and other things open nearly every day: shown once in "On view now", not on every day.
+        ongoing: gap <= 2 && list.length >= 10,
+        until: list[list.length - 1],
         id: slugify(first.title),
         title: first.title,
         venue: first.venue,
@@ -170,11 +173,27 @@ export async function getEvents() {
       series.push(s);
     }
 
-    for (const e of events) {
+    // Ongoing things keep a single listing (their next date) so they get one page, not hundreds.
+    const ongoing = series.filter((x) => x.ongoing);
+    const dropped = new Set(ongoing.flatMap((x) => x.dates.slice(1)));
+    const kept = events.filter((e) => !dropped.has(e));
+    for (const x of ongoing) {
+      x.next.ongoing = true;
+      x.when = `On view through ${monthShort(x.until.start)} ${x.until.start.d}`;
+      x.dates = [x.next];
+    }
+
+    for (const e of kept) {
       e.compact = !!e.series || e.category === 'city-hall';
     }
 
-    return { events, series };
+    return {
+      events: kept,
+      // Day-by-day listings (everything except ongoing exhibits)
+      dated: kept.filter((e) => !e.ongoing),
+      ongoing: ongoing.map((x) => x.next),
+      series: series.filter((x) => !x.ongoing),
+    };
   })();
   return cache;
 }

@@ -6,7 +6,7 @@ import { SITE, breadcrumbJsonLd } from '../lib/site.js';
 import { getEvents } from '../lib/events.js';
 import { weekendRange, shortDate, addDays } from '../lib/time.js';
 
-const { events } = await getEvents();
+const { dated: events } = await getEvents();
 const { from, to, fri } = weekendRange();
 const list = events.filter((e) => e.date >= from && e.date <= to);
 const range = `${shortDate(fri)} – ${shortDate(addDays(fri, 2))}`;
