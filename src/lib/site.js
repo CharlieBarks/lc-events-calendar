@@ -97,7 +97,26 @@ export function categoryKey(raw = '') {
   return 'community';
 }
 
+// CitySpark category names (every level of the tree) -> ours. First match wins, so order matters:
+// a concert at a winery is live music, not food & drink.
+const TAG_RULES = [
+  ['live-music', /^(music|musicevent|concerts?|outdoor concerts|open mic|karaoke|dj)$|music|band|jazz|blues|rock|country|hip hop|mariachi|acoustic|choral|orchestra|symphony/i],
+  ['markets', /market|craft fair|bazaar|flea|shopping|holiday sales|swap meet/i],
+  ['family', /kid|child|family|teen|youth|toddler|story ?time/i],
+  ['sports', /^sports$|football|basketball|baseball|soccer|volleyball|hockey|rodeo|racing|tournament|aggie/i],
+  ['fitness', /fitness|yoga|outdoor recreation|hiking|running|run$|cycling|pickleball|dance class/i],
+  ['food-drink', /food|drink|wine|beer|brew|spirits|tasting|dining|cooking|trivia|nightlife|happy hour/i],
+  ['arts-culture', /arts|theater|theatre|comedy|dance|film|museum|exhibit|gallery|photography|painting|sculpture|poetry|literary|storytelling|book/i],
+  ['city-hall', /government|politic|town hall|city council|public meeting/i],
+];
+
+export function categoryFromTags(tags = [], title = '') {
+  for (const [key, re] of TAG_RULES) if (tags.some((t) => re.test(t))) return key;
+  return categoryKey(title);
+}
+
 export const SOURCES = {
+  cityspark: { name: 'Live Love Las Cruces', url: 'https://livelovelascruces.com' },
   'city-of-las-cruces': { name: 'City of Las Cruces', url: 'https://lascruces.gov/events/' },
   lllc: { name: 'Live Love Las Cruces', url: 'https://livelovelascruces.com' },
 };

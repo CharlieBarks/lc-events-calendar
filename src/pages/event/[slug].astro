@@ -88,7 +88,9 @@ const jsonLd = [
       </dl>
 
       <div class="actions">
-        {event.url && <a class="btn btn-primary" href={event.url} rel="noopener">{/ticket/i.test(event.url) ? 'Get tickets' : 'Event details'}</a>}
+        {event.ticketUrl
+          ? <a class="btn btn-primary" href={event.ticketUrl} rel="noopener">Get tickets</a>
+          : event.url && <a class="btn btn-primary" href={event.url} rel="noopener">{/ticket/i.test(event.url) ? 'Get tickets' : 'Event details'}</a>}
         <details class="addcal">
           <summary class="btn btn-outline">Add to calendar</summary>
           <div class="menu">
@@ -104,7 +106,7 @@ const jsonLd = [
         <div class="prose desc">{paragraphs.map((p) => <p>{p.split('\n').map((line, i) => <>{i > 0 && <br />}{line}</>)}</p>)}</div>
       )}
 
-      <p class="source">Listed by <a href={source.url}>{source.name}</a>{event.url && event.source !== 'lllc' && <> · <a href={event.url} rel="noopener">see the original listing</a></>}. Plans change, so double-check before you head out.</p>
+      <p class="source">Listed by <a href={source.url}>{source.name}</a>{event.url && event.source !== 'lllc' && <> · <a href={event.url} rel="noopener">{event.source === 'cityspark' ? 'more from the organizer' : 'see the original listing'}</a></>}. Plans change, so double-check before you head out.</p>
 
       {otherDates.length > 0 && (
         <section class="also" aria-labelledby="also-h">

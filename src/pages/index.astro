@@ -15,10 +15,11 @@ const { from, to } = weekendRange(today);
 const weekend = events.filter((e) => e.date >= from && e.date <= to).length;
 
 // Charlie's picks: featured first, then the next one-off events with a photo or flyer.
+const soon = dateKey(addDays(today, 10));
 const picks = [
-  ...events.filter((e) => e.featured),
-  ...events.filter((e) => !e.featured && !e.compact && e.image),
-].slice(0, 3);
+  ...events.filter((e) => e.featured && e.date <= soon),
+  ...events.filter((e) => !e.featured && !e.compact && e.image && e.date <= soon),
+].filter((e, i, a) => a.findIndex((x) => x.title === e.title) === i).slice(0, 3);
 const usedCats = Object.keys(CATEGORIES).filter((k) => events.some((e) => e.category === k));
 
 const jsonLd = [

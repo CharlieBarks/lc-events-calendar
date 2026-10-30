@@ -7,21 +7,23 @@ Built with [Astro](https://astro.build), hosted on Cloudflare Workers. Same desi
 
 - **Live site (main branch):** https://lc-events-calendar.cf2-99b.workers.dev (Worker `lc-events-calendar`)
 - **Design preview (redesign branch):** https://lc-events-preview.cf2-99b.workers.dev (Worker `lc-events-preview`, noindex, can never take the events domain)
+- **CitySpark copy:** https://cityspark-export.cf2-99b.workers.dev (Worker `cityspark-export`, source in `cityspark-export.js`). Copies every CitySpark listing within 30 miles plus its photo into Cloudflare KV (`lc-events-media`) every day, then rebuilds the site. `/status` shows progress. Photos are kept even after CitySpark is cancelled.
 - **City feed proxy:** https://lc-events-proxy.cf2-99b.workers.dev (Worker `lc-events-proxy`, source in `worker.js`). lascruces.gov blocks Cloudflare's build servers, so the build reads the city feed through this. `/debug` shows feed health.
 
 Every push rebuilds automatically (about 1–2 minutes).
 
 ## Where events come from
 
-1. **City of Las Cruces** feed via the proxy. Pulled fresh on every build.
-2. **`src/data/events.json`**: events we add ourselves (later: approved submissions). `featured: true` puts it in Charlie's picks. `sample: true` only shows on the design preview.
+1. **CitySpark copy** (the old calendar's listings, with photos). CitySpark "picks" become Charlie's picks.
+2. **City of Las Cruces** feed via the proxy. Duplicates of CitySpark listings are dropped.
+3. **`src/data/events.json`**: events we add ourselves (later: approved submissions). `featured: true` puts it in Charlie's picks. `sample: true` only shows on the design preview.
 
 If the city feed can't be reached, the build stops on purpose so the last good version stays live.
 Working offline: `EVENTS_OFFLINE=1 npm run build` uses `src/data/city-snapshot.json`.
 
 ## Images
 
-The city feed has no photos. Events with an `image` show it (flyers open full size). Everything else gets
+CitySpark listings come with photos, copied into our own storage. The city feed has none. Events with an `image` show it (flyers open full size). Everything else gets
 category artwork (color + icon + Organ Mountains skyline), and every event gets its own share image at `/og/event/<slug>.png`.
 
 ## What's built in
@@ -36,6 +38,6 @@ category artwork (color + icon + Organ Mountains skyline), and every event gets 
 
 ## Still to do
 
-- Daily automatic rebuild (so new city events appear without a push)
+- Daily automatic rebuild: done (the CitySpark copy triggers it after each daily refresh)
 - Connect `/submit/` to an approval queue (Notion or D1), with flyer text read automatically
 - More feeds (venues, Eventbrite, Bandsintown)
