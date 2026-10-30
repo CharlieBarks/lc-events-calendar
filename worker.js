@@ -43,21 +43,24 @@ export default {
     }
 
     // Use the first feed that returns the most events.
-    let best = { events: [], feed: null, status: null };
-    for (const feed of FEEDS) {
+    // Only successful responses are cached, so one bad answer from the city can't stick around.
+    let best = { events: [], feed: null, tried: [] };
+    for (const feed of [...FEEDS.slice(0, 2), ...FEEDS.slice(0, 2), ...FEEDS.slice(2)]) {
       try {
-        const res = await fetch(feed, { headers: HEADERS, cf: { cacheTtl: 300 } });
-        if (!res.ok) { best.status ??= res.status; continue; }
+        const res = await fetch(feed, { headers: HEADERS, cf: { cacheTtlByStatus: { '200-299': 300, '300-599': 0 } } });
+        best.tried.push(`${res.status} ${feed}`);
+        if (!res.ok) continue;
         const events = parseICal(await res.text());
         if (events.length > best.events.length) best = { events, feed, status: res.status };
         if (events.length > 1) break; // good feed found
       } catch (err) {
-        best.error = err.message;
+        best.tried.push(`error ${err.message} ${feed}`);
       }
     }
 
     if (best.events.length === 0) {
-      return new Response(JSON.stringify({ error: `No events (upstream ${best.status ?? best.error})`, events: [] }), {
+      console.log('No events', best.tried);
+      return new Response(JSON.stringify({ error: 'No events from the city feed', tried: best.tried, events: [] }), {
         status: 502,
         headers: JSON_HEADERS,
       });

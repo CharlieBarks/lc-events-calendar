@@ -26,7 +26,7 @@ async function loadCity() {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetch(EVENTS_URL, { signal: AbortSignal.timeout(20000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 400)}`);
       const data = await res.json();
       if (!data.events?.length) throw new Error('No events returned');
       console.log(`Fetched ${data.events.length} city events from proxy`);
