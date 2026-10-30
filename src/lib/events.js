@@ -49,11 +49,17 @@ function parseICal(text) {
 
 export async function getEvents() {
   try {
-    const res = await fetch(ICAL_URL);
+    const res = await fetch(ICAL_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; LiveLoveLasCruces/1.0; +https://livelovelascruces.com)',
+        'Accept': 'text/calendar, text/plain, */*'
+      }
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     const events = parseICal(text);
     console.log(`Fetched ${events.length} events from city iCal`);
+    if (events.length === 0) throw new Error('No events parsed');
     return events.sort((a, b) => new Date(a.start) - new Date(b.start));
   } catch (err) {
     console.error('Failed to fetch city iCal:', err);
@@ -62,7 +68,7 @@ export async function getEvents() {
       title: 'City feed unavailable (using fallback)',
       start: new Date().toISOString(),
       venue: 'Las Cruces, NM',
-      description: 'The city iCal could not be loaded at build time.',
+      description: 'The city iCal could not be loaded at build time. Check build logs.',
       category: 'Community',
       featured: false
     }];
