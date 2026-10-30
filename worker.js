@@ -2,6 +2,9 @@
 // Fetches the City of Las Cruces iCal feed and returns clean JSON for the Astro build.
 // lascruces.gov returns 403 to Cloudflare's build servers, but allows Workers, so this proxy is required.
 //
+// The city's firewall sometimes blocks Cloudflare too, so every good answer is saved to KV
+// (binding MEDIA, key city/last.json) and served when the city refuses: { stale: true, ... }.
+//
 // GET /        -> { events: [...] }
 // GET /debug   -> event counts for each candidate feed URL (for troubleshooting)
 
@@ -25,7 +28,7 @@ const JSON_HEADERS = {
 };
 
 export default {
-  async fetch(request) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (url.pathname === '/debug') {
@@ -58,6 +61,16 @@ export default {
       }
     }
 
+    if (best.events.length === 0 && env.MEDIA) {
+      const last = await env.MEDIA.get('city/last.json', 'json');
+      if (last?.events?.length) {
+        console.log('City refused; serving last good copy', best.tried);
+        return new Response(JSON.stringify({ ...last, stale: true, tried: best.tried }, null, 2), {
+          headers: { ...JSON_HEADERS, 'cache-control': 'public, max-age=300' },
+        });
+      }
+    }
+
     if (best.events.length === 0) {
       console.log('No events', best.tried);
       return new Response(JSON.stringify({ error: 'No events from the city feed', tried: best.tried, events: [] }), {
@@ -66,7 +79,9 @@ export default {
       });
     }
 
-    return new Response(JSON.stringify({ source: best.feed, count: best.events.length, events: best.events }, null, 2), {
+    const body = { source: best.feed, fetchedAt: new Date().toISOString(), count: best.events.length, events: best.events };
+    if (env.MEDIA) ctx.waitUntil(env.MEDIA.put('city/last.json', JSON.stringify(body)));
+    return new Response(JSON.stringify(body, null, 2), {
       headers: { ...JSON_HEADERS, 'cache-control': 'public, max-age=300' },
     });
   },

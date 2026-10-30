@@ -7,8 +7,8 @@
 //      Cloudflare storage (the cityspark-export Worker, source in cityspark-export.js). Refreshed daily.
 //   3. src/data/events.json: events Live Love Las Cruces adds by hand (and, later, approved submissions).
 //
-// If the city feed can't be reached the build STOPS, so Cloudflare keeps the last good
-// version of the site live instead of publishing an empty calendar.
+// A source that can't be reached is skipped with a warning. If that leaves NO events at all,
+// the build stops, so Cloudflare keeps the last good version live instead of an empty calendar.
 // Working without internet? EVENTS_OFFLINE=1 uses src/data/city-snapshot.json instead.
 
 import fs from 'node:fs';
@@ -55,7 +55,7 @@ async function loadCity() {
       if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 400)}`);
       const data = await res.json();
       if (!data.events?.length) throw new Error('No events returned');
-      console.log(`Fetched ${data.events.length} city events from proxy`);
+      console.log(`Fetched ${data.events.length} city events from proxy${data.stale ? ` (saved copy from ${data.fetchedAt || 'earlier'}; the city blocked today's request)` : ''}`);
       return data.events;
     } catch (err) {
       lastError = err;
@@ -63,7 +63,8 @@ async function loadCity() {
       await new Promise((r) => setTimeout(r, 2000 * attempt));
     }
   }
-  throw new Error(`City feed unavailable (${lastError?.message}). Stopping the build so the last good site stays up.`);
+  console.warn(`City feed unavailable (${lastError?.message}). Building without it.`);
+  return [];
 }
 
 const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -115,6 +116,10 @@ export async function getEvents() {
     // Sample listings only show on the private preview, never on the live site.
     const ours = lllcEvents.filter((e) => PREVIEW || !e.sample).map((e) => normalize(e, 'lllc'));
     const today = dateKey(todayWall());
+
+    if (spark.length + city.length === 0) {
+      throw new Error('No events from CitySpark or the city. Stopping the build so the last good site stays up.');
+    }
 
     const events = [...spark, ...city, ...ours]
       .filter(Boolean)
