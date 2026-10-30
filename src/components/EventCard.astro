@@ -1,19 +1,42 @@
 ---
-const { event, featured = false } = Astro.props;
-const start = new Date(event.start);
-const dateStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-const timeStr = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+import EventArt from './EventArt.astro';
+import { shortVenue } from '../lib/events.js';
+import { shortDate, timeRange } from '../lib/time.js';
+import { PREVIEW } from '../lib/site.js';
+// headingLevel: 2 right under the page h1, 3 under an h2.
+// layout="row": horizontal card for the day-by-day list (the day heading already shows the date).
+const { event, headingLevel = 3, big = false, eager = false, layout = 'stack' } = Astro.props;
+const row = layout === 'row';
+const Heading = `h${headingLevel}`;
 ---
-
-<article class:list={['event-card', { featured }]} data-category={event.category || ''} data-start={event.start}>
-  <a href={`/event/${event.slug}`}>
-    {event.image && (
-      <img src={event.image} alt={event.title} loading="lazy" class="lightbox-trigger" data-full={event.image} />
+<li class="item" data-date={event.date} data-cat={event.category}><a class:list={['card', { big, row }]} href={`/event/${event.slug}/`}>
+  <EventArt event={event} height={big ? 230 : row ? 132 : 170} eager={eager} showDate={!row} compact={row} />
+  <div class="body">
+    <p class="when">{row ? timeRange(event.start, event.end) : `${shortDate(event.start)} · ${timeRange(event.start, event.end)}`}</p>
+    <Heading class="name">{event.title}</Heading>
+    <p class="where">{shortVenue(event)}</p>
+    {(event.price || (PREVIEW && event.sample)) && (
+      <p class="foot">
+        {event.price && <span class="price">{event.price}</span>}
+        {PREVIEW && event.sample && <span class="sample-tag">Sample</span>}
+      </p>
     )}
-    <div class="card-content">
-      <h3>{event.title}</h3>
-      <p class="meta">{dateStr} · {timeStr} · {event.venue}</p>
-      {event.category && <span class="category">{event.category}</span>}
-    </div>
-  </a>
-</article>
+  </div>
+</a></li>
+
+<style>
+  .item { display: flex; }
+  .card { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; text-decoration: none; color: var(--ink); transition: transform .15s ease, box-shadow .15s ease; }
+  .card:hover { color: var(--ink); transform: translateY(-3px); box-shadow: 0 10px 28px rgba(28,27,26,.08); }
+  .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .when { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+  .name { font-weight: 700; font-size: 1.25rem; line-height: 1.15; }
+  .big .name { font-size: 1.5rem; }
+  .row { flex-direction: row; }
+  .row > :global(.art) { width: 38%; max-width: 200px; flex: none; height: auto !important; min-height: 132px; }
+  .row .body { padding: 14px 16px; gap: 4px; }
+  .row .name { font-size: 1.15rem; }
+  .where { color: var(--muted); font-size: .95rem; }
+  .foot { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; align-items: center; }
+  .price { font-size: .85rem; font-weight: 600; color: var(--agave); background: var(--agave-tint); padding: 3px 10px; border-radius: 999px; }
+</style>

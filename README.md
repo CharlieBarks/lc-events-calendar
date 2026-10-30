@@ -1,32 +1,41 @@
-# Live Love Las Cruces Events Calendar
+# Las Cruces Events (Live Love Las Cruces)
 
-Astro starter for a fast, branded events calendar to replace CitySpark.
+The events calendar that will replace CitySpark at events.livelovelascruces.com.
+Built with [Astro](https://astro.build), hosted on Cloudflare Workers. Same design system as the Las Cruces Art Trail.
 
-## Features in this starter
-- Homepage with featured + upcoming event cards
-- Dynamic `/event/[slug]` pages generated from data
-- Beehiiv-matched styling (Bricolage Grotesque headings, dark header, clean system-ui body)
-- Schema.org Event markup + basic SEO
-- Click-to-enlarge lightbox on event images (listing cards and detail pages)
-- Category and date filters
-- Submission form at `/submit`
-- Responsive grid and accessible foundations
+## Where things live
 
-## Local development
-```bash
-npm install
-npm run dev
-```
+- **Live site (main branch):** https://lc-events-calendar.cf2-99b.workers.dev (Worker `lc-events-calendar`)
+- **Design preview (redesign branch):** https://lc-events-preview.cf2-99b.workers.dev (Worker `lc-events-preview`, noindex, can never take the events domain)
+- **City feed proxy:** https://lc-events-proxy.cf2-99b.workers.dev (Worker `lc-events-proxy`, source in `worker.js`). lascruces.gov blocks Cloudflare's build servers, so the build reads the city feed through this. `/debug` shows feed health.
 
-## Deploy to Cloudflare Pages
-1. In Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git.
-2. Select this repository.
-3. Build command: `npm run build`
-4. Build output directory: `dist`
-5. Add your custom domain (events.livelovelascruces.com) once the project is live.
+Every push rebuilds automatically (about 1–2 minutes).
 
-## Next steps
-- Wire real data feeds (city iCal Worker, Eventbrite, venue sites).
-- Connect the submission form to an approval queue / D1.
-- Add AI vision extraction for uploaded graphics.
-- Stripe-powered featured slots.
+## Where events come from
+
+1. **City of Las Cruces** feed via the proxy. Pulled fresh on every build.
+2. **`src/data/events.json`**: events we add ourselves (later: approved submissions). `featured: true` puts it in Charlie's picks. `sample: true` only shows on the design preview.
+
+If the city feed can't be reached, the build stops on purpose so the last good version stays live.
+Working offline: `EVENTS_OFFLINE=1 npm run build` uses `src/data/city-snapshot.json`.
+
+## Images
+
+The city feed has no photos. Events with an `image` show it (flyers open full size). Everything else gets
+category artwork (color + icon + Organ Mountains skyline), and every event gets its own share image at `/og/event/<slug>.png`.
+
+## What's built in
+
+- Day-by-day agenda with filters (today, tomorrow, weekend, 7 days, category) saved in the URL
+- Weekly regulars and city meetings shown as compact rows so one-off events stand out
+- Event pages: Add to calendar (Google + .ics), directions, share, schema.org Event data, breadcrumbs
+- SEO landing pages: `/this-weekend/` and `/category/<name>/`
+- Whole calendar as a subscribable feed: `/calendar.ics`
+- Sitemap, canonical URLs, per-page share images, noindex on preview addresses
+- Accessibility: skip link, visible focus, 44px+ tap targets, reduced-motion support
+
+## Still to do
+
+- Daily automatic rebuild (so new city events appear without a push)
+- Connect `/submit/` to an approval queue (Notion or D1), with flyer text read automatically
+- More feeds (venues, Eventbrite, Bandsintown)

@@ -1,102 +1,163 @@
 ---
-import '../styles/global.css';
-import Header from '../components/Header.astro';
+import Layout from '../layouts/Layout.astro';
+import Agenda from '../components/Agenda.astro';
 import EventCard from '../components/EventCard.astro';
-import Lightbox from '../components/Lightbox.astro';
-import { getEvents } from '../lib/events.js';
+import Newsletter from '../components/Newsletter.astro';
+import { SITE, CATEGORIES } from '../lib/site.js';
+import { getEvents, shortVenue } from '../lib/events.js';
+import { dateKey, todayWall, addDays, shortDate, weekendRange } from '../lib/time.js';
 
-const events = await getEvents();
-const featured = events.filter(e => e.featured);
-const upcoming = events.filter(e => !e.featured);
+const { events, series } = await getEvents();
+const today = todayWall();
+const weekEnd = dateKey(addDays(today, 6));
+const thisWeek = events.filter((e) => e.date <= weekEnd).length;
+const { from, to } = weekendRange(today);
+const weekend = events.filter((e) => e.date >= from && e.date <= to).length;
+
+// Charlie's picks: featured first, then the next one-off events with a photo or flyer.
+const picks = [
+  ...events.filter((e) => e.featured),
+  ...events.filter((e) => !e.featured && !e.compact && e.image),
+].slice(0, 3);
+const usedCats = Object.keys(CATEGORIES).filter((k) => events.some((e) => e.category === k));
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: SITE.name,
+    url: SITE.url,
+    description: SITE.tagline,
+    publisher: { '@type': 'Organization', name: SITE.publisher, url: SITE.publisherUrl },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: 'Upcoming events in Las Cruces, NM',
+    itemListElement: events.slice(0, 30).map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })),
+  },
+];
 ---
+<Layout
+  title={SITE.name}
+  description="What's happening in Las Cruces, NM this week: live music, markets, art walks, family days and city events, hand-checked by a local and updated every morning."
+  jsonLd={jsonLd}
+>
+  <section class="hero wrap">
+    <div class="copy">
+      <p class="eyebrow">Las Cruces + Mesilla, New Mexico</p>
+      <h1>Skip the scroll. Here's what's actually happening in Las Cruces.</h1>
+      <p class="lede">Live music, markets, art walks, Aggie games and the little stuff only locals hear about. One calendar, checked by a human who lives here.</p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="/this-weekend/">What's on this weekend</a>
+        <a class="btn btn-outline" href="/submit/">Add your event</a>
+      </div>
+    </div>
+    <div class="hero-stats" aria-label="At a glance">
+      <div><strong>{thisWeek}</strong><span>events in the next 7 days</span></div>
+      <div><strong>{weekend}</strong><span>this weekend</span></div>
+      <div><strong>Free</strong><span>to list, always</span></div>
+    </div>
+  </section>
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Las Cruces Events Calendar | Live Love Las Cruces</title>
-    <meta name="description" content="What's happening in Las Cruces this week — live music, local events, and community happenings. Curated for the Mesilla Valley." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <Header />
-    <main>
-      <section class="hero">
-        <h1>What’s Happening in Las Cruces</h1>
-        <p>Live music, local events, and community happenings — curated for the Mesilla Valley.</p>
-        <p><a href="/submit" class="button">Add an Event</a></p>
-      </section>
-
-      <section class="filters">
-        <div class="filter-group">
-          <label for="category-filter">Category</label>
-          <select id="category-filter">
-            <option value="">All categories</option>
-            <option>Live Music</option>
-            <option>Market</option>
-            <option>Community</option>
-            <option>Family</option>
-            <option>Sports</option>
-            <option>Arts & Culture</option>
-            <option>Food & Drink</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label for="date-filter">Date</label>
-          <input type="date" id="date-filter" />
-        </div>
-        <button type="button" id="clear-filters" class="button secondary">Clear</button>
-      </section>
-
-      {featured.length > 0 && (
-        <section class="featured">
-          <h2>Featured</h2>
-          <div class="grid" id="featured-grid">
-            {featured.map(event => <EventCard event={event} featured />)}
+  {picks.length > 0 && (
+    <section class="section section-white">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <h2>Charlie's picks</h2>
+            <p>If you only do one thing this week, make it one of these.</p>
           </div>
-        </section>
-      )}
-
-      <section class="upcoming">
-        <h2>Upcoming Events</h2>
-        <div class="grid" id="upcoming-grid">
-          {upcoming.map(event => <EventCard event={event} />)}
         </div>
-      </section>
-    </main>
-    <Lightbox />
+        <ul class="grid" role="list">
+          {picks.map((e, i) => <EventCard event={e} big eager={i === 0} />)}
+        </ul>
+      </div>
+    </section>
+  )}
 
-    <script>
-      const categoryFilter = document.getElementById('category-filter');
-      const dateFilter = document.getElementById('date-filter');
-      const clearBtn = document.getElementById('clear-filters');
-      const cards = document.querySelectorAll('.event-card');
+  <section class="section" id="calendar">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2>Everything coming up</h2>
+          <p>Tap a day or a category to narrow it down. Regulars and city meetings are tucked into the short rows so the one-night-only stuff stands out.</p>
+        </div>
+      </div>
+      <Agenda events={events} initialDays={12} />
+    </div>
+  </section>
 
-      function applyFilters() {
-        const cat = categoryFilter.value;
-        const date = dateFilter.value;
+  {series.length > 0 && (
+    <section class="section section-white">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <h2>Weekly regulars</h2>
+            <p>The standing dates. Cheap, easy and a good way to meet your neighbors.</p>
+          </div>
+        </div>
+        <ul class="grid-tight regulars" role="list">
+          {series.map((s) => (
+            <li><a class="reg" href={`/event/${s.next.slug}/`}>
+              <span class="dot" style={`background:${CATEGORIES[s.category].color}`} aria-hidden="true"></span>
+              <span>
+                <h3>{s.title}</h3>
+                <span class="reg-when">{s.when} · {s.time}</span>
+                <span class="reg-where">{shortVenue(s.next)}</span>
+                <span class="reg-next">Next: {shortDate(s.next.start)}</span>
+              </span>
+            </a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
 
-        cards.forEach(card => {
-          const cardCat = card.dataset.category || '';
-          const cardStart = card.dataset.start || '';
-          const cardDate = cardStart.slice(0, 10);
+  <section class="section" id="browse">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2>Browse by vibe</h2>
+          <p>Every category has its own page, so you can bookmark the one you care about.</p>
+        </div>
+      </div>
+      <ul class="grid-tight cats" role="list">
+        {usedCats.map((k) => (
+          <li><a class="cat" href={`/category/${k}/`} style={`--c:${CATEGORIES[k].color}`}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" set:html={CATEGORIES[k].icon} />
+            <span class="cat-name">{CATEGORIES[k].plural}</span>
+            <span class="cat-n">{events.filter((e) => e.category === k).length} upcoming</span>
+          </a></li>
+        ))}
+      </ul>
+    </div>
+  </section>
 
-          const catMatch = !cat || cardCat === cat;
-          const dateMatch = !date || cardDate === date;
+  <Newsletter />
+</Layout>
 
-          card.style.display = (catMatch && dateMatch) ? '' : 'none';
-        });
-      }
+<style>
+  .hero { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-end; padding-top: 56px; padding-bottom: 48px; }
+  .copy { flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+  .hero-stats { flex: 0 1 300px; display: grid; gap: 12px; }
+  .hero-stats div { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 18px; display: flex; align-items: baseline; gap: 12px; }
+  .hero-stats strong { font-family: var(--display); font-size: 2rem; font-weight: 800; color: var(--accent); }
+  .hero-stats span { color: var(--muted); }
 
-      categoryFilter?.addEventListener('change', applyFilters);
-      dateFilter?.addEventListener('change', applyFilters);
-      clearBtn?.addEventListener('click', () => {
-        categoryFilter.value = '';
-        dateFilter.value = '';
-        applyFilters();
-      });
-    </script>
-  </body>
-</html>
+  .regulars li { display: flex; }
+  .reg { flex: 1; display: flex; gap: 14px; align-items: flex-start; padding: 18px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; text-decoration: none; color: var(--ink); }
+  .reg:hover { border-color: var(--ink); color: var(--ink); }
+  .reg .dot { margin-top: 8px; }
+  .reg > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+  .reg h3 { font-size: 1.15rem; }
+  .reg-when { font-weight: 600; color: var(--agave); }
+  .reg-where, .reg-next { color: var(--muted); font-size: .92rem; }
+
+  .cats li { display: flex; }
+  .cat { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 20px; border-radius: var(--radius); background: var(--c); color: #fff; text-decoration: none; min-height: 140px; position: relative; overflow: hidden; }
+  .cat:hover { color: #fff; filter: brightness(1.08); }
+  .cat svg { width: 34px; height: 34px; margin-bottom: auto; }
+  .cat-name { font-family: var(--display); font-weight: 800; font-size: 1.35rem; margin-top: 18px; }
+  .cat-n { font-size: .9rem; opacity: .85; }
+</style>

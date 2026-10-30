@@ -1,0 +1,36 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Agenda from '../components/Agenda.astro';
+import Newsletter from '../components/Newsletter.astro';
+import { SITE, breadcrumbJsonLd } from '../lib/site.js';
+import { getEvents } from '../lib/events.js';
+import { weekendRange, shortDate, addDays } from '../lib/time.js';
+
+const { events } = await getEvents();
+const { from, to, fri } = weekendRange();
+const list = events.filter((e) => e.date >= from && e.date <= to);
+const range = `${shortDate(fri)} – ${shortDate(addDays(fri, 2))}`;
+const jsonLd = [
+  { '@context': 'https://schema.org', '@type': 'ItemList', name: 'Things to do in Las Cruces this weekend',
+    itemListElement: list.map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })) },
+  breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'This weekend', path: '/this-weekend/' }]),
+];
+---
+<Layout title="Things to Do in Las Cruces This Weekend" description={`What's happening in Las Cruces this weekend (${range}): live music, markets, family stuff and more, picked by a local.`} jsonLd={jsonLd}>
+  <section class="hero wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">This weekend</span></nav>
+    <p class="eyebrow">{range}</p>
+    <h1>This weekend in Las Cruces</h1>
+    <p class="lede">Your Friday-to-Sunday game plan. {list.length ? `${list.length} things on the board so far` : 'Still filling up'}, and I add more right up until Friday.</p>
+  </section>
+  <section class="wrap" style="padding-bottom:48px">
+    {list.length
+      ? <Agenda events={list} filters={false} headingLevel={2} />
+      : <div class="notice">Nothing posted for this weekend yet. <a href="/">See everything coming up</a> or <a href="/submit/">add an event</a>.</div>}
+  </section>
+  <Newsletter />
+</Layout>
+<style>
+  .hero { display: flex; flex-direction: column; gap: 14px; padding-bottom: 32px; }
+  .hero h1 { margin-top: 12px; }
+</style>

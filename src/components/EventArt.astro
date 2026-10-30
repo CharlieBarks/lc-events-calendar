@@ -1,0 +1,35 @@
+---
+// The event's own photo or flyer when it has one. Otherwise the category color, its icon and
+// the Organ Mountains skyline (same skyline as the Art Trail), so every card still looks finished.
+import { CATEGORIES } from '../lib/site.js';
+import { monthShort } from '../lib/time.js';
+const { event, height = 180, showDate = true, eager = false, compact = false } = Astro.props;
+const cat = CATEGORIES[event.category];
+---
+<div class:list={['art', { compact }]} style={`--c:${cat.color};height:${height}px`}>
+  {event.image
+    ? <img class="photo" src={event.image} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" />
+    : <>
+        <svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" set:html={cat.icon} />
+        <svg class="sky" aria-hidden="true" viewBox="0 0 400 120" preserveAspectRatio="none">
+          <path d="M0 120 L0 92 L40 80 L70 88 L104 54 L122 66 L140 30 L152 44 L164 18 L176 40 L190 26 L204 52 L226 44 L250 70 L284 58 L320 82 L360 74 L400 90 L400 120 Z" fill="rgba(0,0,0,.18)"/>
+          <path d="M0 120 L0 104 L60 98 L120 106 L200 96 L280 104 L340 98 L400 106 L400 120 Z" fill="rgba(0,0,0,.14)"/>
+        </svg>
+      </>}
+  {showDate && (
+    <span class="date" aria-hidden="true"><b>{monthShort(event.start)}</b>{event.start.d}</span>
+  )}
+  <span class="label">{cat.name}</span>
+</div>
+
+<style>
+  .art { position: relative; overflow: hidden; background: var(--c); color: #fff; display: flex; align-items: flex-start; justify-content: space-between; padding: 14px; }
+  .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .icon { position: absolute; right: 8%; top: 14%; width: 38%; max-width: 120px; opacity: .28; color: #fff; }
+  .sky { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 55%; }
+  .date { position: relative; z-index: 1; order: -1; background: #fff; color: var(--ink); border-radius: 12px; min-width: 52px; padding: 6px 8px 7px; text-align: center; font-family: var(--display); font-weight: 800; font-size: 1.45rem; line-height: 1; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+  .date b { display: block; font-family: var(--body); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+  .compact { padding: 10px; }
+  .compact .label { display: none; }
+  .label { position: relative; z-index: 1; align-self: flex-start; background: rgba(255,255,255,.94); color: var(--ink); font-size: .76rem; font-weight: 600; padding: 5px 10px; border-radius: 999px; }
+</style>

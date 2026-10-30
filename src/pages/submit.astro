@@ -1,110 +1,113 @@
 ---
-import '../styles/global.css';
-import Header from '../components/Header.astro';
+import Layout from '../layouts/Layout.astro';
+import { CATEGORIES } from '../lib/site.js';
 ---
+<Layout title="Add Your Event" description="List your Las Cruces or Mesilla event for free. Snap a photo of your flyer, add the basics and it goes on the calendar once it's checked.">
+  <section class="wrap-narrow head">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">Add your event</span></nav>
+    <p class="eyebrow">Free, always</p>
+    <h1>Put it on the calendar.</h1>
+    <p class="lede">If it's open to the public in Las Cruces or Mesilla, it belongs here. Got a flyer? Start with that. I check every listing, usually within a day. – Charlie</p>
+  </section>
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Submit an Event | Live Love Las Cruces</title>
-    <meta name="description" content="Submit your Las Cruces event. Upload a social graphic and we’ll help extract the details." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <Header />
-    <main class="submit-page">
-      <h1>Submit an Event</h1>
-      <p class="lead">Upload your social media graphic (or paste details). We’ll extract what we can — you fill in anything missing.</p>
+  <section class="wrap-narrow">
+    <form class="form" id="event-form" novalidate>
+      <fieldset>
+        <legend><span class="step">1</span> Your flyer or photo</legend>
+        <label class="drop" for="image">
+          <input type="file" id="image" name="image" accept="image/*" class="sr-only" />
+          <span class="drop-inner" data-drop-text>
+            <strong>Tap to add your flyer</strong>
+            <span>JPG, PNG or a screenshot of your Instagram post. Events with a picture get way more clicks.</span>
+          </span>
+          <img data-preview alt="Your flyer" hidden />
+        </label>
+      </fieldset>
 
-      <form id="event-form" class="submit-form">
-        <div class="form-group">
-          <label for="image">Event graphic (optional but helpful)</label>
-          <input type="file" id="image" name="image" accept="image/*" />
-          <div id="image-preview" class="image-preview" hidden></div>
-          <p class="hint">JPG, PNG, or WebP. We’ll read the text on the flyer.</p>
+      <fieldset>
+        <legend><span class="step">2</span> The basics</legend>
+        <div class="field"><label for="title">Event name</label><input id="title" name="title" required autocomplete="off" /></div>
+        <div class="two">
+          <div class="field"><label for="start">Starts</label><input type="datetime-local" id="start" name="start" required /></div>
+          <div class="field"><label for="end">Ends <span class="opt">(optional)</span></label><input type="datetime-local" id="end" name="end" /></div>
         </div>
-
-        <div class="form-group">
-          <label for="title">Event title *</label>
-          <input type="text" id="title" name="title" required />
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="start">Start date & time *</label>
-            <input type="datetime-local" id="start" name="start" required />
+        <div class="field"><label for="venue">Where</label><input id="venue" name="venue" required placeholder="Venue name and address" /></div>
+        <div class="two">
+          <div class="field">
+            <label for="category">What kind of event?</label>
+            <select id="category" name="category" required>
+              <option value="">Pick one</option>
+              {Object.entries(CATEGORIES).filter(([k]) => k !== 'city-hall').map(([k, c]) => <option value={k}>{c.name}</option>)}
+            </select>
           </div>
-          <div class="form-group">
-            <label for="end">End date & time</label>
-            <input type="datetime-local" id="end" name="end" />
-          </div>
+          <div class="field"><label for="price">Cost</label><input id="price" name="price" placeholder="Free, $10, $15 at the door…" /></div>
         </div>
+        <div class="field"><label for="description">Tell people why they should come</label><textarea id="description" name="description" rows="4"></textarea></div>
+        <div class="field"><label for="url">Tickets or more info <span class="opt">(optional)</span></label><input type="url" id="url" name="url" placeholder="https://" inputmode="url" /></div>
+      </fieldset>
 
-        <div class="form-group">
-          <label for="venue">Venue *</label>
-          <input type="text" id="venue" name="venue" required />
+      <fieldset>
+        <legend><span class="step">3</span> How do I reach you?</legend>
+        <p class="hint">Only used if I have a question about your listing. Never shown on the site.</p>
+        <div class="two">
+          <div class="field"><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required /></div>
+          <div class="field"><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="email" required /></div>
         </div>
+        <div class="hp" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" name="website" tabindex="-1" autocomplete="off" /></div>
+      </fieldset>
 
-        <div class="form-group">
-          <label for="category">Category</label>
-          <select id="category" name="category">
-            <option value="">Select…</option>
-            <option>Live Music</option>
-            <option>Market</option>
-            <option>Community</option>
-            <option>Family</option>
-            <option>Sports</option>
-            <option>Arts & Culture</option>
-            <option>Food & Drink</option>
-            <option>Other</option>
-          </select>
-        </div>
+      <button class="btn btn-primary submit" type="submit">Send it to Charlie</button>
+      <p class="status" data-status role="status"></p>
+    </form>
+  </section>
+</Layout>
 
-        <div class="form-group">
-          <label for="description">Description</label>
-          <textarea id="description" name="description" rows="4"></textarea>
-        </div>
+<script>
+  const input = document.getElementById('image');
+  const preview = document.querySelector('[data-preview]');
+  const text = document.querySelector('[data-drop-text]');
+  input?.addEventListener('change', () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    text.hidden = true;
+  });
+  const form = document.getElementById('event-form');
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const status = form.querySelector('[data-status]');
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    // Not connected yet: next step is sending this to an approval queue (Notion or D1) with the flyer read automatically.
+    status.textContent = 'Thanks! (Design preview: this form is not connected yet, so nothing was sent.)';
+  });
+</script>
 
-        <div class="form-group">
-          <label for="url">Ticket / more info link</label>
-          <input type="url" id="url" name="url" placeholder="https://" />
-        </div>
-
-        <button type="submit" class="button">Submit for review</button>
-        <p id="status" class="status" aria-live="polite"></p>
-      </form>
-    </main>
-
-    <script>
-      const form = document.getElementById('event-form');
-      const imageInput = document.getElementById('image');
-      const preview = document.getElementById('image-preview');
-      const status = document.getElementById('status');
-
-      imageInput?.addEventListener('change', () => {
-        const file = imageInput.files?.[0];
-        if (!file) {
-          preview.hidden = true;
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = () => {
-          preview.innerHTML = `<img src="${reader.result}" alt="Preview" />`;
-          preview.hidden = false;
-          status.textContent = 'Image ready. In the full version, AI will pre-fill the fields below from the graphic.';
-        };
-        reader.readAsDataURL(file);
-      });
-
-      form?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        status.textContent = 'Thanks — your event has been submitted for review. (This is a demo form; wire it to your approval queue or Worker.)';
-        form.reset();
-        preview.hidden = true;
-      });
-    </script>
-  </body>
-</html>
+<style>
+  .head { display: flex; flex-direction: column; gap: 14px; padding-bottom: 32px; }
+  .head h1 { margin-top: 12px; }
+  .form { display: flex; flex-direction: column; gap: 22px; padding-bottom: 72px; }
+  fieldset { border: 1px solid var(--line); background: var(--card); border-radius: var(--radius); padding: 24px; margin: 0; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  legend { font-family: var(--display); font-weight: 800; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; padding: 0 6px; }
+  .step { display: inline-flex; width: 30px; height: 30px; border-radius: 999px; background: var(--accent); color: #fff; font-size: .95rem; align-items: center; justify-content: center; font-family: var(--body); }
+  .two { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  label { font-weight: 600; font-size: .95rem; }
+  .opt { font-weight: 400; color: var(--muted); }
+  input, select, textarea { font: inherit; font-size: 1rem; min-height: 48px; padding: 10px 14px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); width: 100%; }
+  textarea { min-height: 110px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--accent-tint); }
+  .drop { display: flex; align-items: center; justify-content: center; min-height: 200px; border: 2px dashed var(--line); border-radius: 16px; background: var(--bg); cursor: pointer; text-align: center; padding: 20px; }
+  .drop:hover, .drop:focus-within { border-color: var(--accent); }
+  .drop-inner { display: flex; flex-direction: column; gap: 6px; max-width: 380px; }
+  .drop-inner strong { font-size: 1.1rem; color: var(--accent); }
+  .drop-inner span { color: var(--muted); font-size: .92rem; }
+  .drop img { max-height: 360px; border-radius: 10px; }
+  .hint { color: var(--muted); font-size: .92rem; margin-top: -6px; }
+  .hp { position: absolute; left: -9999px; }
+  .submit { align-self: flex-start; min-height: 52px; padding: 0 28px; font-size: 1.05rem; }
+  .status { font-weight: 600; color: var(--agave); }
+</style>

@@ -1,0 +1,34 @@
+---
+// Compact one-line listing for regulars (weekly classes) and city meetings.
+import { CATEGORIES, PREVIEW } from '../lib/site.js';
+import { shortVenue } from '../lib/events.js';
+import { timeLabel } from '../lib/time.js';
+const { event, headingLevel = 3 } = Astro.props;
+const Heading = `h${headingLevel}`;
+const cat = CATEGORIES[event.category];
+---
+<li class="item" data-date={event.date} data-cat={event.category}><a class="row" href={`/event/${event.slug}/`}>
+  <span class="time">{timeLabel(event.start)}</span>
+  <span class="dot" style={`background:${cat.color}`} aria-hidden="true"></span>
+  <span class="main">
+    <Heading class="name">{event.title}</Heading>
+    <span class="meta">{shortVenue(event)}{event.series && <> · {event.series.when}</>}</span>
+  </span>
+  <span class="cat">{cat.name}</span>
+  {PREVIEW && event.sample && <span class="sample-tag">Sample</span>}
+</a></li>
+
+<style>
+  .item { display: block; }
+  .row { display: grid; grid-template-columns: 72px 10px 1fr auto; align-items: center; gap: 4px 14px; padding: 12px 16px; min-height: 56px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; text-decoration: none; color: var(--ink); }
+  .row:hover { border-color: var(--ink); color: var(--ink); }
+  .time { font-weight: 700; font-size: .9rem; color: var(--ink-2); white-space: nowrap; }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .name { font-family: var(--body); font-size: 1rem; font-weight: 600; letter-spacing: 0; line-height: 1.3; }
+  .meta { color: var(--muted); font-size: .88rem; }
+  .cat { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+  @media (max-width: 560px) {
+    .row { grid-template-columns: 60px 10px 1fr; }
+    .cat { display: none; }
+  }
+</style>

@@ -1,76 +1,177 @@
 ---
-import '../../styles/global.css';
-import Header from '../../components/Header.astro';
+import Layout from '../../layouts/Layout.astro';
+import EventArt from '../../components/EventArt.astro';
+import EventCard from '../../components/EventCard.astro';
 import Lightbox from '../../components/Lightbox.astro';
-import { getEvents } from '../../lib/events.js';
+import Newsletter from '../../components/Newsletter.astro';
+import { SITE, CATEGORIES, SOURCES, PREVIEW, breadcrumbJsonLd } from '../../lib/site.js';
+import { getEvents, shortVenue, mapsLink, googleCalendarLink } from '../../lib/events.js';
+import { longDate, shortDate, timeRange, offsetIso } from '../../lib/time.js';
 
 export async function getStaticPaths() {
-  const events = await getEvents();
-  return events.map(event => ({
-    params: { slug: event.slug },
-    props: { event },
-  }));
+  const { events } = await getEvents();
+  return events.map((event) => ({ params: { slug: event.slug }, props: { event } }));
 }
 
 const { event } = Astro.props;
-const startDate = new Date(event.start);
-const formattedDate = startDate.toLocaleDateString('en-US', {
-  weekday: 'long',
-  month: 'long',
-  day: 'numeric',
-  year: 'numeric',
-});
-const formattedTime = startDate.toLocaleTimeString('en-US', {
-  hour: 'numeric',
-  minute: '2-digit',
-});
----
+const { events } = await getEvents();
+const cat = CATEGORIES[event.category];
+const source = SOURCES[event.source];
+const path = `/event/${event.slug}/`;
+const when = `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{event.title} | Live Love Las Cruces</title>
-    <meta name="description" content={event.description.slice(0, 160)} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet" />
-    <script type="application/ld+json" set:html={JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Event",
-      "name": event.title,
-      "startDate": event.start,
-      "endDate": event.end || event.start,
-      "location": {
-        "@type": "Place",
-        "name": event.venue,
-        "address": event.address || "Las Cruces, NM"
-      },
-      "description": event.description,
-      "image": event.image,
-      "eventStatus": "https://schema.org/EventScheduled",
-      "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode"
-    })} />
-  </head>
-  <body>
-    <Header />
-    <main class="event-detail">
-      <article>
-        {event.image && (
-          <img src={event.image} alt={event.title} class="event-hero-image lightbox-trigger" data-full={event.image} />
-        )}
-        <h1>{event.title}</h1>
-        <p class="meta">
-          <time datetime={event.start}>{formattedDate} at {formattedTime}</time>
-          <span> · {event.venue}</span>
-          {event.category && <span class="category">{event.category}</span>}
-        </p>
-        <div class="description" set:html={event.description} />
-        {event.url && (
-          <p><a href={event.url} class="button" target="_blank" rel="noopener">More info / Tickets</a></p>
-        )}
-      </article>
-    </main>
-    <Lightbox />
-  </body>
-</html>
+// Plain-text descriptions from feeds: split into paragraphs, never inject raw HTML.
+const paragraphs = event.description.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+
+const otherDates = event.series ? event.series.dates.filter((e) => e.slug !== event.slug).slice(0, 6) : [];
+const related = events
+  .filter((e) => e.slug !== event.slug && e.category === event.category && !e.compact && (!event.series || e.series !== event.series))
+  .slice(0, 3);
+const fallbackRelated = related.length ? related : events.filter((e) => e.slug !== event.slug && !e.compact).slice(0, 3);
+
+const isFree = /free/i.test(event.price) || /\$0\b/.test(event.description);
+const description = event.description
+  ? `${shortDate(event.start)} at ${shortVenue(event)}. ${event.description}`
+  : `${event.title}: ${shortDate(event.start)}, ${timeRange(event.start, event.end)} at ${shortVenue(event)} in Las Cruces, NM.`;
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Event',
+    name: event.title,
+    startDate: offsetIso(event.start),
+    ...(event.end ? { endDate: offsetIso(event.end) } : {}),
+    eventStatus: 'https://schema.org/EventScheduled',
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+    location: {
+      '@type': 'Place',
+      name: event.venue || 'Las Cruces, NM',
+      address: { '@type': 'PostalAddress', streetAddress: event.address || event.venue, addressLocality: 'Las Cruces', addressRegion: 'NM', addressCountry: 'US' },
+    },
+    description: event.description || description,
+    image: [event.image || `${SITE.url}/og/event/${event.slug}.png`],
+    url: `${SITE.url}${path}`,
+    organizer: { '@type': 'Organization', name: source.name, url: event.url || source.url },
+    ...(isFree ? { isAccessibleForFree: true, offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: event.url || `${SITE.url}${path}` } } : {}),
+  },
+  breadcrumbJsonLd([
+    { name: 'Events', path: '/' },
+    { name: cat.plural, path: `/category/${event.category}/` },
+    { name: event.title, path },
+  ]),
+];
+---
+<Layout title={`${event.title}, ${shortDate(event.start)}`} description={description} jsonLd={jsonLd} ogType="article" ogImage={`/og/event/${event.slug}.png`}>
+  <div class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Events</a><span aria-hidden="true">›</span>
+      <a href={`/category/${event.category}/`}>{cat.plural}</a><span aria-hidden="true">›</span>
+      <span aria-current="page">{event.title}</span>
+    </nav>
+  </div>
+
+  <article class="wrap detail">
+    <div class="media">
+      {event.image
+        ? <a href={event.image} data-lightbox={event.image} data-alt={`${event.title} flyer`} class="flyer"><img src={event.image} alt={`${event.title} flyer`} /><span class="zoom">Tap to enlarge</span></a>
+        : <div class="art-wrap"><EventArt event={event} height={340} eager /></div>}
+    </div>
+
+    <div class="info">
+      <p class="eyebrow">{cat.name}{PREVIEW && event.sample && <> <span class="sample-tag">Sample</span></>}</p>
+      <h1>{event.title}</h1>
+
+      <dl class="facts">
+        <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="sub">{event.series.when} · {event.series.time}</span>}</dd></div>
+        <div><dt>Where</dt><dd>{shortVenue(event)}{event.address && event.address !== event.venue && <span class="sub">{event.address}</span>}</dd></div>
+        {event.price && <div><dt>Cost</dt><dd>{event.price}</dd></div>}
+      </dl>
+
+      <div class="actions">
+        {event.url && <a class="btn btn-primary" href={event.url} rel="noopener">{/ticket/i.test(event.url) ? 'Get tickets' : 'Event details'}</a>}
+        <details class="addcal">
+          <summary class="btn btn-outline">Add to calendar</summary>
+          <div class="menu">
+            <a href={googleCalendarLink(event, { offsetIso })} rel="noopener">Google Calendar</a>
+            <a href={`/event/${event.slug}.ics`} download>Apple / Outlook (.ics)</a>
+          </div>
+        </details>
+        {event.venue && <a class="btn btn-outline" href={mapsLink(event)} rel="noopener">Directions</a>}
+        <button class="btn btn-outline" type="button" data-share data-title={event.title}>Share</button>
+      </div>
+
+      {paragraphs.length > 0 && (
+        <div class="prose desc">{paragraphs.map((p) => <p>{p.split('\n').map((line, i) => <>{i > 0 && <br />}{line}</>)}</p>)}</div>
+      )}
+
+      <p class="source">Listed by <a href={source.url}>{source.name}</a>{event.url && event.source !== 'lllc' && <> · <a href={event.url} rel="noopener">see the original listing</a></>}. Plans change, so double-check before you head out.</p>
+
+      {otherDates.length > 0 && (
+        <section class="also" aria-labelledby="also-h">
+          <h2 id="also-h">Also on</h2>
+          <ul role="list">
+            {otherDates.map((e) => <li><a class="chip" href={`/event/${e.slug}/`}>{shortDate(e.start)}</a></li>)}
+          </ul>
+        </section>
+      )}
+    </div>
+  </article>
+
+  {fallbackRelated.length > 0 && (
+    <section class="section section-white">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>{related.length ? `More ${cat.plural.toLowerCase()}` : 'Also coming up'}</h2>
+          <a href={related.length ? `/category/${event.category}/` : '/'}>See all →</a>
+        </div>
+        <ul class="grid" role="list">{fallbackRelated.map((e) => <EventCard event={e} />)}</ul>
+      </div>
+    </section>
+  )}
+
+  <Newsletter />
+  <Lightbox />
+</Layout>
+
+<script>
+  document.querySelectorAll('[data-share]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const data = { title: b.dataset.title, url: location.href };
+      if (navigator.share) { try { await navigator.share(data); } catch {} return; }
+      await navigator.clipboard?.writeText(location.href);
+      b.textContent = 'Link copied';
+      setTimeout(() => (b.textContent = 'Share'), 2000);
+    });
+  });
+</script>
+
+<style>
+  .detail { display: grid; gap: 40px; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); padding-top: 24px; padding-bottom: 56px; align-items: start; }
+  @media (max-width: 860px) { .detail { grid-template-columns: 1fr; gap: 24px; } }
+  .media { position: sticky; top: 20px; }
+  @media (max-width: 860px) { .media { position: static; } }
+  .art-wrap { border-radius: var(--radius); overflow: hidden; }
+  .flyer { display: block; position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); background: var(--card); }
+  .flyer img { width: 100%; max-height: 640px; object-fit: contain; }
+  .zoom { position: absolute; right: 12px; bottom: 12px; background: rgba(28,27,26,.8); color: #fff; font-size: .8rem; padding: 6px 12px; border-radius: 999px; }
+  .info { display: flex; flex-direction: column; gap: 20px; }
+  .info h1 { font-size: clamp(2rem, 5vw, 3.2rem); }
+  .facts { margin: 0; display: grid; gap: 14px; padding: 20px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+  .facts div { display: grid; grid-template-columns: 70px 1fr; gap: 12px; }
+  .facts dt { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding-top: 3px; }
+  .facts dd { margin: 0; font-weight: 600; display: flex; flex-direction: column; }
+  .sub { font-weight: 400; color: var(--muted); font-size: .95rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .actions .btn-outline { background: var(--card); }
+  .addcal { position: relative; }
+  .addcal summary { list-style: none; }
+  .addcal summary::-webkit-details-marker { display: none; }
+  .menu { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; min-width: 220px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.12); padding: 6px; display: flex; flex-direction: column; }
+  .menu a { padding: 12px 14px; border-radius: 10px; color: var(--ink); text-decoration: none; font-weight: 500; }
+  .menu a:hover { background: var(--bg); }
+  .desc { color: var(--ink-2); }
+  .source { font-size: .9rem; color: var(--muted); border-top: 1px solid var(--line-soft); padding-top: 16px; }
+  .source a { color: var(--muted); }
+  .also h2 { font-size: 1.2rem; font-family: var(--body); font-weight: 700; letter-spacing: 0; margin-bottom: 10px; }
+  .also ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+</style>

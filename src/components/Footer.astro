@@ -1,0 +1,47 @@
+---
+import Heart from './Heart.astro';
+import { SITE, CATEGORIES } from '../lib/site.js';
+import { getEvents } from '../lib/events.js';
+const { events } = await getEvents();
+const used = Object.keys(CATEGORIES).filter((k) => events.some((e) => e.category === k));
+const year = new Date().getFullYear();
+---
+<footer class="site-footer">
+  <div class="wrap cols">
+    <div class="brand">
+      <a class="logo" href="/">Las Cruces <span>Events</span></a>
+      <p>The local's calendar for live music, markets, art walks and everything else happening in Las Cruces and Mesilla.</p>
+      <p class="by"><Heart size={18} /><span>A <a href={SITE.publisherUrl}>Live Love Las Cruces</a> project.</span></p>
+    </div>
+    <nav aria-label="Browse">
+      <h2>Browse</h2>
+      <a href="/this-weekend/">This weekend</a>
+      {used.map((k) => <a href={`/category/${k}/`}>{CATEGORIES[k].plural}</a>)}
+    </nav>
+    <nav aria-label="Get involved">
+      <h2>Get involved</h2>
+      <a href="/submit/">Add your event</a>
+      <a href={SITE.newsletterUrl}>Get the newsletter</a>
+      <a href="/calendar.ics">Subscribe in your calendar app</a>
+      <a href="https://lascrucesarttrail.com">Las Cruces Art Trail</a>
+    </nav>
+  </div>
+  <div class="wrap legal">© {year} Live Love Las Cruces. Listings are free. Plans change, so check the event link before you head out.</div>
+</footer>
+
+<style>
+  .site-footer { border-top: 1px solid var(--line); padding: 48px 0 28px; background: var(--bg); }
+  .cols { display: grid; gap: 32px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .brand { grid-column: span 2; max-width: 400px; display: flex; flex-direction: column; gap: 10px; }
+  @media (max-width: 640px) { .brand { grid-column: auto; } }
+  .logo { font-family: var(--display); font-weight: 800; font-size: 1.3rem; color: var(--ink); text-decoration: none; }
+  .logo span { color: var(--accent); }
+  .brand p { color: var(--muted); font-size: .95rem; }
+  .by { display: flex; align-items: center; gap: 8px; }
+  .by a { color: var(--ink); font-weight: 600; }
+  nav { display: flex; flex-direction: column; gap: 2px; }
+  nav h2 { font-family: var(--body); font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
+  nav a { color: var(--ink); text-decoration: none; padding: 6px 0; font-size: .95rem; }
+  nav a:hover { color: var(--accent); }
+  .legal { margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--line-soft); font-size: .85rem; color: var(--muted); }
+</style>

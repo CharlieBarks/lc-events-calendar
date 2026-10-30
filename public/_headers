@@ -1,0 +1,7 @@
+# Keep the Cloudflare preview addresses out of Google so only
+# events.livelovelascruces.com gets indexed.
+https://:worker.:subdomain.workers.dev/*
+  X-Robots-Tag: noindex
+
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable

@@ -1,0 +1,61 @@
+---
+import '@fontsource-variable/inter';
+import '@fontsource-variable/bricolage-grotesque/opsz.css';
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import PreviewBanner from '../components/PreviewBanner.astro';
+import { SITE, PREVIEW } from '../lib/site.js';
+
+// ogImage: path to this page's share image, e.g. /og/event/first-friday-ramble.png
+const { title, description, jsonLd = [], ogType = 'website', ogImage: ogImagePath = '/og/default.png' } = Astro.props;
+// Google shows roughly 155 characters, so trim longer descriptions on a word boundary.
+function trimDescription(text = '', max = 155) {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max - 1);
+  return cut.slice(0, cut.lastIndexOf(' ')).replace(/[\s,;:.–—-]+$/, '') + '…';
+}
+const metaDescription = trimDescription(description);
+const canonical = new URL(Astro.url.pathname, SITE.url).href;
+const fullTitle = title === SITE.name ? `Things to Do in Las Cruces, NM | ${SITE.name}` : `${title} | ${SITE.name}`;
+const ogImage = new URL(ogImagePath, SITE.url).href;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {PREVIEW && <meta name="robots" content="noindex, nofollow" />}
+  <title>{fullTitle}</title>
+  <meta name="description" content={metaDescription} />
+  <link rel="canonical" href={canonical} />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate" type="text/calendar" title="Las Cruces Events (calendar feed)" href="/calendar.ics" />
+  <meta name="theme-color" content="#FAF9F5" />
+  <meta property="og:type" content={ogType} />
+  <meta property="og:site_name" content={`${SITE.name} by ${SITE.publisher}`} />
+  <meta property="og:title" content={fullTitle} />
+  <meta property="og:description" content={metaDescription} />
+  <meta property="og:url" content={canonical} />
+  <meta property="og:image" content={ogImage} />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content={fullTitle} />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="geo.region" content="US-NM" />
+  <meta name="geo.placename" content="Las Cruces" />
+  <link rel="sitemap" href="/sitemap-index.xml" />
+  {jsonLd.map((obj) => <script type="application/ld+json" set:html={JSON.stringify(obj)} />)}
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  {PREVIEW && <PreviewBanner />}
+  <Header />
+  <main id="main">
+    <slot />
+  </main>
+  <Footer />
+</body>
+</html>

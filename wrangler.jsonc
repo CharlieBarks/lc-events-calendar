@@ -1,0 +1,21 @@
+{
+  // Cloudflare Worker that serves the events calendar.
+  // Cloudflare runs `npm run build` then `npx wrangler deploy` on every push to main.
+  "name": "lc-events-calendar",
+  "compatibility_date": "2026-10-23",
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "env": {
+    // Private design preview: lc-events-preview.cf2-99b.workers.dev
+    // Its own Worker builds the `redesign` branch with EVENTS_PREVIEW=1 and deploys with `npx wrangler deploy --env preview`.
+    // No custom domains here, so it can never take over events.livelovelascruces.com.
+    "preview": {
+      "name": "lc-events-preview",
+      "workers_dev": true,
+      "routes": []
+    }
+  }
+}

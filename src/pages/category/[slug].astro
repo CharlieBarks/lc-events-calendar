@@ -1,0 +1,64 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Agenda from '../../components/Agenda.astro';
+import Newsletter from '../../components/Newsletter.astro';
+import { SITE, CATEGORIES, breadcrumbJsonLd } from '../../lib/site.js';
+import { getEvents } from '../../lib/events.js';
+
+export async function getStaticPaths() {
+  const { events } = await getEvents();
+  return Object.keys(CATEGORIES)
+    .filter((k) => events.some((e) => e.category === k))
+    .map((k) => ({ params: { slug: k } }));
+}
+
+const { slug } = Astro.params;
+const cat = CATEGORIES[slug];
+const { events } = await getEvents();
+const list = events.filter((e) => e.category === slug);
+const others = Object.keys(CATEGORIES).filter((k) => k !== slug && events.some((e) => e.category === k));
+const path = `/category/${slug}/`;
+const jsonLd = [
+  {
+    '@context': 'https://schema.org', '@type': 'ItemList', name: cat.seo,
+    itemListElement: list.slice(0, 30).map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })),
+  },
+  breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: cat.plural, path }]),
+];
+---
+<Layout title={cat.seo} description={`${cat.blurb} Every upcoming ${cat.plural.toLowerCase()} event in Las Cruces, NM, updated daily.`} jsonLd={jsonLd} ogImage={`/og/category/${slug}.png`}>
+  <section class="head" style={`--c:${cat.color}`}>
+    <div class="wrap">
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">{cat.plural}</span></nav>
+      <div class="title">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" set:html={cat.icon} />
+        <div>
+          <h1>{cat.seo}</h1>
+          <p class="lede">{cat.blurb}</p>
+          <p class="count">{list.length} upcoming</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="wrap">
+      <Agenda events={list} headingLevel={2} />
+      <div class="more">
+        <span>More to explore:</span>
+        <div class="chips">{others.map((k) => <a class="chip" href={`/category/${k}/`}><span class="dot" style={`background:${CATEGORIES[k].color};margin-right:8px`} aria-hidden="true"></span>{CATEGORIES[k].plural}</a>)}</div>
+      </div>
+    </div>
+  </section>
+  <Newsletter />
+</Layout>
+<style>
+  .head { background: var(--c); color: #fff; padding-bottom: 44px; }
+  .head .breadcrumb, .head .breadcrumb a { color: rgba(255,255,255,.85); }
+  .title { display: flex; gap: 24px; align-items: flex-start; padding-top: 24px; }
+  .title svg { width: 64px; height: 64px; flex: none; opacity: .9; margin-top: 6px; }
+  @media (max-width: 560px) { .title svg { display: none; } }
+  .title div { display: flex; flex-direction: column; gap: 12px; }
+  .head .lede { color: rgba(255,255,255,.9); }
+  .count { font-weight: 700; }
+  .more { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; color: var(--muted); font-weight: 600; }
+</style>
