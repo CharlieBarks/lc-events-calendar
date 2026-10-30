@@ -23,6 +23,16 @@ Working offline: `EVENTS_OFFLINE=1 npm run build` uses `src/data/city-snapshot.j
 
 ## Images
 
+Events without a photo get our own event-specific artwork (`src/lib/topics.js`): the event is matched to a
+topic by its title (pickleball, trivia, wine, Halloween, board meeting… about 45 topics) and that topic's
+illustration is drawn on the category color with the Organ Mountains skyline. The same art is used for share images.
+
+**When the CitySpark subscription ends:** set `CITYSPARK_SUBSCRIBED = false` in `src/lib/site.js`. CitySpark's own
+generated placeholder pictures are then swapped for our artwork; organizers' flyers and photos stay.
+Also remove the `cityspark-export` Worker's schedule in Cloudflare (Workers > cityspark-export > Settings > Triggers),
+since it will have nothing left to copy. Everything already copied stays.
+
+
 CitySpark listings come with photos, copied into our own storage. The city feed has none. Events with an `image` show it (flyers open full size). Everything else gets
 category artwork (color + icon + Organ Mountains skyline), and every event gets its own share image at `/og/event/<slug>.png`.
 

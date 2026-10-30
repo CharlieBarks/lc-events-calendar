@@ -8,6 +8,12 @@ export const SITE = {
   subscribers: '10,000+',
 };
 
+// CitySpark makes its own placeholder pictures for listings that don't have one (Adult Pickleball,
+// Zumba Gold, board meetings…). They're CitySpark's, so set this to false the day the CitySpark
+// subscription ends: those pictures are swapped for our own topic artwork (src/lib/topics.js).
+// Organizers' own flyers and photos are kept either way.
+export const CITYSPARK_SUBSCRIBED = true;
+
 // Private design preview: built with EVENTS_PREVIEW=1. Adds noindex and a banner.
 export const PREVIEW = process.env.EVENTS_PREVIEW === '1';
 

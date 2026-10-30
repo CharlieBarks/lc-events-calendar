@@ -11,7 +11,7 @@ export async function getStaticPaths() {
   // Only events without their own photo or flyer need a generated card.
   for (const e of events.filter((x) => !x.image)) {
     const c = CATEGORIES[e.category];
-    paths.push({ params: { path: `event/${e.slug}` }, props: { label: c.name, title: e.title, subtitle: `${shortDate(e.start)} · ${timeRange(e.start, e.end)} · ${e.venue || 'Las Cruces'}`, color: c.color, icon: c.icon } });
+    paths.push({ params: { path: `event/${e.slug}` }, props: { label: e.topic?.label || c.name, title: e.title, subtitle: `${shortDate(e.start)} · ${timeRange(e.start, e.end)} · ${e.venue || 'Las Cruces'}`, color: c.color, icon: e.topic?.icon || c.icon } });
   }
   for (const [k, c] of Object.entries(CATEGORIES)) {
     if (!events.some((e) => e.category === k)) continue;

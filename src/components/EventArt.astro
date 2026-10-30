@@ -1,35 +1,53 @@
 ---
-// The event's own photo or flyer when it has one. Otherwise the category color, its icon and
-// the Organ Mountains skyline (same skyline as the Art Trail), so every card still looks finished.
+// The event's own photo or flyer when it has one. Otherwise our own event-specific artwork:
+// the topic's illustration (pickleball, trivia, wine…) on the category color, with the Organ
+// Mountains skyline (same as the Art Trail), so every card looks finished and tells you what it is.
 import { CATEGORIES } from '../lib/site.js';
 import { monthShort } from '../lib/time.js';
 const { event, height = 180, showDate = true, eager = false, compact = false } = Astro.props;
 const cat = CATEGORIES[event.category];
+const icon = event.topic?.icon || cat.icon;
+const label = event.topic?.label || cat.name;
+// A small repeating version of the icon in the background, offset per event so cards don't look identical.
+const seed = [...event.slug].reduce((n, c) => n + c.charCodeAt(0), 0);
+const pid = `p-${event.slug.slice(0, 40)}`;
 ---
 <div class:list={['art', { compact }]} style={`--c:${cat.color};height:${height}px`}>
   {event.image
     ? <img class="photo" src={event.image} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" />
     : <>
-        <svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" set:html={cat.icon} />
+        <svg class="pattern" aria-hidden="true" width="100%" height="100%">
+          <defs>
+            <pattern id={pid} width="56" height="56" patternUnits="userSpaceOnUse" patternTransform={`rotate(${(seed % 5) * 6 - 12}) translate(${seed % 56} 0)`}>
+              <g transform="translate(16 16) scale(1)" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" set:html={icon} />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill={`url(#${pid})`} />
+        </svg>
+        <span class="glow" aria-hidden="true"></span>
+        <svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" set:html={icon} />
         <svg class="sky" aria-hidden="true" viewBox="0 0 400 120" preserveAspectRatio="none">
-          <path d="M0 120 L0 92 L40 80 L70 88 L104 54 L122 66 L140 30 L152 44 L164 18 L176 40 L190 26 L204 52 L226 44 L250 70 L284 58 L320 82 L360 74 L400 90 L400 120 Z" fill="rgba(0,0,0,.18)"/>
-          <path d="M0 120 L0 104 L60 98 L120 106 L200 96 L280 104 L340 98 L400 106 L400 120 Z" fill="rgba(0,0,0,.14)"/>
+          <path d="M0 120 L0 92 L40 80 L70 88 L104 54 L122 66 L140 30 L152 44 L164 18 L176 40 L190 26 L204 52 L226 44 L250 70 L284 58 L320 82 L360 74 L400 90 L400 120 Z" fill="rgba(0,0,0,.2)"/>
+          <path d="M0 120 L0 104 L60 98 L120 106 L200 96 L280 104 L340 98 L400 106 L400 120 Z" fill="rgba(0,0,0,.16)"/>
         </svg>
       </>}
   {showDate && (
     <span class="date" aria-hidden="true"><b>{monthShort(event.start)}</b>{event.start.d}</span>
   )}
-  <span class="label">{cat.name}</span>
+  <span class="label">{event.image ? cat.name : label}</span>
 </div>
 
 <style>
-  .art { position: relative; overflow: hidden; background: var(--c); color: #fff; display: flex; align-items: flex-start; justify-content: space-between; padding: 14px; }
+  .art { position: relative; overflow: hidden; background: var(--c); color: #fff; display: flex; align-items: flex-start; justify-content: space-between; padding: 14px; isolation: isolate; }
   .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .icon { position: absolute; right: 8%; top: 14%; width: 38%; max-width: 120px; opacity: .28; color: #fff; }
-  .sky { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 55%; }
+  .pattern { position: absolute; inset: 0; opacity: .1; z-index: -1; }
+  .glow { position: absolute; right: -8%; top: 50%; width: 70%; aspect-ratio: 1; transform: translateY(-58%); border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.22), rgba(255,255,255,0) 65%); z-index: -1; }
+  .icon { position: absolute; right: 9%; top: 50%; transform: translateY(-62%); height: 62%; max-height: 190px; aspect-ratio: 1; color: #fff; opacity: .92; filter: drop-shadow(0 4px 10px rgba(0,0,0,.18)); }
+  .sky { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 42%; }
   .date { position: relative; z-index: 1; order: -1; background: #fff; color: var(--ink); border-radius: 12px; min-width: 52px; padding: 6px 8px 7px; text-align: center; font-family: var(--display); font-weight: 800; font-size: 1.45rem; line-height: 1; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
   .date b { display: block; font-family: var(--body); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+  .label { position: relative; z-index: 1; align-self: flex-start; background: rgba(255,255,255,.94); color: var(--ink); font-size: .76rem; font-weight: 600; padding: 5px 10px; border-radius: 999px; }
   .compact { padding: 10px; }
   .compact .label { display: none; }
-  .label { position: relative; z-index: 1; align-self: flex-start; background: rgba(255,255,255,.94); color: var(--ink); font-size: .76rem; font-weight: 600; padding: 5px 10px; border-radius: 999px; }
+  .compact .icon { right: 50%; transform: translate(50%, -62%); height: 58%; }
 </style>

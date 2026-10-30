@@ -14,13 +14,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import lllcEvents from '../data/events.json';
-import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW } from './site.js';
+import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED } from './site.js';
+import { topicFor } from './topics.js';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
 const EVENTS_URL = 'https://lc-events-proxy.cf2-99b.workers.dev';
 const CITYSPARK_URL = 'https://cityspark-export.cf2-99b.workers.dev/events.json';
 
 async function loadCitySpark() {
+  // Local testing: EVENTS_CITYSPARK_FILE=path/to/events.json
+  if (process.env.EVENTS_CITYSPARK_FILE) return JSON.parse(fs.readFileSync(process.env.EVENTS_CITYSPARK_FILE, 'utf8')).events;
   if (process.env.EVENTS_OFFLINE === '1') return [];
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -77,13 +80,17 @@ function cleanVenue(raw = '') {
   return { venue: name, address: full };
 }
 
+// CitySpark's generated placeholder pictures have uuid-style file names
+// (1d2c…-….large.png); organizers' uploads have short ones (6QxtXcZO….large.jpg).
+const CITYSPARK_PLACEHOLDER = /\/img\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\./i;
+
 function normalize(e, source) {
   const start = wall(e.start);
   if (!start) return null;
   const end = wall(e.end);
   const place = e.address ? { venue: e.venue || e.city || '', address: e.address } : cleanVenue(e.venue);
   const category = e.tags ? categoryFromTags(e.tags, e.title) : categoryKey(e.category);
-  return {
+  const out = {
     slug: source === 'lllc' ? e.slug : `${slugify(e.title).slice(0, 60).replace(/-$/, '')}-${dateKey(start)}`,
     title: e.title.trim(),
     startRaw: e.start,
@@ -95,12 +102,16 @@ function normalize(e, source) {
     description: (e.description || '').trim(),
     url: e.url || '',
     ticketUrl: e.ticketUrl || '',
-    image: e.image || '',
+    image: source === 'cityspark' && !CITYSPARK_SUBSCRIBED && CITYSPARK_PLACEHOLDER.test(e.image || '') ? '' : e.image || '',
+    tags: e.tags || [],
     price: e.price || '',
     featured: !!e.featured,
     sample: !!e.sample,
     source,
   };
+  out.topic = topicFor(out);
+  if (out.category === 'community' && out.topic?.category) out.category = out.topic.category;
+  return out;
 }
 
 let cache;
