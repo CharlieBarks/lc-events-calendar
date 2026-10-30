@@ -21,6 +21,10 @@ const picks = [
   ...events.filter((e) => !e.featured && !e.compact && e.image && e.date <= soon),
 ].filter((e, i, a) => a.findIndex((x) => x.title === e.title) === i).slice(0, 3);
 const usedCats = Object.keys(CATEGORIES).filter((k) => all.some((e) => e.category === k));
+// Weekly regulars: the truly weekly ones first, then the rest, by next date. 12 is plenty.
+const regulars = [...series]
+  .sort((a, b) => (b.when.startsWith('Every ') - a.when.startsWith('Every ')) || a.next.date.localeCompare(b.next.date))
+  .slice(0, 12);
 
 const jsonLd = [
   {
@@ -103,7 +107,7 @@ const jsonLd = [
     </section>
   )}
 
-  {series.length > 0 && (
+  {regulars.length > 0 && (
     <section class="section section-white">
       <div class="wrap">
         <div class="section-head">
@@ -113,7 +117,7 @@ const jsonLd = [
           </div>
         </div>
         <ul class="grid-tight regulars" role="list">
-          {series.map((s) => (
+          {regulars.map((s) => (
             <li><a class="reg" href={`/event/${s.next.slug}/`}>
               <span class="dot" style={`background:${CATEGORIES[s.category].color}`} aria-hidden="true"></span>
               <span>
