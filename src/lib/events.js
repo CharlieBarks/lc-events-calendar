@@ -158,7 +158,7 @@ export async function getEvents() {
         : `${day}s`;
       const s = {
         // Exhibits and other things open nearly every day: shown once in "On view now", not on every day.
-        ongoing: gap <= 2 && list.length >= 10,
+        ongoing: gap <= 1 && list.length >= 10,
         until: list[list.length - 1],
         id: slugify(first.title),
         title: first.title,
@@ -179,7 +179,7 @@ export async function getEvents() {
     const kept = events.filter((e) => !dropped.has(e));
     for (const x of ongoing) {
       x.next.ongoing = true;
-      x.when = `On view through ${monthShort(x.until.start)} ${x.until.start.d}`;
+      x.when = `${x.category === 'arts-culture' ? 'On view' : 'Daily'} through ${monthShort(x.until.start)} ${x.until.start.d}`;
       x.dates = [x.next];
     }
 
