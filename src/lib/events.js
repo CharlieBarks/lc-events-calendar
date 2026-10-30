@@ -1,74 +1,26 @@
 // src/lib/events.js
-// Fetch and normalize the City of Las Cruces iCal feed at build time.
+// Fetch events from the Cloudflare Worker proxy at build time.
 
-const ICAL_URL = 'https://lascruces.gov/events/month/?outlook-ical=1';
-
-function parseICal(text) {
-  const events = [];
-  const blocks = text.split('BEGIN:VEVENT');
-  for (const block of blocks.slice(1)) {
-    const get = (key) => {
-      const match = block.match(new RegExp(`${key}[^:]*:(.*)`));
-      return match ? match[1].trim().replace(/\\n/g, '\n').replace(/\\,/g, ',') : '';
-    };
-
-    const summary = get('SUMMARY');
-    const dtstart = get('DTSTART');
-    const location = get('LOCATION');
-    const description = get('DESCRIPTION');
-    const uid = get('UID');
-
-    if (!summary || !dtstart) continue;
-
-    let iso = dtstart;
-    if (/^\d{8}T\d{6}/.test(dtstart)) {
-      iso = `${dtstart.slice(0,4)}-${dtstart.slice(4,6)}-${dtstart.slice(6,8)}T${dtstart.slice(9,11)}:${dtstart.slice(11,13)}:${dtstart.slice(13,15)}`;
-    } else if (/^\d{8}$/.test(dtstart)) {
-      iso = `${dtstart.slice(0,4)}-${dtstart.slice(4,6)}-${dtstart.slice(6,8)}T00:00:00`;
-    }
-
-    const slug = summary
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
-      .slice(0, 60) + '-' + (uid || iso).slice(-8);
-
-    events.push({
-      slug,
-      title: summary,
-      start: iso,
-      venue: location || 'Las Cruces, NM',
-      description: description || '',
-      category: 'Community',
-      source: 'city-of-las-cruces',
-      featured: false,
-    });
-  }
-  return events;
-}
+// Change this to your Worker URL once deployed
+const EVENTS_URL = 'https://lc-events-proxy.YOUR-SUBDOMAIN.workers.dev';
 
 export async function getEvents() {
   try {
-    const res = await fetch(ICAL_URL, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; LiveLoveLasCruces/1.0; +https://livelovelascruces.com)',
-        'Accept': 'text/calendar, text/plain, */*'
-      }
-    });
+    const res = await fetch(EVENTS_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    const events = parseICal(text);
-    console.log(`Fetched ${events.length} events from city iCal`);
-    if (events.length === 0) throw new Error('No events parsed');
+    const data = await res.json();
+    const events = data.events || [];
+    console.log(`Fetched ${events.length} events from proxy`);
+    if (events.length === 0) throw new Error('No events returned');
     return events.sort((a, b) => new Date(a.start) - new Date(b.start));
   } catch (err) {
-    console.error('Failed to fetch city iCal:', err);
+    console.error('Failed to fetch events:', err);
     return [{
       slug: 'fallback',
       title: 'City feed unavailable (using fallback)',
       start: new Date().toISOString(),
       venue: 'Las Cruces, NM',
-      description: 'The city iCal could not be loaded at build time. Check build logs.',
+      description: 'Could not reach the events proxy. Deploy the Worker and update EVENTS_URL.',
       category: 'Community',
       featured: false
     }];
