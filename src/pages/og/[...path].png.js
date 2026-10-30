@@ -8,7 +8,8 @@ import { renderShareImage } from '../../lib/og.js';
 export async function getStaticPaths() {
   const { events } = await getEvents();
   const paths = [{ params: { path: 'default' }, props: { label: 'Las Cruces, NM', title: "What's happening in Las Cruces", subtitle: 'Live music, markets, art walks and more. Updated every morning.', color: '#B23A2B' } }];
-  for (const e of events) {
+  // Only events without their own photo or flyer need a generated card.
+  for (const e of events.filter((x) => !x.image)) {
     const c = CATEGORIES[e.category];
     paths.push({ params: { path: `event/${e.slug}` }, props: { label: c.name, title: e.title, subtitle: `${shortDate(e.start)} · ${timeRange(e.start, e.end)} · ${e.venue || 'Las Cruces'}`, color: c.color, icon: c.icon } });
   }

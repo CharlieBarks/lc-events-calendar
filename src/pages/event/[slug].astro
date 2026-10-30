@@ -61,7 +61,7 @@ const jsonLd = [
   ]),
 ];
 ---
-<Layout title={`${event.title}, ${shortDate(event.start)}`} description={description} jsonLd={jsonLd} ogType="article" ogImage={`/og/event/${event.slug}.png`}>
+<Layout title={`${event.title}, ${shortDate(event.start)}`} description={description} jsonLd={jsonLd} ogType="article" ogImage={event.image || `/og/event/${event.slug}.png`}>
   <div class="wrap">
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <a href="/">Events</a><span aria-hidden="true">›</span>

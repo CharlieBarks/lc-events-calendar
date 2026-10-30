@@ -8,7 +8,9 @@ import PreviewBanner from '../components/PreviewBanner.astro';
 import { SITE, PREVIEW } from '../lib/site.js';
 
 // ogImage: path to this page's share image, e.g. /og/event/first-friday-ramble.png
+// ogImage may also be a full URL (an event's own flyer); then the 1200x630 size tags are left off.
 const { title, description, jsonLd = [], ogType = 'website', ogImage: ogImagePath = '/og/default.png' } = Astro.props;
+const generated = !/^https?:/.test(ogImagePath);
 // Google shows roughly 155 characters, so trim longer descriptions on a word boundary.
 function trimDescription(text = '', max = 155) {
   const clean = text.replace(/\s+/g, ' ').trim();
@@ -39,8 +41,8 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
   <meta property="og:description" content={metaDescription} />
   <meta property="og:url" content={canonical} />
   <meta property="og:image" content={ogImage} />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  {generated && <meta property="og:image:width" content="1200" />}
+  {generated && <meta property="og:image:height" content="630" />}
   <meta property="og:image:alt" content={fullTitle} />
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />

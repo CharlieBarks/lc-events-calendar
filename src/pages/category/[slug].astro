@@ -42,7 +42,7 @@ const jsonLd = [
   </section>
   <section class="section">
     <div class="wrap">
-      <Agenda events={list} headingLevel={2} />
+      <Agenda events={list} headingLevel={2} initialDays={14} />
       <div class="more">
         <span>More to explore:</span>
         <div class="chips">{others.map((k) => <a class="chip" href={`/category/${k}/`}><span class="dot" style={`background:${CATEGORIES[k].color};margin-right:8px`} aria-hidden="true"></span>{CATEGORIES[k].plural}</a>)}</div>
