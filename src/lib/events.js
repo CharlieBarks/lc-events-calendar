@@ -1,8 +1,8 @@
 // src/lib/events.js
 // Fetch events from the Cloudflare Worker proxy at build time.
 
-// Change this to your Worker URL once deployed
-const EVENTS_URL = 'https://lc-events-proxy.YOUR-SUBDOMAIN.workers.dev';
+// lc-events-proxy Worker (source: worker.js). lascruces.gov blocks Cloudflare build servers directly, so we go through it.
+const EVENTS_URL = 'https://lc-events-proxy.cf2-99b.workers.dev';
 
 export async function getEvents() {
   try {
