@@ -19,7 +19,9 @@ const soon = dateKey(addDays(today, 10));
 const picks = [
   ...events.filter((e) => e.featured && e.date <= soon),
   ...events.filter((e) => !e.featured && !e.compact && e.image && e.date <= soon),
-].filter((e, i, a) => a.findIndex((x) => x.title === e.title) === i).slice(0, 3);
+].filter((e, i, a) => a.findIndex((x) => x.title === e.title) === i).slice(0, 6);
+// The site is rebuilt once a day, so a few spares are built in and the browser drops any that have
+// already happened (see the script below), keeping the first three.
 const usedCats = Object.keys(CATEGORIES).filter((k) => all.some((e) => e.category === k));
 // Weekly regulars: the truly weekly ones first, then the rest, by next date. 12 is plenty.
 const regulars = [...series]
@@ -74,7 +76,7 @@ const jsonLd = [
             <p>If you only do one thing this week, make it one of these.</p>
           </div>
         </div>
-        <ul class="grid" role="list">
+        <ul class="grid" role="list" data-picks>
           {picks.map((e, i) => <EventCard event={e} big eager={i === 0} />)}
         </ul>
       </div>
@@ -157,6 +159,8 @@ const jsonLd = [
 </Layout>
 
 <style>
+  /* Only three picks show; the spares are there in case some have passed since the last rebuild. */
+  [data-picks] > :global(li:nth-child(n+4)) { display: none; }
   .hero { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-end; padding-top: 56px; padding-bottom: 48px; }
   .copy { flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
   .hero-stats { flex: 0 1 300px; display: grid; gap: 12px; }
@@ -180,3 +184,17 @@ const jsonLd = [
   .cat-name { font-family: var(--display); font-weight: 800; font-size: 1.35rem; margin-top: 18px; }
   .cat-n { font-size: .9rem; opacity: .85; }
 </style>
+
+<script>
+  // Drop picks whose day has passed since the last rebuild, then keep the first three.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const list = document.querySelector('[data-picks]');
+  if (list) {
+    let kept = 0;
+    list.querySelectorAll(':scope > li[data-date]').forEach((li) => {
+      if (li.dataset.date < today || kept >= 3) li.remove();
+      else kept++;
+    });
+    if (!kept) list.closest('section')?.remove();
+  }
+</script>
