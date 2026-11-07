@@ -115,9 +115,21 @@ async function readFlyer(env, buf, type) {
   return { ...(parseJSON(out?.response) || {}), reader: 'workers-ai' };
 }
 
+// Flyers often say "Monday, Nov 11" with no year, and the model may pick the year that matches the
+// weekday. Events are always upcoming, so a date in the past moves to its next upcoming year.
+function upcoming(date) {
+  if (!isDate(date)) return '';
+  const today = todayLocal();
+  if (date >= today) return date;
+  let y = Number(today.slice(0, 4));
+  let d = `${y}${date.slice(4)}`;
+  if (d < today) d = `${y + 1}${date.slice(4)}`;
+  return d;
+}
+
 function tidyExtract(x = {}) {
   const shows = (Array.isArray(x.shows) ? x.shows : [])
-    .map((s) => ({ date: isDate(s?.date) ? s.date : '', start: isTime(s?.start) ? s.start : '', end: isTime(s?.end) ? s.end : '', title: clean(s?.title, 120) }))
+    .map((s) => ({ date: upcoming(s?.date), start: isTime(s?.start) ? s.start : '', end: isTime(s?.end) ? s.end : '', title: clean(s?.title, 120) }))
     .filter((s) => s.date || s.start)
     .slice(0, 20);
   return {
@@ -152,6 +164,8 @@ async function handleExtract(request, env, origin) {
 
   let extracted = null;
   let readError = '';
+  // ?read=0: just a photo for the listing, nothing to read.
+  if (new URL(request.url).searchParams.get('read') === '0') return json({ imageId, imageUrl: `${PUBLIC_ORIGIN}/img/${imageId}`, extracted: null }, {}, origin);
   try {
     extracted = tidyExtract(await readFlyer(env, buf, type));
   } catch (err) {
@@ -219,7 +233,7 @@ async function handleSubmit(request, env, origin) {
 function toCalendarEvents(rec) {
   return rec.shows.map((s, i) => {
     const title = s.title || rec.title;
-    const start = `${s.date}T${s.start || '00:00'}:00`;
+    const start = s.start ? `${s.date}T${s.start}:00` : s.date; // no time = all day
     let end = '';
     if (s.end) {
       // A show that ends after midnight ends the next day.
@@ -233,7 +247,6 @@ function toCalendarEvents(rec) {
       title,
       start,
       end,
-      allDay: !s.start,
       venue: rec.venue,
       address: rec.address,
       category: rec.category,
