@@ -1,0 +1,13 @@
+{
+  // Event submissions Worker (source: intake.js). See the top of intake.js for what it does.
+  // Cloudflare deploys it with `npx wrangler deploy -c wrangler.intake.jsonc` when intake files change on main.
+  // Secrets (set in Cloudflare, not here): DEPLOY_HOOKS (calendar rebuild hooks), optional ANTHROPIC_API_KEY.
+  "name": "lc-events-intake",
+  "main": "intake.js",
+  "compatibility_date": "2026-10-23",
+  "workers_dev": true,
+  "kv_namespaces": [{ "binding": "MEDIA", "id": "def0354e4d124ff2927b4134c54e6418" }],
+  "ai": { "binding": "AI" },
+  "ratelimits": [{ "name": "LIMIT", "namespace_id": "4101", "simple": { "limit": 12, "period": 60 } }],
+  "observability": { "enabled": true }
+}
