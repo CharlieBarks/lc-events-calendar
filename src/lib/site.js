@@ -14,6 +14,9 @@ export const SITE = {
 // Organizers' own flyers and photos are kept either way.
 export const CITYSPARK_SUBSCRIBED = true;
 
+// Event submissions Worker (source: intake.js): reads flyers, holds the review queue, serves approved events.
+export const INTAKE_URL = 'https://lc-events-intake.cf2-99b.workers.dev';
+
 // Private design preview: built with EVENTS_PREVIEW=1. Adds noindex and a banner.
 export const PREVIEW = process.env.EVENTS_PREVIEW === '1';
 

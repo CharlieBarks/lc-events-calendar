@@ -5,7 +5,10 @@
 //      lascruces.gov blocks Cloudflare's build servers directly, so we go through it.
 //   2. The CitySpark copy: every listing from the old CitySpark calendar, with photos stored in our own
 //      Cloudflare storage (the cityspark-export Worker, source in cityspark-export.js). Refreshed daily.
-//   3. src/data/events.json: events Live Love Las Cruces adds by hand (and, later, approved submissions).
+//   3. Approved submissions from the add-your-event form (the lc-events-intake Worker, source in intake.js).
+//      When one matches a CitySpark or city listing (same name, same day), the submission wins: it has the
+//      organizer's full-size flyer.
+//   4. src/data/events.json: events Live Love Las Cruces adds by hand.
 //
 // A source that can't be reached is skipped with a warning. If that leaves NO events at all,
 // the build stops, so Cloudflare keeps the last good version live instead of an empty calendar.
@@ -14,7 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import lllcEvents from '../data/events.json';
-import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED } from './site.js';
+import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL } from './site.js';
 import { topicFor } from './topics.js';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
@@ -44,6 +47,24 @@ async function loadCitySpark() {
     }
   }
   throw new Error(`CitySpark copy unavailable (${lastError?.message}). Stopping the build so the last good site stays up.`);
+}
+
+async function loadSubmissions() {
+  if (process.env.EVENTS_OFFLINE === '1') return [];
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(`${INTAKE_URL}/approved.json`, { signal: AbortSignal.timeout(20000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      console.log(`Loaded ${data.events.length} approved submissions`);
+      return data.events;
+    } catch (err) {
+      console.warn(`Submissions attempt ${attempt} failed: ${err.message}`);
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
+    }
+  }
+  // Better to stop than to publish a calendar that silently drops approved events.
+  throw new Error('Approved submissions unavailable. Stopping the build so the last good site stays up.');
 }
 
 async function loadCity() {
@@ -106,6 +127,7 @@ function normalize(e, source) {
     tags: e.tags || [],
     price: e.price || '',
     featured: !!e.featured,
+    sponsored: !!e.sponsored,
     sample: !!e.sample,
     source,
   };
@@ -118,14 +140,17 @@ let cache;
 
 export async function getEvents() {
   cache ??= (async () => {
-    const [cityRaw, sparkRaw] = await Promise.all([loadCity(), loadCitySpark()]);
-    const spark = sparkRaw.map((e) => normalize(e, 'cityspark'));
-    // The same event often appears in both feeds. Keep the CitySpark copy (it has a photo).
+    const [cityRaw, sparkRaw, subsRaw] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
     const key = (e) => `${e.title.toLowerCase().replace(/[^a-z0-9]/g, '')}|${e.date}`;
-    const sparkKeys = new Set(spark.filter(Boolean).map(key));
-    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !sparkKeys.has(key(e)));
+    // Submissions beat the feeds: same event, but with the organizer's own full-size flyer.
+    const subs = subsRaw.map((e) => normalize(e, 'lllc')).filter(Boolean);
+    const subKeys = new Set(subs.map(key));
+    const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => e && !subKeys.has(key(e)));
+    // The same event often appears in both feeds. Keep the CitySpark copy (it has a photo).
+    const sparkKeys = new Set(spark.map(key));
+    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !sparkKeys.has(key(e)) && !subKeys.has(key(e)));
     // Sample listings only show on the private preview, never on the live site.
-    const ours = lllcEvents.filter((e) => PREVIEW || !e.sample).map((e) => normalize(e, 'lllc'));
+    const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).map((e) => normalize(e, 'lllc'))];
     const today = dateKey(todayWall());
 
     if (spark.length + city.length === 0) {

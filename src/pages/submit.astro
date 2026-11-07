@@ -1,37 +1,64 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { CATEGORIES } from '../lib/site.js';
+import { CATEGORIES, INTAKE_URL } from '../lib/site.js';
 ---
-<Layout title="Add Your Event" description="List your Las Cruces or Mesilla event for free. Snap a photo of your flyer, add the basics and it goes on the calendar once it's checked.">
+<Layout title="Add Your Event" description="List your Las Cruces or Mesilla event for free. Upload your flyer and the details fill themselves in, or type it in yourself.">
   <section class="wrap-narrow head">
     <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">Add your event</span></nav>
     <p class="eyebrow">Free, always</p>
     <h1>Put it on the calendar.</h1>
-    <p class="lede">If it's open to the public in Las Cruces or Mesilla, it belongs here. Got a flyer? Start with that. I check every listing, usually within a day. – Charlie</p>
+    <p class="lede">If it's open to the public in Las Cruces or Mesilla, it belongs here. I check every listing, usually within a day. – Charlie</p>
   </section>
 
-  <section class="wrap-narrow">
-    <form class="form" id="event-form" novalidate>
-      <fieldset>
-        <legend><span class="step">1</span> Your flyer or photo</legend>
-        <label class="drop" for="image">
-          <input type="file" id="image" name="image" accept="image/*" class="sr-only" />
-          <span class="drop-inner" data-drop-text>
-            <strong>Tap to add your flyer</strong>
-            <span>JPG, PNG or a screenshot of your Instagram post. Events with a picture get way more clicks.</span>
-          </span>
-          <img data-preview alt="Your flyer" hidden />
-        </label>
-      </fieldset>
+  <section class="wrap-narrow body" data-app data-intake={INTAKE_URL}>
+    <p class="who" data-who hidden>Submitting as <strong data-who-name></strong> · <button type="button" class="link" data-forget>not you?</button></p>
+
+    <!-- Step 1: pick a path -->
+    <div class="choose" data-step="choose">
+      <label class="choice primary" for="flyer">
+        <input type="file" id="flyer" accept="image/*" class="sr-only" data-flyer />
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 16l4.5-4.5a2 2 0 0 1 2.8 0L16 16m-2-2 1.5-1.5a2 2 0 0 1 2.8 0L20 14M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><circle cx="15" cy="8.5" r="1.5"/></svg></span>
+        <strong>I have a flyer</strong>
+        <span>Upload it and I'll fill in the details for you. You check them and hit send.</span>
+        <span class="tip">On Facebook or Instagram? Screenshot the post and upload that.</span>
+      </label>
+      <button type="button" class="choice" data-manual>
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z"/><path d="m13.5 6.5 4 4"/></svg></span>
+        <strong>No flyer? Type it in</strong>
+        <span>Takes about a minute. You can still add a photo.</span>
+      </button>
+    </div>
+
+    <!-- Reading the flyer -->
+    <div class="reading" data-step="reading" hidden>
+      <img data-reading-img alt="Your flyer" />
+      <div><span class="spinner" aria-hidden="true"></span><strong>Reading your flyer…</strong><p>This takes about 10 seconds.</p></div>
+    </div>
+
+    <!-- Step 2: the form (both paths end here) -->
+    <form class="form" data-step="form" hidden novalidate>
+      <div class="flyer-box" data-flyer-box hidden>
+        <img data-flyer-img alt="Your flyer" />
+        <div>
+          <p class="note" data-read-note></p>
+          <button type="button" class="link" data-change>Use a different flyer</button>
+        </div>
+      </div>
 
       <fieldset>
-        <legend><span class="step">2</span> The basics</legend>
-        <div class="field"><label for="title">Event name</label><input id="title" name="title" required autocomplete="off" /></div>
-        <div class="two">
-          <div class="field"><label for="start">Starts</label><input type="datetime-local" id="start" name="start" required /></div>
-          <div class="field"><label for="end">Ends <span class="opt">(optional)</span></label><input type="datetime-local" id="end" name="end" /></div>
+        <legend>The basics</legend>
+        <div class="field"><label for="title">Event name</label><input id="title" name="title" required autocomplete="off" placeholder="e.g. Desert Rose Trio, Fall Art Walk" /></div>
+
+        <div class="field">
+          <span class="label">When</span>
+          <div class="shows" data-shows></div>
+          <button type="button" class="link add" data-add-show>+ Add another date</button>
         </div>
-        <div class="field"><label for="venue">Where</label><input id="venue" name="venue" required placeholder="Venue name and address" /></div>
+
+        <div class="two">
+          <div class="field"><label for="venue">Venue</label><input id="venue" name="venue" required autocomplete="off" placeholder="e.g. Rio Grande Winery" /></div>
+          <div class="field"><label for="address">Address <span class="opt">(optional)</span></label><input id="address" name="address" autocomplete="off" /></div>
+        </div>
         <div class="two">
           <div class="field">
             <label for="category">What kind of event?</label>
@@ -40,74 +67,344 @@ import { CATEGORIES } from '../lib/site.js';
               {Object.entries(CATEGORIES).filter(([k]) => k !== 'city-hall').map(([k, c]) => <option value={k}>{c.name}</option>)}
             </select>
           </div>
-          <div class="field"><label for="price">Cost</label><input id="price" name="price" placeholder="Free, $10, $15 at the door…" /></div>
+          <div class="field"><label for="price">Cost</label><input id="price" name="price" placeholder="Free, No cover, $10…" /></div>
         </div>
-        <div class="field"><label for="description">Tell people why they should come</label><textarea id="description" name="description" rows="4"></textarea></div>
+        <div class="field"><label for="description">Tell people why they should come <span class="opt">(optional)</span></label><textarea id="description" name="description" rows="3"></textarea></div>
         <div class="field"><label for="url">Tickets or more info <span class="opt">(optional)</span></label><input type="url" id="url" name="url" placeholder="https://" inputmode="url" /></div>
+
+        <div class="field" data-photo-field hidden>
+          <label class="photo" for="photo">
+            <input type="file" id="photo" accept="image/*" class="sr-only" data-photo />
+            <strong>+ Add a photo</strong> <span class="opt">(optional, but events with a picture get way more clicks)</span>
+          </label>
+        </div>
       </fieldset>
 
-      <fieldset>
-        <legend><span class="step">3</span> How do I reach you?</legend>
+      <fieldset data-contact>
+        <legend>How do I reach you?</legend>
         <p class="hint">Only used if I have a question about your listing. Never shown on the site.</p>
         <div class="two">
           <div class="field"><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required /></div>
           <div class="field"><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="email" required /></div>
         </div>
-        <div class="hp" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" name="website" tabindex="-1" autocomplete="off" /></div>
+        <div class="field"><label for="phone">Phone <span class="opt">(optional)</span></label><input type="tel" id="phone" name="phone" autocomplete="tel" /></div>
+        <label class="check"><input type="checkbox" name="remember" checked /> Remember me on this device</label>
       </fieldset>
 
+      <div class="hp" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" name="website" tabindex="-1" autocomplete="off" /></div>
       <button class="btn btn-primary submit" type="submit">Send it to Charlie</button>
       <p class="status" data-status role="status"></p>
     </form>
+
+    <!-- Done -->
+    <div class="done" data-step="done" hidden>
+      <h2>Got it, thanks!</h2>
+      <p data-done-text>I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.</p>
+      <p>The best-looking listings make the Live Love Las Cruces newsletter (10,000+ locals).</p>
+      <div class="btn-row"><button type="button" class="btn btn-dark" data-again>Add another event</button><a class="btn btn-outline" href="/">Back to the calendar</a></div>
+    </div>
   </section>
 </Layout>
 
+<template id="show-row">
+  <div class="show">
+    <div class="sf"><label>Date</label><input type="date" data-k="date" required /></div>
+    <div class="sf"><label>Starts</label><input type="time" data-k="start" /></div>
+    <div class="sf"><label>Ends <span class="opt">(opt.)</span></label><input type="time" data-k="end" /></div>
+    <div class="sf act" hidden><label>Different act? <span class="opt">(opt.)</span></label><input data-k="title" autocomplete="off" /></div>
+    <button type="button" class="del" aria-label="Remove this date" data-del>✕</button>
+  </div>
+</template>
+
 <script>
-  const input = document.getElementById('image');
-  const preview = document.querySelector('[data-preview]');
-  const text = document.querySelector('[data-drop-text]');
-  input?.addEventListener('change', () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    preview.src = URL.createObjectURL(file);
-    preview.hidden = false;
-    text.hidden = true;
+  const app = document.querySelector('[data-app]') as HTMLElement;
+  const INTAKE = app.dataset.intake!;
+  const form = app.querySelector('form') as HTMLFormElement;
+  const showsEl = app.querySelector('[data-shows]') as HTMLElement;
+  const tpl = document.getElementById('show-row') as HTMLTemplateElement;
+  const status = app.querySelector('[data-status]') as HTMLElement;
+  const KEY = 'lc-events-submitter';
+  let imageId = '';
+  let source = 'form';
+
+  const $ = <T extends Element = HTMLElement>(s: string) => app.querySelector(s) as T;
+  const field = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
+
+  function step(name: string) {
+    app.querySelectorAll<HTMLElement>('[data-step]').forEach((el) => (el.hidden = el.dataset.step !== name));
+    if (name !== 'choose') window.scrollTo({ top: app.offsetTop - 20, behavior: 'smooth' });
+  }
+
+  // ---- Dates ----
+  function addShow(s: { date?: string; start?: string; end?: string; title?: string } = {}) {
+    const row = tpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
+    for (const k of ['date', 'start', 'end', 'title'] as const) (row.querySelector(`[data-k="${k}"]`) as HTMLInputElement).value = s[k] || '';
+    showsEl.append(row);
+    syncShows();
+  }
+  function syncShows() {
+    const rows = [...showsEl.children] as HTMLElement[];
+    rows.forEach((r) => {
+      (r.querySelector('[data-del]') as HTMLElement).hidden = rows.length === 1;
+      (r.querySelector('.act') as HTMLElement).hidden = rows.length === 1;
+    });
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver' }).format(new Date());
+    showsEl.querySelectorAll<HTMLInputElement>('[data-k="date"]').forEach((i) => (i.min = today));
+  }
+  showsEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('[data-del]');
+    if (b) { b.closest('.show')!.remove(); syncShows(); }
   });
-  const form = document.getElementById('event-form');
-  form?.addEventListener('submit', (e) => {
+  $('[data-add-show]').addEventListener('click', () => {
+    const last = [...showsEl.querySelectorAll('.show')].pop();
+    const get = (k: string) => (last?.querySelector(`[data-k="${k}"]`) as HTMLInputElement)?.value || '';
+    addShow({ start: get('start'), end: get('end') }); // same times as the last date: residencies usually are
+    (showsEl.lastElementChild!.querySelector('[data-k="date"]') as HTMLInputElement).focus();
+  });
+
+  // ---- Remembered submitter ----
+  function loadMe() {
+    try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; }
+  }
+  function applyMe() {
+    const me = loadMe();
+    const contact = $('[data-contact]');
+    if (me?.name && me?.email) {
+      field('name').value = me.name; field('email').value = me.email; field('phone').value = me.phone || '';
+      $('[data-who-name]').textContent = me.name;
+      $('[data-who]').hidden = false;
+      contact.hidden = true;
+    } else {
+      $('[data-who]').hidden = true;
+      contact.hidden = false;
+    }
+  }
+  $('[data-forget]').addEventListener('click', () => {
+    try { localStorage.removeItem(KEY); } catch {}
+    field('name').value = ''; field('email').value = ''; field('phone').value = '';
+    applyMe();
+  });
+
+  // ---- Images: shrink very large photos before upload (keeps flyers sharp, uploads fast) ----
+  async function prepare(file: File): Promise<Blob> {
+    if (file.size < 2.5e6 && /^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+      c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+      return await new Promise((r) => c.toBlob((b) => r(b || file), 'image/jpeg', 0.9));
+    } catch { return file; }
+  }
+  async function upload(file: File) {
+    const fd = new FormData();
+    fd.append('image', await prepare(file), 'flyer.jpg');
+    const res = await fetch(`${INTAKE}/extract`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  }
+
+  function fill(x: any) {
+    for (const k of ['title', 'venue', 'address', 'price', 'url', 'description']) if (x[k] && !field(k).value) field(k).value = x[k];
+    if (x.category && !field('category').value) field('category').value = x.category;
+    showsEl.innerHTML = '';
+    (x.shows?.length ? x.shows : [{}]).forEach(addShow);
+  }
+  function markMissing() {
+    form.querySelectorAll('.missing').forEach((el) => el.classList.remove('missing'));
+    const empty: string[] = [];
+    if (!field('title').value) { field('title').classList.add('missing'); empty.push('the event name'); }
+    const dates = showsEl.querySelectorAll<HTMLInputElement>('[data-k="date"]');
+    if (![...dates].some((d) => d.value)) { dates.forEach((d) => d.classList.add('missing')); empty.push('the date'); }
+    if (![...showsEl.querySelectorAll<HTMLInputElement>('[data-k="start"]')].some((d) => d.value)) empty.push('the start time');
+    if (!field('venue').value) { field('venue').classList.add('missing'); empty.push('the venue'); }
+    if (!field('category').value) field('category').classList.add('missing');
+    return empty;
+  }
+
+  async function startFlyer(file: File) {
+    const url = URL.createObjectURL(file);
+    $<HTMLImageElement>('[data-reading-img]').src = url;
+    $<HTMLImageElement>('[data-flyer-img]').src = url;
+    step('reading');
+    source = 'flyer';
+    try {
+      const data = await upload(file);
+      imageId = data.imageId;
+      form.reset(); applyMe();
+      fill(data.extracted || {});
+      const empty = markMissing();
+      $('[data-read-note]').innerHTML = data.extracted && empty.length < 3
+        ? `<strong>Here's what I read off your flyer.</strong> Check it over${empty.length ? ` and add ${empty.join(', ')}` : ''}.`
+        : `<strong>I couldn't read much off this one.</strong> No problem, just fill in the details below.`;
+    } catch (err: any) {
+      imageId = '';
+      form.reset(); applyMe(); fill({});
+      $('[data-read-note]').innerHTML = `<strong>${err.message === 'Upload failed' ? "That upload didn't go through." : err.message}</strong> You can still fill it in below, or try the flyer again.`;
+    }
+    $('[data-flyer-box]').hidden = false;
+    $('[data-photo-field]').hidden = true;
+    step('form');
+  }
+
+  ($('[data-flyer]') as HTMLInputElement).addEventListener('change', (e) => {
+    const f = (e.target as HTMLInputElement).files?.[0];
+    if (f) startFlyer(f);
+  });
+  $('[data-change]').addEventListener('click', () => ($('[data-flyer]') as HTMLInputElement).click());
+  $('[data-manual]').addEventListener('click', () => {
+    source = 'form'; imageId = '';
+    form.reset(); applyMe(); fill(prefill());
+    $('[data-flyer-box]').hidden = true;
+    $('[data-photo-field]').hidden = false;
+    step('form');
+    field('title').focus();
+  });
+  ($('[data-photo]') as HTMLInputElement).addEventListener('change', async (e) => {
+    const f = (e.target as HTMLInputElement).files?.[0];
+    if (!f) return;
+    const label = $('label.photo strong');
+    label.textContent = 'Uploading…';
+    try {
+      const fd = new FormData();
+      fd.append('image', await prepare(f), 'photo.jpg');
+      const res = await fetch(`${INTAKE}/extract?read=0`, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      imageId = data.imageId;
+      label.textContent = '✓ Photo added (tap to change)';
+    } catch { label.textContent = "Couldn't upload that one. Try another?"; }
+  });
+
+  // Musicians arriving from their Las Cruces Live page: ?act=Desert%20Rose%20Trio
+  function prefill() {
+    const p = new URLSearchParams(location.search);
+    const act = p.get('act');
+    return act ? { title: act, category: 'live-music' } : {};
+  }
+
+  // ---- Send ----
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const status = form.querySelector('[data-status]');
-    if (!form.checkValidity()) {
+    const shows = [...showsEl.querySelectorAll('.show')].map((r) => ({
+      date: (r.querySelector('[data-k="date"]') as HTMLInputElement).value,
+      start: (r.querySelector('[data-k="start"]') as HTMLInputElement).value,
+      end: (r.querySelector('[data-k="end"]') as HTMLInputElement).value,
+      title: (r.querySelector('[data-k="title"]') as HTMLInputElement).value,
+    })).filter((s) => s.date);
+    const empty = markMissing();
+    if (!form.checkValidity() || !shows.length) {
+      if (empty.length) status.textContent = `Almost there: add ${empty.filter((x) => x !== 'the start time').join(', ') || 'the missing details'}.`;
+      if ($('[data-contact]').hidden && (!field('name').value || !field('email').value)) $('[data-contact]').hidden = false;
       form.reportValidity();
       return;
     }
-    // Not connected yet: next step is sending this to an approval queue (Notion or D1) with the flyer read automatically.
-    status.textContent = 'Thanks! (Design preview: this form is not connected yet, so nothing was sent.)';
+    const btn = form.querySelector('.submit') as HTMLButtonElement;
+    btn.disabled = true; status.textContent = 'Sending…';
+    const body = {
+      title: field('title').value, venue: field('venue').value, address: field('address').value, category: field('category').value,
+      price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId,
+      name: field('name').value, email: field('email').value, phone: field('phone').value, website: field('website').value,
+      act: new URLSearchParams(location.search).get('act') || '', source,
+    };
+    try {
+      const res = await fetch(`${INTAKE}/submit`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+      try {
+        if ((form.elements.namedItem('remember') as HTMLInputElement).checked || loadMe()) localStorage.setItem(KEY, JSON.stringify({ name: body.name, email: body.email, phone: body.phone }));
+      } catch {}
+      $('[data-done-text]').textContent = shows.length > 1
+        ? `All ${shows.length} dates are in. I'll check them over, usually within a day, and they'll show up on the calendar.`
+        : "I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.";
+      status.textContent = '';
+      step('done');
+    } catch (err: any) {
+      status.textContent = err.message;
+    } finally { btn.disabled = false; }
   });
+
+  $('[data-again]').addEventListener('click', () => {
+    imageId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
+    $('label.photo strong').textContent = '+ Add a photo';
+    applyMe(); step('choose');
+  });
+
+  applyMe();
+  form.addEventListener('input', (e) => (e.target as HTMLElement).classList?.remove('missing'));
 </script>
 
 <style>
-  .head { display: flex; flex-direction: column; gap: 14px; padding-bottom: 32px; }
+  .head { display: flex; flex-direction: column; gap: 14px; padding-bottom: 28px; }
   .head h1 { margin-top: 12px; }
-  .form { display: flex; flex-direction: column; gap: 22px; padding-bottom: 72px; }
+  .body { padding-bottom: 72px; }
+  .who { margin: 0 0 16px; color: var(--muted); }
+  .link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
+
+  .choose { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .choice { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; text-align: left; padding: 26px; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--card); cursor: pointer; font: inherit; color: var(--ink); min-height: 220px; transition: border-color .15s, transform .15s; }
+  .choice:hover, .choice:focus-within, .choice:focus-visible { border-color: var(--ink); transform: translateY(-2px); }
+  .choice.primary { border-color: var(--accent); background: var(--accent-tint); }
+  .choice strong { font-family: var(--display); font-size: 1.45rem; font-weight: 800; }
+  .choice span { color: var(--muted); }
+  .choice .tip { font-size: .88rem; margin-top: auto; }
+  .icon { width: 48px; height: 48px; border-radius: 14px; background: var(--ink); display: grid; place-items: center; }
+  .primary .icon { background: var(--accent); }
+  .icon svg { width: 26px; height: 26px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .reading { display: flex; gap: 24px; align-items: center; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+  .reading img { width: 140px; border-radius: 10px; }
+  .reading p { color: var(--muted); margin: 4px 0 0; }
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin-right: 10px; vertical-align: -3px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+
+  .form { display: flex; flex-direction: column; gap: 22px; }
+  .flyer-box { display: flex; gap: 20px; align-items: flex-start; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+  .flyer-box img { width: 150px; border-radius: 10px; border: 1px solid var(--line); }
+  .note { margin: 0 0 10px; }
   fieldset { border: 1px solid var(--line); background: var(--card); border-radius: var(--radius); padding: 24px; margin: 0; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-  legend { font-family: var(--display); font-weight: 800; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; padding: 0 6px; }
-  .step { display: inline-flex; width: 30px; height: 30px; border-radius: 999px; background: var(--accent); color: #fff; font-size: .95rem; align-items: center; justify-content: center; font-family: var(--body); }
+  fieldset[hidden] { display: none; }
+  legend { font-family: var(--display); font-weight: 800; font-size: 1.3rem; padding: 0 6px; }
   .two { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
   .field { display: flex; flex-direction: column; gap: 6px; }
-  label { font-weight: 600; font-size: .95rem; }
+  .field[hidden] { display: none; }
+  label, .label { font-weight: 600; font-size: .95rem; }
   .opt { font-weight: 400; color: var(--muted); }
   input, select, textarea { font: inherit; font-size: 1rem; min-height: 48px; padding: 10px 14px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); width: 100%; }
-  textarea { min-height: 110px; }
+  textarea { min-height: 96px; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--accent-tint); }
-  .drop { display: flex; align-items: center; justify-content: center; min-height: 200px; border: 2px dashed var(--line); border-radius: 16px; background: var(--bg); cursor: pointer; text-align: center; padding: 20px; }
-  .drop:hover, .drop:focus-within { border-color: var(--accent); }
-  .drop-inner { display: flex; flex-direction: column; gap: 6px; max-width: 380px; }
-  .drop-inner strong { font-size: 1.1rem; color: var(--accent); }
-  .drop-inner span { color: var(--muted); font-size: .92rem; }
-  .drop img { max-height: 360px; border-radius: 10px; }
+  .missing { border-color: var(--accent); background: #fff8f6; }
+
+  .shows { display: flex; flex-direction: column; gap: 10px; }
+  .show { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: 10px; align-items: end; }
+  .show:has(.act:not([hidden])) { grid-template-columns: 1.4fr 1fr 1fr 1.5fr auto; }
+  .sf { display: flex; flex-direction: column; gap: 4px; }
+  .sf[hidden] { display: none; }
+  .sf label { font-size: .82rem; font-weight: 600; }
+  .del { width: 44px; height: 48px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; color: var(--muted); }
+  .del[hidden] { display: none; }
+  .add { align-self: flex-start; margin-top: 4px; min-height: 44px; }
+  @media (max-width: 620px) {
+    .show, .show:has(.act:not([hidden])) { grid-template-columns: 1fr 1fr; padding-bottom: 12px; border-bottom: 1px dashed var(--line); }
+    .show .sf:first-child { grid-column: 1 / -1; }
+    .sf.act { grid-column: 1 / -1; }
+    .flyer-box img, .reading img { width: 96px; }
+  }
+
+  .photo { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 14px 16px; border: 1.5px dashed var(--line); border-radius: 12px; cursor: pointer; }
+  .photo strong { color: var(--accent); }
+  .check { display: flex; gap: 10px; align-items: center; font-weight: 400; }
+  .check input { width: 20px; min-height: 20px; height: 20px; }
   .hint { color: var(--muted); font-size: .92rem; margin-top: -6px; }
   .hp { position: absolute; left: -9999px; }
   .submit { align-self: flex-start; min-height: 52px; padding: 0 28px; font-size: 1.05rem; }
-  .status { font-weight: 600; color: var(--agave); }
+  .status { font-weight: 600; color: var(--accent); min-height: 1.4em; }
+
+  .done { padding: 32px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); display: flex; flex-direction: column; gap: 12px; }
+  .done h2 { margin: 0; }
+  .done p { margin: 0; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
 </style>
