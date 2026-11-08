@@ -6,15 +6,15 @@
   --muted: #5E5A55;
   --line: #DDD6CC;
   --line-soft: #ECE6DD;
-  --accent: #B23A2B;
-  --accent-dark: #8A2B1F;
-  --accent-tint: #FBE3DF;
+  --ev-accent: #B23A2B;
+  --ev-accent-dark: #8A2B1F;
+  --ev-accent-tint: #FBE3DF;
   --agave: #2F5D50;
   --agave-tint: #E3ECE8;
   --night: #1F2A44;
   --night-2: #2B3758;
   --night-text: #C9CFDB;
-  --radius: 20px; /* matches livelovelascruces.com */
+  --ev-radius: 20px; /* matches livelovelascruces.com */
   --lllc-red: #FF0A06; /* Live Love Las Cruces heart. Decorative only: too light for text on cream */
   --display: 'Bricolage Grotesque Variable', 'Inter Variable', system-ui, sans-serif;
   --body: 'Inter Variable', system-ui, -apple-system, sans-serif;
@@ -31,9 +31,9 @@ body {
   line-height: 1.6;
 }
 img { max-width: 100%; display: block; }
-a { color: var(--accent); }
-a:hover { color: var(--accent-dark); }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+a { color: var(--ev-accent); }
+a:hover { color: var(--ev-accent-dark); }
+:focus-visible { outline: 3px solid var(--ev-accent); outline-offset: 3px; border-radius: 4px; }
 
 [hidden] { display: none !important; }
 h4, h5 { margin: 0; }
@@ -55,8 +55,8 @@ p { margin: 0; }
 .muted { color: var(--muted); }
 
 .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 999px; font-weight: 600; text-decoration: none; border: 1.5px solid transparent; font-size: 1rem; cursor: pointer; }
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { background: var(--accent-dark); color: #fff; }
+.btn-primary { background: var(--ev-accent); color: #fff; }
+.btn-primary:hover { background: var(--ev-accent-dark); color: #fff; }
 .btn-dark { background: var(--ink); color: var(--bg); }
 .btn-dark:hover { background: #000; color: var(--bg); }
 .btn-outline { border-color: var(--ink); color: var(--ink); }
@@ -70,7 +70,7 @@ p { margin: 0; }
 .chip-area { background: var(--agave-tint); border-color: transparent; color: var(--agave); font-weight: 500; }
 .chip-area:hover { color: var(--agave); border-color: var(--agave); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.tag { display: inline-block; font-size: .78rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--accent-tint); color: var(--accent-dark); }
+.tag { display: inline-block; font-size: .78rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--ev-accent-tint); color: var(--ev-accent-dark); }
 
 .grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .grid-tight { display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
