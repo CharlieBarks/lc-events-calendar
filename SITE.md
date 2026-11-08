@@ -49,7 +49,10 @@ The livelovelascruces.com header (checked Nov 8, 2026; re-check the live site be
 
 How to build it:
 
-- Snapshot the livelovelascruces.com header into Paper as the starting point, and match its logo, order, labels, spacing and type. Use the real LLLC logo file (ask Charlie for it); don't redraw it.
+- Snapshot the livelovelascruces.com header into Paper as the starting point, and match its logo, order, labels, spacing and type. Use the real LLLC logo files; don't redraw them:
+  - `public/lllc-logo-on-light.png` (black and red lettering, for light backgrounds)
+  - `public/lllc-logo-on-dark.png` (white and red lettering, for dark backgrounds)
+  - Both are 500 × 125 PNG with transparent backgrounds, the same files the Art Trail uses. Show them at 250px wide or less so they stay sharp on high-resolution screens, with `width`/`height` set and `alt="Live Love Las Cruces"`. If a sharper SVG version is ever needed, ask Charlie.
 - Mark **Events Calendar** as the current page.
 - The calendar's own links (This weekend, Live music, Browse) and the **Add your event** button move to a second row or bar under the main nav, so visitors still reach them in one tap. Design this in Paper and get approval.
 - Mobile: a menu that works with keyboard and screen readers, tap targets 44px or larger.
