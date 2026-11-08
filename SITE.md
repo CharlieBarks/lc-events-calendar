@@ -65,7 +65,7 @@ How to build it:
 
 Currently shares the Art Trail design system (same tokens and fonts in `src/styles/global.css`: cream `#FAF9F5`, red `#B23A2B`, agave `#2F5D50`, night `#1F2A44`, Bricolage Grotesque + Inter). Each category has its own color and artwork (`src/lib/topics.js`).
 
-**Open decision for Charlie:** keep the Art Trail look, or give the calendar its own palette in Paper so it feels like a sibling rather than a copy? Also the same Inter question as the Art Trail.
+**Decided by Charlie (Nov 8, 2026):** keep the Art Trail colors. Replace Inter with **Schibsted Grotesk** as the body font, as shown in the approved Paper design; Bricolage Grotesque stays for headlines. Inter remains in the code until the font change is built.
 
 | Role | Current token | ACSS role (proposed) |
 |---|---|---|
@@ -83,7 +83,7 @@ Category colors stay as their own set (not ACSS roles), but must pass contrast c
 This is the first site to move to ACSS: it's the test bed for the workflow. Separate pull requests, in order:
 
 1. [x] **Rename colliding tokens:** `--accent` → `--ev-accent`, `--accent-dark` → `--ev-accent-dark`, `--accent-tint` → `--ev-accent-tint`, `--radius` → `--ev-radius`. No visual change. (`intake.js` keeps its own `--accent`: the Worker's admin page defines it separately and never loads ACSS.)
-2. [ ] Settle the brand decision above. Design the homepage (agenda view) in Paper, desktop and mobile, **with the livelovelascruces.com header** (see "Header and navigation"). Approve.
+2. [x] Settle the brand decision above. Design the homepage (agenda view) in Paper, desktop and mobile, **with the livelovelascruces.com header** (see "Header and navigation"). Approve.
 3. [ ] Generate `acss/settings.json`. Run `scripts/acss-sync.sh`. Record the stylesheet size and anything learned in the shared docs.
 4. [ ] Add `reset.css`, ACSS and `acss-bridge.css` to `Layout.astro`, on the redesign branch first (it has its own preview).
 5. [ ] Convert components one at a time: Agenda, EventRow, EventCard, Header, Footer.
@@ -91,7 +91,9 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 
 ## Design status
 
-- Homepage: not started in Paper.
+- Homepage: **approved by Charlie, Nov 8, 2026.** Paper file "Las Cruces Events", artboards `home / desktop`, `home / mobile` and `home / mobile, menu open`. The mobile artboard is a shortened sample: the built page keeps every day and section shown on desktop.
+- Footer: leave as it is for now. Charlie will decide later whether it should match livelovelascruces.com's link groups.
+- Still open: whether the Subscribe button keeps the LLLC red (white text on it is about 4:1, under the 4.5:1 target) or switches to the darker Art Trail red.
 
 ## Site-specific rules
 
