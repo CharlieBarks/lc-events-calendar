@@ -68,10 +68,10 @@ Currently shares the Art Trail design system (same tokens and fonts in `src/styl
 |---|---|---|
 | Page background | `--bg` | `bg-light` |
 | Text / muted | `--ink` / `--muted` | `text-dark` / `text-dark-muted` |
-| Red | `--accent` | **primary** |
+| Red | `--ev-accent` | **primary** |
 | Agave | `--agave` | **secondary** |
 | Night | `--night` | **base** / `bg-dark` |
-| Radius | `--radius` | `radius` |
+| Radius | `--ev-radius` | `radius` |
 
 Category colors stay as their own set (not ACSS roles), but must pass contrast checks.
 
@@ -79,7 +79,7 @@ Category colors stay as their own set (not ACSS roles), but must pass contrast c
 
 This is the first site to move to ACSS: it's the test bed for the workflow. Separate pull requests, in order:
 
-1. [ ] **Rename colliding tokens:** `--accent` → `--ev-accent`, `--accent-dark` → `--ev-accent-dark`, `--accent-tint` → `--ev-accent-tint`, `--radius` → `--ev-radius`. No visual change.
+1. [x] **Rename colliding tokens:** `--accent` → `--ev-accent`, `--accent-dark` → `--ev-accent-dark`, `--accent-tint` → `--ev-accent-tint`, `--radius` → `--ev-radius`. No visual change. (`intake.js` keeps its own `--accent`: the Worker's admin page defines it separately and never loads ACSS.)
 2. [ ] Settle the brand decision above. Design the homepage (agenda view) in Paper, desktop and mobile, **with the livelovelascruces.com header** (see "Header and navigation"). Approve.
 3. [ ] Generate `acss/settings.json`. Run `scripts/acss-sync.sh`. Record the stylesheet size and anything learned in the shared docs.
 4. [ ] Add `reset.css`, ACSS and `acss-bridge.css` to `Layout.astro`, on the redesign branch first (it has its own preview).
