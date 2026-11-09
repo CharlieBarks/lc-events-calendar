@@ -78,6 +78,9 @@ Small changes later ("primary a little darker") use `wp acss settings set`, then
 - Headless Chrome's `--window-size` won't go narrower than 500px. For true phone widths use a real browser or device emulation over the DevTools protocol.
 - **ACSS's defaults change existing pages when it first loads.** Compare computed styles before and after on real pages. On the first site these needed changing: `option-load-default-section-styles` off (it makes every top-level `<section>` a flex column, which shrinks `.wrap` children and changed row heights), `option-auto-radius` off (rounded every image), `link-decoration` to `underline` and `link-weight` to `inherit` (the defaults removed underlines and bold from links).
 - `button:not(nav button, [class*="btn--"])` outranks a single class, so plain `.filter`-style buttons take ACSS's button weight and line height. On the first site that matched the design.
+- **Turning off `option-load-default-section-styles` also removes `--gutter`, `--content-width`, `--content-width-safe` and `--section-padding-block`.** Components that use them need those variables restored in `acss-bridge.css`.
+- **Check the button settings.** `btn-min-width` and `btn-border-width` can be left over from the last site (200 and 4px here).
+- **Don't use `data-icon` on your own elements.** ACSS styles that attribute, so an SVG picked up its size, color and layout.
 - **Installing a package with a newer npm can rewrite `package-lock.json`** (it stripped every `"dev": true`). Check the diff and keep only the new package's lines.
 
 ### Loading the output

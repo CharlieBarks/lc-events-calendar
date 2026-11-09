@@ -1,5 +1,5 @@
 ---
-// Day-by-day list. One-off events get full cards; regulars and city meetings get compact rows.
+// Day-by-day list. One-off events get open rows with artwork; regulars and city meetings get quiet rows.
 // Filters run in the browser (no reloads) and remember themselves in the URL (?when=weekend&cat=live-music),
 // so a filtered view can be texted to a friend or linked from the newsletter.
 import EventCard from './EventCard.astro';
@@ -23,56 +23,64 @@ const itemLevel = headingLevel + 1;
 ---
 <div class="agenda" data-agenda>
   {filters && (
-    <div class="filters" role="group" aria-label="Filter events">
-      <div class="filter-row" role="group" aria-label="When">
-        <button class="filter" type="button" data-when="all" aria-pressed="true">All upcoming</button>
-        <button class="filter" type="button" data-when="today" aria-pressed="false">Today</button>
-        <button class="filter" type="button" data-when="tomorrow" aria-pressed="false">Tomorrow</button>
-        <button class="filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
-        <button class="filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
+    <div class="agenda__filters" role="group" aria-label="Filter events">
+      <div class="agenda__filter-row" role="group" aria-label="When">
+        <button class="agenda__filter" type="button" data-when="all" aria-pressed="true">All upcoming</button>
+        <button class="agenda__filter" type="button" data-when="today" aria-pressed="false">Today</button>
+        <button class="agenda__filter" type="button" data-when="tomorrow" aria-pressed="false">Tomorrow</button>
+        <button class="agenda__filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
+        <button class="agenda__filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
       </div>
       {usedCats.length > 1 && (
-        <div class="filter-row scroll" role="group" aria-label="Category">
-          <button class="filter" type="button" data-cat="all" aria-pressed="true">Everything</button>
+        <div class="agenda__filter-row" data-group="category" role="group" aria-label="Category">
+          <button class="agenda__filter" type="button" data-cat="all" aria-pressed="true">Everything</button>
           {usedCats.map((k) => (
-            <button class="filter" type="button" data-cat={k} aria-pressed="false">
+            <button class="agenda__filter" type="button" data-cat={k} aria-pressed="false">
               <span class="dot" style={`background:${CATEGORIES[k].color}`} aria-hidden="true"></span>
-              {CATEGORIES[k].plural} <span class="n">{count(k)}</span>
+              {CATEGORIES[k].plural} <span class="agenda__count">{count(k)}</span>
             </button>
           ))}
         </div>
       )}
-      <p class="status" aria-live="polite" data-status></p>
+      <p class="agenda__status" aria-live="polite" data-status></p>
     </div>
   )}
 
   {days.map(([date, list], i) => {
     const cards = list.filter((e) => !e.compact);
     const rows = list.filter((e) => e.compact);
+    const [weekday, monthDay] = dayLabel(list[0].start).split(', ');
     return (
-      <section class="day" data-day={date} data-later={initialDays && i >= initialDays ? '' : undefined} aria-labelledby={`d-${date}`}>
-        <H class="day-head" id={`d-${date}`}><span class="rel" data-rel></span>{dayLabel(list[0].start)}</H>
-        {cards.length > 0 && <ul class="cards" role="list">{cards.map((e) => <EventCard event={e} headingLevel={itemLevel} layout="row" />)}</ul>}
-        {rows.length > 0 && <ul class="rows" role="list">{rows.map((e) => <EventRow event={e} headingLevel={itemLevel} />)}</ul>}
+      <section class="agenda__day" data-day={date} data-later={initialDays && i >= initialDays ? '' : undefined} aria-labelledby={`d-${date}`}>
+        <H class="agenda__day-head" id={`d-${date}`}>
+          <span class="agenda__day-name" data-rel>{weekday}</span>{' '}
+          <span class="agenda__day-date" data-date-label>{monthDay}</span>
+        </H>
+        <div class="agenda__day-list">
+          {cards.length > 0 && <ul class="agenda__cards" role="list">{cards.map((e) => <EventCard event={e} headingLevel={itemLevel} layout="row" />)}</ul>}
+          {rows.length > 0 && <ul class="agenda__rows" role="list" data-row-list>{rows.map((e) => <EventRow event={e} headingLevel={itemLevel} />)}</ul>}
+          {rows.length > 0 && <button class="agenda__more-rows" type="button" data-more-rows hidden></button>}
+        </div>
       </section>
     );
   })}
 
   {initialDays > 0 && days.length > initialDays && (
-    <div class="more-wrap" data-more-wrap><button class="btn btn-outline" type="button" data-more>Show the rest of the calendar</button></div>
+    <div class="agenda__more" data-more-wrap><button class="btn--neutral btn--outline" type="button" data-more>Show the rest of the calendar</button></div>
   )}
 
-  <div class="empty" data-empty hidden>
+  <div class="agenda__empty" data-empty hidden>
     <p><strong>Nothing listed for that yet.</strong> Know of something? Add it and I'll get it on here.</p>
     <div class="btn-row">
-      <button class="btn btn-outline btn-sm" type="button" data-reset>Show everything</button>
-      <a class="btn btn-dark btn-sm" href="/submit/">Add an event</a>
+      <button class="btn--neutral btn--outline btn--s" type="button" data-reset>Show everything</button>
+      <a class="btn--neutral btn--s" href="/submit/">Add an event</a>
     </div>
   </div>
 </div>
 
 <script>
   const TZ = 'America/Denver';
+  const ROWS_SHOWN = 3;
   const key = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   const plus = (k, n) => { const [y, m, d] = k.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d + n)); return t.toISOString().slice(0, 10); };
 
@@ -90,9 +98,13 @@ const itemLevel = headingLevel + 1;
     // "Today" / "Tomorrow" in the day headings, and drop days that have already passed.
     root.querySelectorAll('[data-day]').forEach((sec) => {
       const d = sec.dataset.day;
-      if (d < today) sec.remove();
-      const rel = sec.querySelector('[data-rel]');
-      if (rel) rel.textContent = d === today ? 'Today · ' : d === tomorrow ? 'Tomorrow · ' : '';
+      if (d < today) { sec.remove(); return; }
+      if (d !== today && d !== tomorrow) return;
+      const name = sec.querySelector('[data-rel]');
+      const date = sec.querySelector('[data-date-label]');
+      date.textContent = `${name.textContent}, ${date.textContent}`;
+      name.textContent = d === today ? 'Today' : 'Tomorrow';
+      if (d === today) sec.setAttribute('data-today', '');
     });
 
     const params = new URLSearchParams(location.search);
@@ -112,13 +124,25 @@ const itemLevel = headingLevel + 1;
           li.hidden = !ok;
           if (ok) n++;
         });
+
+        // Regulars: show the first few per day, unless a category is picked or the day was opened.
+        const limit = state.cat === 'all' && !sec.hasAttribute('data-rows-open') ? ROWS_SHOWN : Infinity;
+        const visibleRows = [...sec.querySelectorAll('[data-row-list] > li')].filter((li) => !li.hidden);
+        visibleRows.slice(limit).forEach((li) => { li.hidden = true; });
+        const moreRows = sec.querySelector('[data-more-rows]');
+        if (moreRows) {
+          const extra = Math.max(visibleRows.length - limit, 0);
+          moreRows.hidden = extra === 0;
+          moreRows.textContent = `Show ${extra} more regular${extra === 1 ? '' : 's'}`;
+        }
+
         sec.querySelectorAll('ul').forEach((ul) => { ul.hidden = ![...ul.children].some((li) => !li.hidden); });
         const collapsed = !expanded && state.when === 'all' && state.cat === 'all' && sec.hasAttribute('data-later');
         sec.hidden = n === 0 || collapsed;
         shown += n;
       });
-      root.querySelectorAll('[data-when]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.when === state.when)));
-      root.querySelectorAll('[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === state.cat)));
+      root.querySelectorAll('button[data-when]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.when === state.when)));
+      root.querySelectorAll('button[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === state.cat)));
       if (empty) empty.hidden = shown > 0;
       if (moreWrap) moreWrap.hidden = expanded || state.when !== 'all' || state.cat !== 'all';
       if (status) status.textContent = `${shown} event${shown === 1 ? '' : 's'} ${labels[state.when]}`;
@@ -133,6 +157,14 @@ const itemLevel = headingLevel + 1;
     root.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
+      if (b.hasAttribute('data-more-rows')) {
+        // The button goes away, so move keyboard focus to the first row it revealed.
+        const sec = b.closest('[data-day]');
+        sec.setAttribute('data-rows-open', '');
+        apply(false);
+        sec.querySelectorAll('[data-row-list] > li:not([hidden]) a')[ROWS_SHOWN]?.focus();
+        return;
+      }
       if (b.dataset.when) state.when = b.dataset.when;
       else if (b.dataset.cat) state.cat = b.dataset.cat;
       else if (b.hasAttribute('data-more')) { expanded = true; }
@@ -145,19 +177,165 @@ const itemLevel = headingLevel + 1;
 </script>
 
 <style>
-  .filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
-  .filter-row { display: flex; flex-wrap: wrap; gap: 8px; }
-  .filter-row.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
-  .n { font-size: .8rem; opacity: .6; }
-  .status { font-size: .9rem; color: var(--muted); }
-  .day { margin-bottom: 36px; }
-  .day-head { font-family: var(--display); font-size: 1.45rem; font-weight: 800; padding-bottom: 12px; margin-bottom: 16px; border-bottom: 2px solid var(--ink); }
-  .rel { color: var(--ev-accent); }
-  .cards { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
-  .more-wrap { display: flex; justify-content: center; padding: 8px 0 12px; }
-  .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-  .empty { background: var(--card); border: 1px dashed var(--line); border-radius: var(--ev-radius); padding: 28px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
-  @media (max-width: 560px) {
-    .filter-row:first-child { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .agenda {
+    .agenda__filters {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+      margin-block-end: var(--space-m);
+      padding-block: var(--space-xs);
+      background: var(--bg-light);
+    }
+
+    .agenda__filter-row {
+      display: flex;
+      gap: var(--space-xs);
+      overflow-x: auto;
+      scrollbar-width: none;
+
+      &[data-group="category"] { gap: var(--space-s); }
+    }
+
+    .agenda__filter {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      min-block-size: 2.75rem;
+      padding-inline: var(--space-s);
+      background: none;
+      border: 1px solid var(--neutral-light);
+      border-radius: var(--radius-circle);
+      color: var(--text-dark);
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+
+      &:hover { border-color: var(--text-dark); }
+      &[aria-pressed="true"] {
+        background: var(--text-dark);
+        border-color: var(--text-dark);
+        color: var(--text-light);
+      }
+    }
+
+    .agenda__filter-row[data-group="category"] .agenda__filter {
+      padding-inline: 0;
+      border: 0;
+      border-radius: 0;
+      color: var(--neutral-dark);
+      font-size: var(--text-s);
+      font-weight: 500;
+
+      &:hover { color: var(--primary); }
+      &[aria-pressed="true"] {
+        background: none;
+        color: var(--text-dark);
+        font-weight: 700;
+        text-decoration: underline;
+      }
+    }
+
+    .agenda__status { color: var(--text-dark-muted); font-size: var(--text-s); }
+
+    .agenda__day {
+      display: flex;
+      flex-direction: column;
+      padding-block-start: var(--space-s);
+      margin-block-end: var(--space-l);
+      border-block-start: 2px solid var(--text-dark);
+
+      &[data-today] .agenda__day-name { color: var(--primary); }
+    }
+
+    .agenda__day-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-s);
+      margin-block-end: var(--space-xs);
+    }
+
+    .agenda__day-name {
+      font-family: var(--heading-font-family);
+      font-size: var(--h2);
+      font-weight: 800;
+      letter-spacing: var(--h2-letter-spacing);
+      line-height: var(--h2-line-height);
+    }
+
+    .agenda__day-date {
+      color: var(--text-dark-muted);
+      font-family: var(--text-font-family);
+      font-size: var(--text-m);
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+
+    .agenda__day-list {
+      min-inline-size: 0;
+      flex: 1;
+    }
+
+    .agenda__cards,
+    .agenda__rows { display: flex; flex-direction: column; }
+
+    .agenda__rows { padding-block-start: var(--space-xs); }
+
+    .agenda__more-rows {
+      min-block-size: 2.75rem;
+      margin-inline-start: calc(4.5rem + var(--space-s));
+      padding: 0;
+      background: none;
+      border: 0;
+      color: var(--primary);
+      font-size: var(--text-s);
+      font-weight: 600;
+      text-decoration: underline;
+      cursor: pointer;
+
+      &:hover { color: var(--primary-hover); }
+    }
+
+    .agenda__more {
+      display: flex;
+      justify-content: center;
+      padding-block: var(--space-s);
+    }
+
+    .agenda__empty {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-s);
+      padding: var(--space-l);
+      background: var(--bg-ultra-light);
+      border: 1px dashed var(--neutral-light);
+      border-radius: var(--radius);
+    }
+
+    @media (min-width: 48rem) {
+      .agenda__more-rows { margin-inline-start: calc(7.5rem + var(--space-m)); }
+    }
+
+    @media (min-width: 60rem) {
+      .agenda__filter-row {
+        flex-wrap: wrap;
+        overflow-x: visible;
+      }
+
+      .agenda__day { flex-direction: row; gap: var(--space-l); }
+
+      .agenda__day-head {
+        flex: 0 0 14rem;
+        flex-direction: column;
+        justify-content: flex-start;
+        gap: var(--space-xs);
+        margin-block-end: 0;
+      }
+    }
   }
 </style>

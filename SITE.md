@@ -86,7 +86,7 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 2. [x] Settle the brand decision above. Design the homepage (agenda view) in Paper, desktop and mobile, **with the livelovelascruces.com header** (see "Header and navigation"). Approve.
 3. [x] Generate `acss/settings.json`. Run `scripts/acss-sync.sh`. Record the stylesheet size and anything learned in the shared docs. Result (ACSS 4.0.2): `automatic.css` is 59.8 KB, 9.8 KB gzipped.
 4. [x] Add `reset.css`, ACSS and `acss-bridge.css` to `Layout.astro`, on the redesign branch first (it has its own preview). Load `automatic.css` only (see the note under "Loading the output" in `agent-docs/acss-workflow.md`). Result: body font is now Schibsted Grotesk. The site's CSS bundle went from 10 KB (2 KB gzipped) to 60 KB (10 KB gzipped), which step 6 measures. Share images still use Inter (`src/lib/og.js`), and `@fontsource-variable/inter` is now unused but still in `package.json`.
-5. [ ] Convert components one at a time: Agenda, EventRow, EventCard, Header, Footer.
+5. [x] Convert components one at a time: Agenda, EventRow, EventCard, Header, Footer. Footer was converted to ACSS tokens only, with no redesign. Still on the old look: the homepage hero (tagline, "Tonight" panel, stat line), On now, Weekly regulars, Browse by vibe and the newsletter band in `src/pages/index.astro`, and page content is 1200px wide rather than the design's 1296px.
 6. [ ] PageSpeed check against the targets in `agent-docs/astro.md` before merging to `main`.
 
 **Turned off in ACSS for this site:** the accent color and its buttons (no accent role in the design), transparency shades for accent, tertiary, danger, info, success and warning, the light/dark color scheme switcher, basic overlays, text-shadow variables, forms plus automatic form styling (so loading ACSS can't restyle `/submit/`), default section styles (they turn every top-level `<section>` into a flex column and break the existing `.wrap` layout; revisit in step 5) and automatic image rounding.
@@ -95,7 +95,7 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 
 - Homepage: **approved by Charlie, Nov 8, 2026.** Paper file "Las Cruces Events", artboards `home / desktop`, `home / mobile` and `home / mobile, menu open`. The mobile artboard is a shortened sample: the built page keeps every day and section shown on desktop.
 - Footer: leave as it is for now. Charlie will decide later whether it should match livelovelascruces.com's link groups.
-- Still open: whether the Subscribe button keeps the LLLC red (white text on it is about 4:1, under the 4.5:1 target) or switches to the darker Art Trail red.
+- Subscribe button: Charlie chose the bright LLLC red to match livelovelascruces.com (Nov 9, 2026), knowing its text contrast is about 4:1, under the 4.5:1 target.
 
 ## Site-specific rules
 

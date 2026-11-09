@@ -31,6 +31,7 @@ Load this doc when writing or reviewing CSS for pages, sections, components, and
 ## Nesting
 
 - Use **native CSS nesting** to keep related rules together under their block selector.
+- **Write BEM elements in full.** `&__title` is Sass-only: in native CSS it silently does nothing, and the build won't warn you. `&` still works for states and attributes (`&:hover`, `&[data-size="small"]`).
 - Nest elements and state under the block; do not nest blocks inside blocks.
 - Limit nesting depth to what aids readability — if selectors exceed three levels, flatten.
 
@@ -38,7 +39,7 @@ Load this doc when writing or reviewing CSS for pages, sections, components, and
 .card {
   /* block styles */
 
-  &__title { /* element */ }
+  .card__title { /* element */ }
 
   &[data-size="small"] { /* variation via data attribute */ }
 

@@ -1,35 +1,254 @@
 ---
+// Top row matches livelovelascruces.com, so the calendar feels like part of the main site.
+// The second row holds the calendar's own links.
 const path = Astro.url.pathname;
-const links = [
+const lllc = 'https://livelovelascruces.com';
+const siteLinks = [
+  { href: `${lllc}/local-events`, label: 'Local Events' },
+  { href: `${lllc}/live-music`, label: 'Live Music' },
+  { href: '/', label: 'Events Calendar', current: true },
+  { href: 'https://livelovelascruces.dnnr.io/', label: 'Dinner Club' },
+];
+const subscribeUrl = `${lllc}/subscribe?utm_source=lc-events`;
+const calendarLinks = [
   { href: '/this-weekend/', label: 'This weekend' },
   { href: '/category/live-music/', label: 'Live music' },
   { href: '/#browse', label: 'Browse', match: '/category/' },
 ];
+const currentValue = path === '/' ? 'page' : 'true';
 ---
 <header class="site-header">
-  <div class="wrap bar">
-    <a class="logo" href="/">Las Cruces <span>Events</span></a>
-    <nav aria-label="Main">
-      {links.map((l) => (
-        <a href={l.href} aria-current={path === l.href ? 'page' : undefined}>{l.label}</a>
+  <div class="site-header__main">
+    <a class="site-header__logo" href={`${lllc}/`}>
+      <img src="/lllc-logo-on-dark.png" width="240" height="60" alt="Live Love Las Cruces" />
+    </a>
+
+    <nav class="site-header__nav" aria-label="Live Love Las Cruces">
+      {siteLinks.map((l) => (
+        <a class="site-header__link" href={l.href} aria-current={l.current ? currentValue : undefined}>{l.label}</a>
       ))}
-      <a class="btn btn-dark cta" href="/submit/">Add your event</a>
+      <a class="site-header__subscribe" href={subscribeUrl}>Subscribe</a>
     </nav>
+
+    <details class="site-header__menu" data-site-menu>
+      <summary class="site-header__toggle" aria-label="Menu">
+        <svg class="site-header__icon" data-state="closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+        <svg class="site-header__icon" data-state="open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
+      </summary>
+      <nav class="site-header__panel" aria-label="Live Love Las Cruces menu">
+        {siteLinks.map((l) => (
+          <a class="site-header__panel-link" href={l.href} aria-current={l.current ? currentValue : undefined}>{l.label}</a>
+        ))}
+        <a class="site-header__subscribe" data-size="full" href={subscribeUrl}>Subscribe</a>
+      </nav>
+    </details>
+  </div>
+
+  <div class="site-header__calendar">
+    <a class="site-header__name" href="/">Las Cruces Events</a>
+    <nav class="site-header__calendar-nav" aria-label="Calendar">
+      {calendarLinks.map((l) => (
+        <a
+          class="site-header__calendar-link"
+          href={l.href}
+          aria-current={path === l.href ? 'page' : undefined}
+        >{l.label}</a>
+      ))}
+    </nav>
+    <a class="site-header__cta btn--primary" href="/submit/">Add your event</a>
   </div>
 </header>
 
+<script>
+  // <details> gives the menu its keyboard and screen reader support. This adds Escape to close it.
+  for (const menu of document.querySelectorAll('[data-site-menu]')) {
+    menu.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && menu.open) {
+        menu.open = false;
+        menu.querySelector('summary').focus();
+      }
+    });
+  }
+</script>
+
 <style>
-  .site-header { border-bottom: 1px solid var(--line); background: var(--bg); }
-  .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; padding-top: 14px; padding-bottom: 14px; }
-  .logo { font-family: var(--display); font-weight: 800; font-size: 1.4rem; color: var(--ink); text-decoration: none; letter-spacing: -0.01em; }
-  .logo span { color: var(--ev-accent); }
-  nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
-  nav a:not(.btn) { color: var(--ink); text-decoration: none; font-weight: 500; padding: 10px 0; }
-  nav a:not(.btn):hover, nav a[aria-current] { color: var(--ev-accent); }
-  nav a[aria-current] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
-  .cta { min-height: 44px; padding: 0 18px; font-size: .95rem; }
-  @media (max-width: 560px) {
-    nav { gap: 2px 16px; }
-    .cta { width: 100%; justify-content: center; margin-top: 4px; }
+  .site-header {
+    .site-header__main {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-m);
+      min-block-size: 6.25rem;
+      padding-inline: var(--gutter);
+      background: var(--bg-ultra-dark);
+    }
+
+    .site-header__logo {
+      flex: 0 1 15rem;
+      min-inline-size: 0;
+    }
+
+    .site-header__nav {
+      display: none;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .site-header__link,
+    .site-header__panel-link {
+      color: var(--text-light);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .site-header__link {
+      padding-block: var(--space-xs);
+      border-block-end: 2px solid transparent;
+
+      &:hover { color: var(--text-light); text-decoration: underline; }
+      &[aria-current] { border-block-end-color: var(--lllc-red); }
+      &[aria-current]:hover { text-decoration: none; }
+    }
+
+    .site-header__subscribe {
+      padding: var(--space-xs) var(--space-s);
+      background: var(--lllc-red);
+      border-radius: var(--radius-s);
+      color: var(--text-light);
+      font-size: var(--text-s);
+      font-weight: 800;
+      line-height: 1.5;
+      text-align: center;
+      text-decoration: none;
+
+      &:hover { color: var(--text-light); text-decoration: underline; }
+      &[data-size="full"] { display: flex; align-items: center; justify-content: center; min-block-size: 2.75rem; margin-block-start: var(--space-s); font-size: var(--text-m); }
+    }
+
+    .site-header__menu { flex: none; }
+
+    .site-header__toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      inline-size: 2.75rem;
+      block-size: 2.75rem;
+      margin-inline-end: -0.375rem;
+      color: var(--text-light);
+      cursor: pointer;
+      list-style: none;
+
+      &::-webkit-details-marker { display: none; }
+    }
+
+    .site-header__icon[data-state="open"] { display: none; }
+
+    .site-header__menu[open] .site-header__icon[data-state="closed"] { display: none; }
+    .site-header__menu[open] .site-header__icon[data-state="open"] { display: block; }
+
+    .site-header__panel {
+      position: absolute;
+      inset-block-start: 100%;
+      inset-inline: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      min-block-size: 100dvh;
+      padding: var(--space-s) var(--gutter);
+      background: var(--bg-ultra-dark);
+    }
+
+    .site-header__panel-link {
+      display: flex;
+      align-items: center;
+      min-block-size: 3.5rem;
+      font-family: var(--heading-font-family);
+      font-size: var(--h2);
+      font-weight: 700;
+
+      &:hover { color: var(--text-light); text-decoration: underline; }
+      &[aria-current]::after {
+        content: "";
+        inline-size: 0.625rem;
+        block-size: 0.625rem;
+        margin-inline-start: var(--space-xs);
+        border-radius: var(--radius-circle);
+        background: var(--lllc-red);
+      }
+    }
+
+    .site-header__calendar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: var(--space-xs) var(--space-m);
+      padding: var(--space-xs) var(--gutter);
+      border-block-end: 1px solid var(--neutral-light);
+      background: var(--bg-light);
+    }
+
+    .site-header__name {
+      color: var(--text-dark);
+      font-family: var(--heading-font-family);
+      font-size: var(--text-xl);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      text-decoration: none;
+      white-space: nowrap;
+
+      &:hover { color: var(--text-dark); }
+    }
+
+    .site-header__cta {
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 2.75rem;
+      font-size: var(--text-s);
+      white-space: nowrap;
+    }
+
+    .site-header__calendar-nav {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-m);
+    }
+
+    .site-header__calendar-link {
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 2.75rem;
+      color: var(--text-dark);
+      font-weight: 600;
+      text-decoration: none;
+
+      &:hover { color: var(--primary); }
+      &[aria-current] {
+        color: var(--primary);
+        text-decoration: underline;
+        text-decoration-thickness: 2px;
+        text-underline-offset: 6px;
+      }
+    }
+
+    @media (min-width: 60rem) {
+      .site-header__nav { display: flex; }
+      .site-header__menu { display: none; }
+      .site-header__cta { font-size: var(--text-m); }
+
+      .site-header__calendar {
+        grid-template-columns: auto 1fr auto;
+        gap: var(--space-l);
+        padding-block: var(--space-s);
+      }
+
+      .site-header__calendar-nav {
+        grid-column: 2;
+        grid-row: 1;
+        justify-content: flex-start;
+      }
+    }
   }
 </style>
