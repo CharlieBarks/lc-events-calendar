@@ -69,6 +69,18 @@ When a site's first design is approved (or its brand changes):
 
 Small changes later ("primary a little darker") use `wp acss settings set`, then export back to `acss/settings.json` so the repo stays the source of truth.
 
+### Gotchas (found on the first site, ACSS 4.0.2)
+
+- **Changing a color's hex does not change its shades.** Neither `wp acss settings set color-primary` nor an import recalculates them. The stylesheet is built from the `<role>-l-oklch`, `-c-oklch` and `-h-oklch` keys and the same three for each shade (`<role>-dark-l-oklch`, and so on for `hover`, `semi-dark`, `semi-light`, `light`, `ultra-dark`, `ultra-light`). Set those too, then confirm `--primary` and friends in the generated CSS.
+- **Set `root-font-size` to `100`.** At `62.5`, the site's existing `rem` sizes render at about 62% once ACSS loads.
+- **The control panel holds the last site's values.** If you start from an export, check for leftovers. `text-s-min` and `text-xs-min` were left at 120 and 110, which made small text 120px on phones. After syncing, this should find nothing: `grep -E 'clamp\([^;]*-[0-9.]+vw' src/styles/acss/automatic-variables.css`.
+- **`body-bg-color` and `body-color` can be blank.** Set them, or the page stays white.
+- Headless Chrome's new mode won't go narrower than 500px wide, so test true phone widths in a real browser.
+
+### Loading the output
+
+`automatic.css` already contains everything in `automatic-variables.css`, so load `automatic.css` only. Loading both repeats about 21 KB. `automatic-custom-css.css` and `automatic-tokens.css` were empty on the first site.
+
 ## Fonts
 
 Kevin's rules from the video, adopted here:
