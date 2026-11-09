@@ -84,10 +84,12 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 
 1. [x] **Rename colliding tokens:** `--accent` → `--ev-accent`, `--accent-dark` → `--ev-accent-dark`, `--accent-tint` → `--ev-accent-tint`, `--radius` → `--ev-radius`. No visual change. (`intake.js` keeps its own `--accent`: the Worker's admin page defines it separately and never loads ACSS.)
 2. [x] Settle the brand decision above. Design the homepage (agenda view) in Paper, desktop and mobile, **with the livelovelascruces.com header** (see "Header and navigation"). Approve.
-3. [ ] Generate `acss/settings.json`. Run `scripts/acss-sync.sh`. Record the stylesheet size and anything learned in the shared docs.
-4. [ ] Add `reset.css`, ACSS and `acss-bridge.css` to `Layout.astro`, on the redesign branch first (it has its own preview).
+3. [x] Generate `acss/settings.json`. Run `scripts/acss-sync.sh`. Record the stylesheet size and anything learned in the shared docs. Result (ACSS 4.0.2): `automatic.css` is 59.8 KB, 9.8 KB gzipped.
+4. [ ] Add `reset.css`, ACSS and `acss-bridge.css` to `Layout.astro`, on the redesign branch first (it has its own preview). Load `automatic.css` only (see the note under "Loading the output" in `agent-docs/acss-workflow.md`). Check the space between headings: ACSS's default heading styles add more than the design has. Schibsted Grotesk needs `@fontsource-variable/schibsted-grotesk` added (a new dependency, so ask first).
 5. [ ] Convert components one at a time: Agenda, EventRow, EventCard, Header, Footer.
 6. [ ] PageSpeed check against the targets in `agent-docs/astro.md` before merging to `main`.
+
+**Turned off in ACSS for this site:** the accent color and its buttons (no accent role in the design), transparency shades for accent, tertiary, danger, info, success and warning, the light/dark color scheme switcher, basic overlays, text-shadow variables, and forms plus automatic form styling (so loading ACSS can't restyle `/submit/`).
 
 ## Design status
 
