@@ -26,6 +26,8 @@ The whole reset is inside `@layer reset { ... }`.
 
 ACSS may include some base styles of its own. On the first build with ACSS, note any overlap here. Keep the reset anyway: being layered, it can't fight ACSS.
 
+Overlap found on the first site (ACSS 4.0.2): ACSS also sets `box-sizing`, inherits fonts on form controls and sets `body` min height. `scrollbar-gutter: stable` narrows centered page margins by half a scrollbar on browsers with classic scrollbars.
+
 ## Migrating an existing site
 
 The Art Trail, LC Live and events sites each have a few reset rules at the top of `global.css`. When adding `reset.css`, remove only those duplicated lines from `global.css`, and check nothing visibly changes (especially margins, which the old resets didn't zero everywhere).

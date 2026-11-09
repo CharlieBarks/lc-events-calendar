@@ -16,8 +16,8 @@
   --night-text: #C9CFDB;
   --ev-radius: 20px; /* matches livelovelascruces.com */
   --lllc-red: #FF0A06; /* Live Love Las Cruces heart. Decorative only: too light for text on cream */
-  --display: 'Bricolage Grotesque Variable', 'Inter Variable', system-ui, sans-serif;
-  --body: 'Inter Variable', system-ui, -apple-system, sans-serif;
+  --display: 'Bricolage Grotesque Variable', system-ui, sans-serif;
+  --body: 'Schibsted Grotesk Variable', system-ui, -apple-system, sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; }

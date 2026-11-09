@@ -75,7 +75,10 @@ Small changes later ("primary a little darker") use `wp acss settings set`, then
 - **Set `root-font-size` to `100`.** At `62.5`, the site's existing `rem` sizes render at about 62% once ACSS loads.
 - **The control panel holds the last site's values.** If you start from an export, check for leftovers. `text-s-min` and `text-xs-min` were left at 120 and 110, which made small text 120px on phones. After syncing, this should find nothing: `grep -E 'clamp\([^;]*-[0-9.]+vw' src/styles/acss/automatic-variables.css`.
 - **`body-bg-color` and `body-color` can be blank.** Set them, or the page stays white.
-- Headless Chrome's new mode won't go narrower than 500px wide, so test true phone widths in a real browser.
+- Headless Chrome's `--window-size` won't go narrower than 500px. For true phone widths use a real browser or device emulation over the DevTools protocol.
+- **ACSS's defaults change existing pages when it first loads.** Compare computed styles before and after on real pages. On the first site these needed changing: `option-load-default-section-styles` off (it makes every top-level `<section>` a flex column, which shrinks `.wrap` children and changed row heights), `option-auto-radius` off (rounded every image), `link-decoration` to `underline` and `link-weight` to `inherit` (the defaults removed underlines and bold from links).
+- `button:not(nav button, [class*="btn--"])` outranks a single class, so plain `.filter`-style buttons take ACSS's button weight and line height. On the first site that matched the design.
+- **Installing a package with a newer npm can rewrite `package-lock.json`** (it stripped every `"dev": true`). Check the diff and keep only the new package's lines.
 
 ### Loading the output
 
