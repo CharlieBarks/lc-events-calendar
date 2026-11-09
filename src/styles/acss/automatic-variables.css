@@ -1,4 +1,4 @@
-/* File: automatic-variables.css - Version: 4.0.2 - Generated: 2026-11-09 05:35:15 */
+/* File: automatic-variables.css - Version: 4.0.2 - Generated: 2026-11-09 05:52:17 */
 /* Feat: Text, Headings, & Spacing */
 :root {
   --root-font-size: 100%;
@@ -39,11 +39,6 @@
   --neutral-ultra-dark: oklch(0.2 0.0009 67.7);
   --white: #fff;
   --black: #000;
-}
-/* Feat: Default Section Styles */
-:root {
-  --content-width: 81rem;
-  --content-width-safe: min(var(--content-width), calc(100% - var(--gutter) * 2));
 }
 /* Feat: Focus Styles */
 :root {
@@ -143,11 +138,6 @@
   --h1-to-h4: clamp(1.125rem, calc(5.5327868852vw + 0.018442623rem), 4.5rem);
   --h1-to-h5: clamp(0.75rem, calc(6.1475409836vw + -0.4795081967rem), 4.5rem);
   --h1-to-h6: clamp(0.6875rem, calc(6.25vw + -0.5625rem), 4.5rem);
-}
-/* Feat: Default Section Styles */
-:root {
-  --section-padding-block: var(--section-space-m);
-  --gutter: clamp(1.25rem, calc(5.3278688525vw + 0.1844262295rem), 4.5rem);
 }
 /* Feat: Space Variables */
 :root {
@@ -291,10 +281,10 @@
   --link-color: var(--primary);
   --link-color-hover: var(--primary-hover);
   --link-transition: var(--transition);
-  --link-decoration: none;
+  --link-decoration: underline;
   --link-decoration-hover: inherit;
   --link-underline-offset: auto;
-  --link-weight: 400;
+  --link-weight: inherit;
 }
 /* Feat: Column Variables */
 :root {
