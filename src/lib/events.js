@@ -19,6 +19,8 @@ import path from 'node:path';
 import lllcEvents from '../data/events.json';
 import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL } from './site.js';
 import { topicFor } from './topics.js';
+import { resolveVenue, fold } from './venues.js';
+import spotlightList from '../data/spotlight.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
 const EVENTS_URL = 'https://lc-events-proxy.cf2-99b.workers.dev';
@@ -111,23 +113,31 @@ function normalize(e, source) {
   const end = wall(e.end);
   const place = e.address ? { venue: e.venue || e.city || '', address: e.address } : cleanVenue(e.venue);
   const category = e.tags ? categoryFromTags(e.tags, e.title) : categoryKey(e.category);
+  // One spelling per venue (src/data/venues.json), so search and series grouping see one place.
+  const v = resolveVenue(place.venue || e.venue || '');
   const out = {
     slug: source === 'lllc' ? e.slug : `${slugify(e.title).slice(0, 60).replace(/-$/, '')}-${dateKey(start)}`,
     title: e.title.trim(),
     startRaw: e.start,
     start, end,
     date: dateKey(start),
-    venue: place.venue || e.venue || '',
+    venue: v.venue,
+    room: v.room,
+    venueKey: v.key,
     address: place.address,
     category,
     description: (e.description || '').trim(),
+    summary: (e.summary || '').trim(),
     url: e.url || '',
     ticketUrl: e.ticketUrl || '',
     image: source === 'cityspark' && !CITYSPARK_SUBSCRIBED && CITYSPARK_PLACEHOLDER.test(e.image || '') ? '' : e.image || '',
     tags: e.tags || [],
     price: e.price || '',
-    featured: !!e.featured,
-    sponsored: !!e.sponsored,
+    // Spotlight is only for events Charlie marks (Review page, events.json or src/data/spotlight.json),
+    // not CitySpark's old "picks".
+    featured: source !== 'cityspark' && !!e.featured,
+    sponsored: source !== 'cityspark' && !!e.sponsored,
+    spotlightUntil: e.spotlightUntil || '',
     sample: !!e.sample,
     source,
   };
@@ -219,8 +229,23 @@ export async function getEvents() {
       x.dates = [x.next];
     }
 
+    // Spotlight list for events that didn't come through the form.
+    for (const m of spotlightList.events || []) {
+      const t = fold(m.title || ''), v = fold(m.venue || '');
+      if (!t) continue;
+      for (const e of kept) {
+        if (fold(e.title) !== t || (v && !fold(e.venue).includes(v))) continue;
+        e.featured = true;
+        e.sponsored = e.sponsored || !!m.sponsored;
+        e.spotlightUntil = m.until || e.spotlightUntil;
+      }
+    }
     for (const e of kept) {
-      e.compact = !!e.series || e.category === 'city-hall';
+      // A Spotlight ends on its "until" date (or with the event itself).
+      if (e.spotlightUntil && e.date > e.spotlightUntil) { e.featured = false; e.sponsored = false; }
+      e.spotlight = e.featured || e.sponsored;
+      // Paid events always get a full card, even when they repeat.
+      e.compact = !e.sponsored && (!!e.series || e.category === 'city-hall');
     }
 
     return {
@@ -235,7 +260,8 @@ export async function getEvents() {
 }
 
 export function shortVenue(e) {
-  return e.venue || 'Location on the original listing';
+  if (!e.venue) return 'Location on the original listing';
+  return e.room ? `${e.venue} · ${e.room}` : e.venue;
 }
 
 export function mapsLink(e) {

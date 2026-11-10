@@ -1,12 +1,16 @@
 ---
-// Compact one-line listing for regulars (weekly classes) and city meetings. Quieter than one-off events.
+// Quiet listing for regulars (weekly classes) and city meetings, with a small picture
+// (the flyer or photo, or our topic artwork). While someone is searching, the Agenda sets
+// data-searching and these rows open up to match one-off events (styles at the bottom).
+import EventArt from './EventArt.astro';
 import { PREVIEW } from '../lib/site.js';
 import { shortVenue } from '../lib/events.js';
 import { timeLabel } from '../lib/time.js';
 const { event, headingLevel = 3 } = Astro.props;
 const Heading = `h${headingLevel}`;
 ---
-<li class="event-row" data-date={event.date} data-cat={event.category}><a class="event-row__link" href={`/event/${event.slug}/`}>
+<li class="event-row" data-date={event.date} data-cat={event.category} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-row__link" href={`/event/${event.slug}/`}>
+  <span class="event-row__thumb"><EventArt event={event} height={40} showDate={false} compact /></span>
   <span class="event-row__time">{timeLabel(event.start)}</span>
   <Heading class="event-row__name">{event.title}</Heading>
   <span class="event-row__meta">{shortVenue(event)}{event.series && <> · {event.series.when}</>}</span>
@@ -17,7 +21,10 @@ const Heading = `h${headingLevel}`;
   .event-row {
     .event-row__link {
       display: grid;
-      grid-template-columns: 4.5rem 1fr;
+      grid-template-columns: 2.5rem 4.5rem 1fr;
+      grid-template-areas:
+        "thumb time name"
+        "thumb time meta";
       gap: 0 var(--space-s);
       align-items: start;
       padding-block: var(--space-xs);
@@ -29,13 +36,25 @@ const Heading = `h${headingLevel}`;
       &:hover .event-row__name { color: var(--primary); }
     }
 
+    .event-row__thumb {
+      grid-area: thumb;
+      display: block;
+      inline-size: 2.5rem;
+      block-size: 2.5rem;
+      overflow: hidden;
+      border-radius: var(--radius-xs);
+
+      & > :global(.art) { inline-size: 100%; block-size: 100% !important; padding: 0; }
+    }
+
     .event-row__time {
-      grid-row: span 2;
+      grid-area: time;
       color: var(--text-dark-muted);
       font-weight: 500;
     }
 
     .event-row__name {
+      grid-area: name;
       color: var(--neutral-dark);
       font-family: var(--text-font-family);
       font-size: inherit;
@@ -45,20 +64,60 @@ const Heading = `h${headingLevel}`;
     }
 
     .event-row__meta {
-      grid-column: 2;
+      grid-area: meta;
       color: var(--text-dark-muted);
     }
 
     @media (min-width: 48rem) {
+      /* Same columns as one-off event rows, so times, pictures and titles line up. */
       .event-row__link {
-        grid-template-columns: 7.5rem 1fr minmax(0, 26rem);
+        grid-template-columns: 7.5rem 5.5rem 1fr minmax(0, 26rem);
+        grid-template-areas: "time thumb name meta";
         gap: var(--space-m);
         align-items: center;
         min-block-size: 2.75rem;
       }
+    }
+  }
 
-      .event-row__time { grid-row: auto; }
-      .event-row__meta { grid-column: 3; }
+  /* Searching: regulars open up to match one-off event rows. */
+  :global([data-searching]) .event-row {
+    .event-row__link {
+      grid-template-columns: 4rem 1fr;
+      grid-template-areas:
+        "thumb time"
+        "thumb name"
+        "thumb meta";
+      gap: 0.125rem var(--space-s);
+      padding-block: var(--space-s);
+      border-block-end: 1px solid var(--neutral-light);
+      font-size: var(--text-m);
+    }
+
+    .event-row__thumb { inline-size: 4rem; block-size: 4rem; border-radius: var(--radius-s); }
+    .event-row__time { color: var(--text-dark); font-weight: 600; }
+
+    .event-row__name {
+      color: var(--text-dark);
+      font-family: var(--heading-font-family);
+      font-size: var(--h3);
+      font-weight: 600;
+      letter-spacing: var(--h3-letter-spacing);
+      line-height: var(--h3-line-height);
+    }
+
+    @media (min-width: 48rem) {
+      .event-row__link {
+        grid-template-columns: 7.5rem 5.5rem 1fr;
+        grid-template-areas:
+          "time thumb name"
+          "time thumb meta";
+        gap: 0 var(--space-m);
+      }
+
+      .event-row__thumb { inline-size: 5.5rem; }
+      .event-row__name { align-self: end; }
+      .event-row__meta { align-self: start; }
     }
   }
 </style>

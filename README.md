@@ -14,9 +14,9 @@ Every push rebuilds automatically (about 1–2 minutes). This only works while t
 
 ## Where events come from
 
-1. **CitySpark copy** (the old calendar's listings, with photos). CitySpark "picks" become Charlie's picks.
+1. **CitySpark copy** (the old calendar's listings, with photos). CitySpark's own "picks" are ignored: the Spotlight section only shows events Charlie marks.
 2. **City of Las Cruces** feed via the proxy. Duplicates of CitySpark listings are dropped.
-3. **`src/data/events.json`**: events we add ourselves (later: approved submissions). `featured: true` puts it in Charlie's picks. `sample: true` only shows on the design preview.
+3. **`src/data/events.json`**: events we add ourselves (later: approved submissions). `featured: true` puts it in Spotlight (`sponsored: true` for paid). `sample: true` only shows on the design preview.
 
 If the city feed can't be reached, the build stops on purpose so the last good version stays live.
 Working offline: `EVENTS_OFFLINE=1 npm run build` uses `src/data/city-snapshot.json`.

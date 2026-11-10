@@ -1,6 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { CATEGORIES, INTAKE_URL } from '../lib/site.js';
+import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
 ---
 <Layout title="Add Your Event" description="List your Las Cruces or Mesilla event for free. Upload your flyer and the details fill themselves in, or type it in yourself.">
   <section class="wrap-narrow head">
@@ -10,7 +10,7 @@ import { CATEGORIES, INTAKE_URL } from '../lib/site.js';
     <p class="lede">If it's open to the public in Las Cruces or Mesilla, it belongs here. I check every listing, usually within a day. – Charlie</p>
   </section>
 
-  <section class="wrap-narrow body" data-app data-intake={INTAKE_URL}>
+  <section class="wrap-narrow body" data-app data-intake={INTAKE_URL} data-pay={SPOTLIGHT.payUrl}>
     <p class="who" data-who hidden>Submitting as <strong data-who-name></strong> · <button type="button" class="link" data-forget>not you?</button></p>
 
     <!-- Step 1: pick a path -->
@@ -80,6 +80,29 @@ import { CATEGORIES, INTAKE_URL } from '../lib/site.js';
         </div>
       </fieldset>
 
+      <fieldset class="boost" id="spotlight">
+        <legend>Want more eyes on it?</legend>
+        <label class="tier">
+          <input type="radio" name="boost" value="" checked />
+          <span class="tier-body">
+            <span class="tier-head"><strong>Free</strong></span>
+            <span class="tier-text">Your event goes on the calendar. Always free.</span>
+          </span>
+        </label>
+        <label class="tier">
+          <input type="radio" name="boost" value="spotlight" />
+          <span class="tier-body">
+            <span class="tier-head"><strong>Spotlight</strong> <span class="tier-price">${SPOTLIGHT.price}</span></span>
+            <ul class="tier-list">
+              <li>Pinned to the <strong>top of the calendar</strong> on your event's date, with a Sponsored label</li>
+              <li>Rotates through the <strong>Spotlight</strong> section on the calendar's front page</li>
+              <li>A mention in the <strong>Live Love Las Cruces newsletter</strong> ({SITE.subscribers} locals) before your event</li>
+            </ul>
+            <span class="tier-text">You'll pay after you send it. Nothing goes live until I've checked it over.</span>
+          </span>
+        </label>
+      </fieldset>
+
       <fieldset data-contact>
         <legend>How do I reach you?</legend>
         <p class="hint">Only used if I have a question about your listing. Never shown on the site.</p>
@@ -100,7 +123,11 @@ import { CATEGORIES, INTAKE_URL } from '../lib/site.js';
     <div class="done" data-step="done" hidden>
       <h2>Got it, thanks!</h2>
       <p data-done-text>I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.</p>
-      <p>The best-looking listings make the Live Love Las Cruces newsletter (10,000+ locals).</p>
+      <p data-done-free>The best-looking listings make the Live Love Las Cruces newsletter (10,000+ locals).</p>
+      <div class="pay" data-done-pay hidden>
+        <p><strong>One more step for your Spotlight:</strong> <span data-pay-text>pay the ${SPOTLIGHT.price} below. As soon as it comes through and I've checked your listing, it goes to the top.</span></p>
+        <a class="btn btn-primary" data-pay-link href="#" target="_blank" rel="noopener">Pay ${SPOTLIGHT.price} for Spotlight</a>
+      </div>
       <div class="btn-row"><button type="button" class="btn btn-dark" data-again>Add another event</button><a class="btn btn-outline" href="/">Back to the calendar</a></div>
     </div>
   </section>
@@ -167,6 +194,10 @@ import { CATEGORIES, INTAKE_URL } from '../lib/site.js';
     try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; }
   }
   function applyMe() {
+    // Coming from a "Spotlight my event" link (?spotlight=1): Spotlight is pre-selected.
+    if (new URLSearchParams(location.search).get('spotlight')) {
+      (form.querySelector('input[name="boost"][value="spotlight"]') as HTMLInputElement).checked = true;
+    }
     const me = loadMe();
     const contact = $('[data-contact]');
     if (me?.name && me?.email) {
@@ -308,6 +339,7 @@ import { CATEGORIES, INTAKE_URL } from '../lib/site.js';
       price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId,
       name: field('name').value, email: field('email').value, phone: field('phone').value, website: field('website').value,
       act: new URLSearchParams(location.search).get('act') || '', source,
+      boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
     };
     try {
       const res = await fetch(`${INTAKE}/submit`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -319,6 +351,21 @@ import { CATEGORIES, INTAKE_URL } from '../lib/site.js';
       $('[data-done-text]').textContent = shows.length > 1
         ? `All ${shows.length} dates are in. I'll check them over, usually within a day, and they'll show up on the calendar.`
         : "I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.";
+      // Spotlight: send them to pay, with the submission's reference so the payment can be matched in Stripe.
+      const paid = body.boost === 'spotlight';
+      $('[data-done-free]').hidden = paid;
+      $('[data-done-pay]').hidden = !paid;
+      const payUrl = app.dataset.pay || '';
+      const link = $('[data-pay-link]') as HTMLAnchorElement;
+      if (paid && payUrl) {
+        const u = new URL(payUrl);
+        u.searchParams.set('client_reference_id', data.id);
+        if (body.email) u.searchParams.set('prefilled_email', body.email);
+        link.href = u.toString(); link.hidden = false;
+      } else if (paid) {
+        link.hidden = true;
+        $('[data-pay-text]').textContent = "I'll email you a payment link. As soon as it comes through and I've checked your listing, it goes to the top.";
+      }
       status.textContent = '';
       step('done');
     } catch (err: any) {
@@ -403,6 +450,17 @@ import { CATEGORIES, INTAKE_URL } from '../lib/site.js';
   .submit { align-self: flex-start; min-height: 52px; padding: 0 28px; font-size: 1.05rem; }
   .status { font-weight: 600; color: var(--ev-accent); min-height: 1.4em; }
 
+  .boost { gap: 12px; }
+  .tier { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; cursor: pointer; font-weight: 400; }
+  .tier:has(input:checked) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
+  .tier input { width: 22px; height: 22px; min-height: 22px; margin-top: 2px; flex: none; accent-color: var(--ev-accent); }
+  .tier-body { display: flex; flex-direction: column; gap: 6px; }
+  .tier-head { display: flex; gap: 10px; align-items: baseline; font-size: 1.1rem; }
+  .tier-price { font-weight: 700; color: var(--ev-accent); }
+  .tier-text { color: var(--muted); font-size: .92rem; }
+  .tier-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+  .pay { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; padding: 18px; border-radius: 14px; background: #FFF4D6; }
+  .pay[hidden] { display: none; }
   .done { padding: 32px; border: 1px solid var(--line); border-radius: var(--ev-radius); background: var(--card); display: flex; flex-direction: column; gap: 12px; }
   .done h2 { margin: 0; }
   .done p { margin: 0; }

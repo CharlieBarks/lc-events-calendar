@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import Agenda from '../components/Agenda.astro';
 import EventCard from '../components/EventCard.astro';
 import Newsletter from '../components/Newsletter.astro';
-import { SITE, CATEGORIES } from '../lib/site.js';
+import { SITE, CATEGORIES, SPOTLIGHT } from '../lib/site.js';
 import { getEvents, shortVenue } from '../lib/events.js';
 import { dateKey, todayWall, addDays, shortDate, weekendRange } from '../lib/time.js';
 
@@ -14,14 +14,12 @@ const thisWeek = events.filter((e) => e.date <= weekEnd).length;
 const { from, to } = weekendRange(today);
 const weekend = events.filter((e) => e.date >= from && e.date <= to).length;
 
-// Charlie's picks: featured first, then the next one-off events with a photo or flyer.
-const soon = dateKey(addDays(today, 10));
-const picks = [
-  ...events.filter((e) => e.featured && e.date <= soon),
-  ...events.filter((e) => !e.featured && !e.compact && e.image && e.date <= soon),
-].filter((e, i, a) => a.findIndex((x) => x.title === e.title) === i).slice(0, 6);
-// The site is rebuilt once a day, so a few spares are built in and the browser drops any that have
-// already happened (see the script below), keeping the first three.
+// Spotlight: only events Charlie marks (paid Spotlight packages and sponsor events). Each event once
+// (its next date). The browser shows three at random on each visit, paid ones first (script below).
+const picks = [...events, ...ongoing]
+  .filter((e) => e.spotlight)
+  .filter((e, i, a) => a.findIndex((x) => x.title === e.title) === i)
+  .slice(0, 24);
 const usedCats = Object.keys(CATEGORIES).filter((k) => all.some((e) => e.category === k));
 // Weekly regulars: the truly weekly ones first, then the rest, by next date. 12 is plenty.
 const regulars = [...series]
@@ -67,21 +65,28 @@ const jsonLd = [
     </div>
   </section>
 
-  {picks.length > 0 && (
-    <section class="section section-white">
-      <div class="wrap">
-        <div class="section-head">
-          <div>
-            <h2>Charlie's picks</h2>
-            <p>If you only do one thing this week, make it one of these.</p>
-          </div>
+  <section class="section section-white" data-spotlight-sec>
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <h2>Spotlight</h2>
+          <p>Don't sleep on these. Hand-picked events and the local folks who help keep this calendar free.</p>
         </div>
+      </div>
+      {picks.length > 0 && (
         <ul class="grid" role="list" data-picks>
           {picks.map((e, i) => <EventCard event={e} big eager={i === 0} />)}
         </ul>
+      )}
+      <div class="promo" data-promo hidden={picks.length > 0}>
+        <div>
+          <h3>Your event could be right here.</h3>
+          <p>Spotlight puts it at the top of its day on the calendar, rotates it through this section, and gets it a mention in the Live Love Las Cruces newsletter ({SITE.subscribers} locals) before the big day. ${SPOTLIGHT.price}.</p>
+        </div>
+        <a class="btn btn-primary" href="/submit/?spotlight=1">Spotlight my event</a>
       </div>
-    </section>
-  )}
+    </div>
+  </section>
 
   <section class="section" id="calendar">
     <div class="wrap">
@@ -91,7 +96,7 @@ const jsonLd = [
           <p>Tap a day or a category to narrow it down. Regulars and city meetings are tucked into the short rows so the one-night-only stuff stands out.</p>
         </div>
       </div>
-      <Agenda events={events} initialDays={7} />
+      <Agenda events={events} ongoing={ongoing} initialDays={7} />
     </div>
   </section>
 
@@ -159,8 +164,13 @@ const jsonLd = [
 </Layout>
 
 <style>
-  /* Only three picks show; the spares are there in case some have passed since the last rebuild. */
+  /* Three show; the script picks which. Without JavaScript, the first three. */
   [data-picks] > :global(li:nth-child(n+4)) { display: none; }
+  [data-picks].shuffled > :global(li) { display: flex; }
+  .promo { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: center; justify-content: space-between; padding: 28px; border: 1.5px dashed var(--line); border-radius: var(--ev-radius); background: var(--bg); }
+  .promo > div { flex: 1 1 420px; display: flex; flex-direction: column; gap: 6px; }
+  .promo h3 { font-size: 1.35rem; }
+  .promo p { color: var(--muted); max-width: 60ch; }
   .hero { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-end; padding-top: 56px; padding-bottom: 48px; }
   .copy { flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
   .hero-stats { flex: 0 1 300px; display: grid; gap: 12px; }
@@ -186,15 +196,22 @@ const jsonLd = [
 </style>
 
 <script>
-  // Drop picks whose day has passed since the last rebuild, then keep the first three.
+  // Spotlight: drop anything that has already happened, then show three at random,
+  // paid (Sponsored) events first so they're never crowded out. Changes on every visit.
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const list = document.querySelector('[data-picks]');
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   if (list) {
-    let kept = 0;
-    list.querySelectorAll(':scope > li[data-date]').forEach((li) => {
-      if (li.dataset.date < today || kept >= 3) li.remove();
-      else kept++;
+    const items = [...list.querySelectorAll(':scope > li[data-date]')].filter((li) => {
+      if (li.dataset.date < today && !li.hasAttribute('data-ongoing')) { li.remove(); return false; }
+      return true;
     });
-    if (!kept) list.closest('section')?.remove();
+    const paid = shuffle(items.filter((li) => li.querySelector('.sponsored')));
+    const free = shuffle(items.filter((li) => !li.querySelector('.sponsored')));
+    const show = [...paid, ...free].slice(0, 3);
+    items.forEach((li) => { if (!show.includes(li)) li.remove(); });
+    show.forEach((li) => list.append(li));
+    list.classList.add('shuffled');
+    if (!show.length) { list.remove(); document.querySelector('[data-promo]')?.removeAttribute('hidden'); }
   }
 </script>

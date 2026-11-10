@@ -13,14 +13,15 @@ const shortPrice = /^(free|\$\s?\d[\d.,]*(\s?-\s?\$?\d[\d.,]*)?)$/i.test((event.
 const rowNote = row && event.price && !shortPrice ? event.price : '';
 const showPrice = event.price && !rowNote;
 ---
-<li class="event-card" data-date={event.date} data-cat={event.category}><a class="event-card__link" data-layout={row ? 'row' : 'stack'} data-size={big ? 'big' : undefined} href={`/event/${event.slug}/`}>
+<li class="event-card" data-date={event.date} data-cat={event.category} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-card__link" data-layout={row ? 'row' : 'stack'} data-size={big ? 'big' : undefined} data-sponsored={event.sponsored ? '' : undefined} href={`/event/${event.slug}/`}>
   <EventArt event={event} height={big ? 230 : row ? 64 : 170} eager={eager} showDate={!row && !event.ongoing} compact={row} />
   <div class="event-card__body">
     <p class="event-card__when">{event.ongoing ? event.series.when : row ? timeRange(event.start, event.end) : `${shortDate(event.start)} · ${timeRange(event.start, event.end)}`}</p>
     <Heading class="event-card__name">{event.title}</Heading>
     <p class="event-card__where">{shortVenue(event)}{rowNote && ` · ${rowNote}`}</p>
-    {(showPrice || (PREVIEW && event.sample)) && (
+    {(showPrice || event.sponsored || (PREVIEW && event.sample)) && (
       <p class="event-card__foot">
+        {event.sponsored && <span class="event-card__sponsored">Sponsored</span>}
         {showPrice && <span class="event-card__price">{event.price}</span>}
         {PREVIEW && event.sample && <span class="sample-tag">Sample</span>}
       </p>
@@ -30,6 +31,11 @@ const showPrice = event.price && !rowNote;
 
 <style>
   .event-card {
+    /* Paid Spotlight gold. No ACSS role for it, so it stays local to this component. */
+    --_sponsored-bg: #FFF4D6;
+    --_sponsored-text: #6B4E00;
+    --_sponsored-line: #D9B44A;
+
     display: flex;
 
     .event-card__link {
@@ -44,6 +50,8 @@ const showPrice = event.price && !rowNote;
       color: var(--text-dark);
       text-decoration: none;
       transition: transform .15s ease, box-shadow .15s ease;
+
+      &[data-sponsored] { border-color: var(--_sponsored-line); box-shadow: 0 0 0 1px var(--_sponsored-line) inset; }
 
       &:hover {
         color: var(--text-dark);
@@ -83,6 +91,18 @@ const showPrice = event.price && !rowNote;
       gap: var(--space-xs);
       margin-block-start: auto;
       padding-block-start: var(--space-xs);
+    }
+
+    .event-card__sponsored {
+      padding: 0.1875rem 0.5rem;
+      background: var(--_sponsored-bg);
+      border-radius: var(--radius-circle);
+      color: var(--_sponsored-text);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      white-space: nowrap;
     }
 
     .event-card__price {
@@ -143,8 +163,11 @@ const showPrice = event.price && !rowNote;
         font-size: var(--text-m);
       }
 
+      &[data-sponsored] { box-shadow: none; }
+
       & .event-card__foot {
         grid-area: foot;
+        flex-wrap: wrap;
         margin: 0;
         padding: 0;
         align-self: center;
@@ -160,7 +183,7 @@ const showPrice = event.price && !rowNote;
 
     @media (min-width: 48rem) {
       .event-card__link[data-layout="row"] {
-        grid-template-columns: 7.5rem 5.5rem 1fr 5rem;
+        grid-template-columns: 7.5rem 5.5rem 1fr minmax(5rem, max-content);
         grid-template-areas:
           "when art name foot"
           "when art where foot";
