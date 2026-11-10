@@ -30,6 +30,8 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 - Index: `/search.json`, built with the site (title, venue, venue aliases and keywords, category, tags, short description). The browser only downloads it, plus the MiniSearch library, when someone starts typing.
 - Typing suggests **venues** (picking one filters to that venue: `?venue=rio-grande-winery`) and **events** (opens the event page).
 - Searches are shareable links: `/?q=trivia&when=week`.
+- **Picking a category clears the search and venue** and shows the whole category (Charlie's call, Nov 10). Date buttons still combine with a search.
+- Categories wrap onto extra lines on desktop (no sideways scrolling). On phones (560px and narrower) a "All categories" dropdown replaces the category buttons.
 - Venue names come from `src/data/venues.json` via `src/lib/venues.js`. A room ("Munson Senior Center > Studio 2", "Boardroom at …") is kept next to the venue name, not as a separate venue.
 
 ## Recurring events
