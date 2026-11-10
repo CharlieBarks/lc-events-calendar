@@ -200,6 +200,7 @@ const itemLevel = headingLevel + 1;
       root.querySelectorAll('[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === state.cat)));
       const sel = root.querySelector('[data-cat-select]');
       if (sel) sel.value = state.cat;
+      root.classList.toggle('searching', searching());
       if (empty) empty.hidden = shown > 0;
       if (moreWrap) moreWrap.hidden = expanded || searching() || state.when !== 'all' || state.cat !== 'all';
       if (chip) {
@@ -368,6 +369,10 @@ const itemLevel = headingLevel + 1;
   .cards { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
   .more-wrap { display: flex; justify-content: center; padding: 8px 0 12px; }
   .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  /* While searching, regulars show as full cards in the same grid as one-off events. */
+  .searching .rows { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
+  .searching .rows > :global(li) { display: flex; }
+  .searching .rows > :global(li > a) { flex: 1; }
   .empty { background: var(--card); border: 1px dashed var(--line); border-radius: var(--ev-radius); padding: 28px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
   @media (max-width: 560px) {
     .filter-row.cats { display: none; }
