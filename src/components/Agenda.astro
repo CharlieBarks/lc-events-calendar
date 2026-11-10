@@ -2,13 +2,16 @@
 // Day-by-day list. One-off events get full cards; regulars and city meetings get compact rows.
 // Filters run in the browser (no reloads) and remember themselves in the URL (?when=weekend&cat=live-music),
 // so a filtered view can be texted to a friend or linked from the newsletter.
+// Search (?q=trivia, ?venue=rio-grande-winery) narrows the same list. Its index (/search.json) only
+// loads when someone starts typing, so the page itself stays as light as before.
 import EventCard from './EventCard.astro';
 import EventRow from './EventRow.astro';
 import { CATEGORIES } from '../lib/site.js';
 import { dayLabel } from '../lib/time.js';
 
 // initialDays: how many days show before "Show more" (only in the unfiltered view).
-const { events, filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0 } = Astro.props;
+// ongoing: exhibits and long runs. Not part of the day-by-day list, but shown when a search matches them.
+const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0 } = Astro.props;
 
 const byDay = new Map();
 for (const e of events) {
@@ -24,6 +27,17 @@ const itemLevel = headingLevel + 1;
 <div class="agenda" data-agenda>
   {filters && (
     <div class="filters" role="group" aria-label="Filter events">
+      <div class="search" role="search" data-search>
+        <label class="sr-only" for="event-search">Search events</label>
+        <svg class="search-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="event-search" class="search-input" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search"
+          placeholder="Search events, venues, bands…" role="combobox" aria-expanded="false" aria-controls="event-suggest" aria-autocomplete="list" data-q />
+        <ul class="suggest" id="event-suggest" role="listbox" aria-label="Suggestions" hidden data-suggest></ul>
+      </div>
+      <p class="venue-chip" hidden data-venue-chip>
+        <span>At <strong data-venue-name></strong></span>
+        <button class="chip-x" type="button" data-venue-clear aria-label="Clear venue">✕</button>
+      </p>
       <div class="filter-row" role="group" aria-label="When">
         <button class="filter" type="button" data-when="all" aria-pressed="true">All upcoming</button>
         <button class="filter" type="button" data-when="today" aria-pressed="false">Today</button>
@@ -32,7 +46,7 @@ const itemLevel = headingLevel + 1;
         <button class="filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
       </div>
       {usedCats.length > 1 && (
-        <div class="filter-row scroll" role="group" aria-label="Category">
+        <div class="filter-row cats" role="group" aria-label="Category">
           <button class="filter" type="button" data-cat="all" aria-pressed="true">Everything</button>
           {usedCats.map((k) => (
             <button class="filter" type="button" data-cat={k} aria-pressed="false">
@@ -40,6 +54,15 @@ const itemLevel = headingLevel + 1;
               {CATEGORIES[k].plural} <span class="n">{count(k)}</span>
             </button>
           ))}
+        </div>
+      )}
+      {usedCats.length > 1 && (
+        <div class="cat-select">
+          <label class="sr-only" for="cat-select">Category</label>
+          <select id="cat-select" data-cat-select>
+            <option value="all">All categories</option>
+            {usedCats.map((k) => <option value={k}>{CATEGORIES[k].plural} ({count(k)})</option>)}
+          </select>
         </div>
       )}
       <p class="status" aria-live="polite" data-status></p>
@@ -58,6 +81,13 @@ const itemLevel = headingLevel + 1;
     );
   })}
 
+  {ongoing.length > 0 && (
+    <section class="day" data-ongoing-sec hidden aria-labelledby="d-ongoing">
+      <H class="day-head" id="d-ongoing">On view now, any day</H>
+      <ul class="cards" role="list">{ongoing.map((e) => <EventCard event={e} headingLevel={itemLevel} layout="row" />)}</ul>
+    </section>
+  )}
+
   {initialDays > 0 && days.length > initialDays && (
     <div class="more-wrap" data-more-wrap><button class="btn btn-outline" type="button" data-more>Show the rest of the calendar</button></div>
   )}
@@ -75,6 +105,33 @@ const itemLevel = headingLevel + 1;
   const TZ = 'America/Denver';
   const key = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   const plus = (k, n) => { const [y, m, d] = k.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d + n)); return t.toISOString().slice(0, 10); };
+  // Same folding as src/lib/venues.js: no capitals, accents or apostrophes; "&" = "and".
+  const fold = (s = '') => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/&/g, ' and ').replace(/['‘’`]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const STOP = new Set(['a', 'an', 'the', 'and', 'at', 'in', 'on', 'of', 'for', 'to', 'with', 'near', 'events', 'event', 'las', 'cruces']);
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  // Loaded once per page, on first use.
+  let indexPromise;
+  function loadIndex() {
+    indexPromise ??= Promise.all([import('minisearch'), fetch('/search.json').then((r) => r.json())]).then(([{ default: MiniSearch }, data]) => {
+      const ms = new MiniSearch({
+        fields: ['t', 'v', 'va', 'c', 'g', 'd'],
+        storeFields: ['t', 'dt'],
+        processTerm: (term) => { const f = fold(term); return !f || STOP.has(f) ? null : f.split(' '); },
+        searchOptions: {
+          boost: { t: 4, v: 3, va: 2, c: 1.5, g: 1 },
+          prefix: true,
+          fuzzy: (term) => (term.length > 4 ? 0.2 : false),
+          combineWith: 'AND',
+        },
+      });
+      ms.addAll(data.events);
+      const venues = data.venues.map((v) => ({ ...v, f: [v.n, ...(v.a || [])].map(fold) }));
+      return { ms, venues };
+    });
+    return indexPromise;
+  }
 
   for (const root of document.querySelectorAll('[data-agenda]')) {
     const today = key(new Date());
@@ -96,58 +153,214 @@ const itemLevel = headingLevel + 1;
     });
 
     const params = new URLSearchParams(location.search);
-    const state = { when: ranges[params.get('when')] ? params.get('when') : 'all', cat: params.get('cat') || 'all' };
+    const state = {
+      when: ranges[params.get('when')] ? params.get('when') : 'all',
+      cat: params.get('cat') || 'all',
+      q: (params.get('q') || '').trim(),
+      venue: params.get('venue') || '',
+    };
+    let matches = null; // Set of event slugs matching state.q, or null when there's no search
+    let venueName = '';
     const status = root.querySelector('[data-status]');
     const empty = root.querySelector('[data-empty]');
     const moreWrap = root.querySelector('[data-more-wrap]');
+    const ongoingSec = root.querySelector('[data-ongoing-sec]');
+    const input = root.querySelector('[data-q]');
+    const suggest = root.querySelector('[data-suggest]');
+    const chip = root.querySelector('[data-venue-chip]');
     let expanded = false;
+
+    const searching = () => !!(matches || state.venue);
 
     function apply(push) {
       const [from, to] = ranges[state.when];
       let shown = 0;
+      const ok = (li) => (state.cat === 'all' || li.dataset.cat === state.cat)
+        && (!matches || matches.has(li.dataset.slug))
+        && (!state.venue || li.dataset.venue === state.venue);
       root.querySelectorAll('[data-day]').forEach((sec) => {
         let n = 0;
         sec.querySelectorAll('li[data-date]').forEach((li) => {
-          const ok = li.dataset.date >= from && li.dataset.date <= to && (state.cat === 'all' || li.dataset.cat === state.cat);
-          li.hidden = !ok;
-          if (ok) n++;
+          const show = li.dataset.date >= from && li.dataset.date <= to && ok(li);
+          li.hidden = !show;
+          if (show) n++;
         });
         sec.querySelectorAll('ul').forEach((ul) => { ul.hidden = ![...ul.children].some((li) => !li.hidden); });
-        const collapsed = !expanded && state.when === 'all' && state.cat === 'all' && sec.hasAttribute('data-later');
+        const collapsed = !expanded && !searching() && state.when === 'all' && state.cat === 'all' && sec.hasAttribute('data-later');
         sec.hidden = n === 0 || collapsed;
         shown += n;
       });
+      if (ongoingSec) {
+        let n = 0;
+        ongoingSec.querySelectorAll('li[data-date]').forEach((li) => { const show = searching() && ok(li); li.hidden = !show; if (show) n++; });
+        ongoingSec.hidden = n === 0;
+        shown += n;
+      }
       root.querySelectorAll('[data-when]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.when === state.when)));
       root.querySelectorAll('[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === state.cat)));
+      const sel = root.querySelector('[data-cat-select]');
+      if (sel) sel.value = state.cat;
+      root.classList.toggle('searching', searching());
       if (empty) empty.hidden = shown > 0;
-      if (moreWrap) moreWrap.hidden = expanded || state.when !== 'all' || state.cat !== 'all';
-      if (status) status.textContent = `${shown} event${shown === 1 ? '' : 's'} ${labels[state.when]}`;
+      if (moreWrap) moreWrap.hidden = expanded || searching() || state.when !== 'all' || state.cat !== 'all';
+      if (chip) {
+        chip.hidden = !state.venue;
+        chip.querySelector('[data-venue-name]').textContent = venueName || state.venue;
+      }
+      if (status) {
+        const what = `${shown} event${shown === 1 ? '' : 's'}`;
+        const q = matches && state.q ? ` matching “${state.q}”` : '';
+        const at = state.venue ? ` at ${venueName || 'that venue'}` : '';
+        status.textContent = `${what}${q}${at} ${labels[state.when]}`;
+      }
       if (push) {
         const p = new URLSearchParams();
+        if (state.q) p.set('q', state.q);
+        if (state.venue) p.set('venue', state.venue);
         if (state.when !== 'all') p.set('when', state.when);
         if (state.cat !== 'all') p.set('cat', state.cat);
         history.replaceState(null, '', p.toString() ? `?${p}` : location.pathname);
       }
     }
 
+    // ---- Search box ----
+    let active = -1;
+    let options = [];
+    function closeSuggest() { if (!suggest) return; suggest.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); active = -1; }
+    function highlight(i) {
+      active = i;
+      suggest.querySelectorAll('[role=option]').forEach((li, j) => li.setAttribute('aria-selected', String(j === i)));
+      if (i >= 0) input.setAttribute('aria-activedescendant', `sg-${i}`); else input.removeAttribute('aria-activedescendant');
+    }
+    function renderSuggest(venues, titles) {
+      options = [...venues.map((v) => ({ type: 'venue', v })), ...titles.map((t) => ({ type: 'event', t }))];
+      if (!options.length || document.activeElement !== input) return closeSuggest();
+      let i = 0;
+      const group = (label, items) => items.length ? `<li class="sg-label" role="presentation">${label}</li>` + items.join('') : '';
+      suggest.innerHTML = group('Venues', venues.map((v) => `<li class="sg" role="option" id="sg-${i++}" aria-selected="false"><span>${esc(v.n)}</span><span class="sg-n">${v.c} upcoming</span></li>`))
+        + group('Events', titles.map((t) => `<li class="sg" role="option" id="sg-${i++}" aria-selected="false"><span>${esc(t.t)}</span><span class="sg-n">${t.when}</span></li>`));
+      suggest.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      active = -1;
+    }
+    function choose(i) {
+      const o = options[i];
+      if (!o) return;
+      if (o.type === 'venue') {
+        state.venue = o.v.k; venueName = o.v.n; state.q = ''; matches = null; input.value = '';
+        closeSuggest(); apply(true);
+      } else {
+        location.href = `/event/${o.t.id}/`;
+      }
+    }
+    const niceDate = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+
+    async function runSearch(push, suggestToo) {
+      const q = state.q;
+      if (fold(q).length < 2) { matches = null; closeSuggest(); apply(push); return; }
+      const { ms, venues } = await loadIndex();
+      if (q !== state.q) return; // a newer keystroke already took over
+      const results = ms.search(q);
+      matches = new Set(results.map((r) => r.id));
+      apply(push);
+      if (!suggestToo) return;
+      const fq = fold(q);
+      const vs = venues.filter((v) => v.f.some((f) => f.includes(fq) || f.split(' ').some((w) => w.startsWith(fq)))).slice(0, 4);
+      const seen = new Set();
+      const titles = [];
+      for (const r of results.filter((r) => r.dt >= today).sort((a, b) => b.score - a.score)) {
+        const k = fold(r.t);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        titles.push({ id: r.id, t: r.t, when: niceDate(r.dt) });
+        if (titles.length === 5) break;
+      }
+      renderSuggest(vs, titles);
+    }
+
+    if (input) {
+      let timer;
+      input.value = state.q;
+      input.addEventListener('focus', () => { loadIndex(); }, { once: true });
+      input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => { state.q = input.value.trim(); runSearch(true, true); }, 120);
+      });
+      input.addEventListener('keydown', (e) => {
+        const open = !suggest.hidden;
+        if (e.key === 'ArrowDown' && open) { e.preventDefault(); highlight(Math.min(active + 1, options.length - 1)); }
+        else if (e.key === 'ArrowUp' && open) { e.preventDefault(); highlight(Math.max(active - 1, -1)); }
+        else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (open && active >= 0) choose(active);
+          else { closeSuggest(); clearTimeout(timer); state.q = input.value.trim(); runSearch(true, false); input.blur(); }
+        }
+        else if (e.key === 'Escape') { if (open) closeSuggest(); else if (input.value) { input.value = ''; state.q = ''; runSearch(true, false); } }
+      });
+      input.addEventListener('blur', () => setTimeout(closeSuggest, 150));
+      suggest.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus while clicking
+      suggest.addEventListener('click', (e) => {
+        const li = e.target.closest('[role=option]');
+        if (li) choose(Number(li.id.slice(3)));
+      });
+    }
+    // Picking a category starts fresh: it clears any search or venue and shows the whole category.
+    function pickCategory(cat) {
+      state.cat = cat; state.q = ''; state.venue = ''; venueName = ''; matches = null;
+      if (input) input.value = '';
+      closeSuggest();
+    }
+    const catSelect = root.querySelector('[data-cat-select]');
+    catSelect?.addEventListener('change', () => { pickCategory(catSelect.value); apply(true); });
+
+    root.querySelector('[data-venue-clear]')?.addEventListener('click', () => { state.venue = ''; venueName = ''; apply(true); input?.focus(); });
+
     root.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.when) state.when = b.dataset.when;
-      else if (b.dataset.cat) state.cat = b.dataset.cat;
+      else if (b.dataset.cat) pickCategory(b.dataset.cat);
       else if (b.hasAttribute('data-more')) { expanded = true; }
-      else if (b.hasAttribute('data-reset')) { state.when = 'all'; state.cat = 'all'; }
+      else if (b.hasAttribute('data-reset')) {
+        state.when = 'all'; state.cat = 'all'; state.q = ''; state.venue = ''; venueName = ''; matches = null;
+        if (input) input.value = '';
+      }
       else return;
       apply(true);
     });
+
     apply(false);
+    // Arriving from a shared link (?q=… or ?venue=…): run it once the index is in.
+    if (state.q || state.venue) {
+      loadIndex().then(({ venues }) => {
+        venueName = venues.find((v) => v.k === state.venue)?.n || '';
+        if (state.q) runSearch(false, false); else apply(false);
+      });
+    }
   }
 </script>
 
 <style>
   .filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+  .search { position: relative; max-width: 640px; }
+  .search-icon { position: absolute; left: 16px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  .search-input { width: 100%; min-height: 50px; padding: 0 18px 0 46px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 1rem; }
+  .search-input:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 3px var(--ev-accent-tint, rgba(178,58,43,.15)); }
+  .search-input::placeholder { color: var(--muted); }
+  .suggest { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20; list-style: none; margin: 0; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 14px 34px rgba(28,27,26,.12); max-height: 60vh; overflow-y: auto; }
+  .suggest :global(.sg-label) { padding: 8px 12px 4px; font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .suggest :global(.sg) { display: flex; justify-content: space-between; gap: 12px; align-items: center; min-height: 44px; padding: 8px 12px; border-radius: 10px; cursor: pointer; }
+  .suggest :global(.sg:hover), .suggest :global(.sg[aria-selected="true"]) { background: var(--line-soft); }
+  .suggest :global(.sg-n) { font-size: .85rem; color: var(--muted); white-space: nowrap; }
+  .venue-chip { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; min-height: 40px; padding: 0 6px 0 16px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: .95rem; }
+  .chip-x { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  .chip-x:hover { background: rgba(255,255,255,.15); }
   .filter-row { display: flex; flex-wrap: wrap; gap: 8px; }
-  .filter-row.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+  /* Categories wrap onto extra lines instead of scrolling sideways. On phones a dropdown replaces them. */
+  .cat-select { display: none; }
+  .cat-select label { font-size: .85rem; font-weight: 600; color: var(--muted); }
+  .cat-select select { width: 100%; min-height: 48px; padding: 0 44px 0 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231C1B1A' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 16px center / 18px; color: var(--ink); font: inherit; font-size: 1rem; appearance: none; -webkit-appearance: none; }
+  .cat-select select:focus { border-color: var(--ink); }
   .n { font-size: .8rem; opacity: .6; }
   .status { font-size: .9rem; color: var(--muted); }
   .day { margin-bottom: 36px; }
@@ -156,8 +369,13 @@ const itemLevel = headingLevel + 1;
   .cards { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
   .more-wrap { display: flex; justify-content: center; padding: 8px 0 12px; }
   .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  /* While searching, regulars show as full cards in the same grid as one-off events. */
+  .searching .rows { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
+  .searching .rows > :global(li) { display: flex; }
+  .searching .rows > :global(li > a) { flex: 1; }
   .empty { background: var(--card); border: 1px dashed var(--line); border-radius: var(--ev-radius); padding: 28px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
   @media (max-width: 560px) {
-    .filter-row:first-child { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+    .filter-row.cats { display: none; }
+    .cat-select { display: flex; flex-direction: column; gap: 6px; }
   }
 </style>
