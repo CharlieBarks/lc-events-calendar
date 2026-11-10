@@ -6,7 +6,12 @@
 //   GET  /approved.json  approved submissions in the calendar's format (the site build reads this)
 //   GET  /img/<id>.jpg   a submitted flyer, full size
 //   GET  /review/        Charlie's review queue (behind Cloudflare Access: Charlie only)
-//   /review/api/...      approve / reject / remove (also behind Access)
+//   /review/api/...      approve / reject / remove / flags (also behind Access)
+//
+// Spotlight (paid boost, $50): the form can send boost: "spotlight". It waits in the queue like
+// everything else, marked "Spotlight requested"; Charlie checks Stripe, then approves with
+// Sponsored ticked. Sponsored events are pinned to the top of their day and rotate through the
+// homepage Spotlight section until "spotlightUntil" (default: the event's last date).
 //
 // Storage: KV namespace lc-events-media (bound as MEDIA), keys under sub/.
 // Flyer reading: Workers AI (Llama 4 Scout, bound as AI). If an ANTHROPIC_API_KEY secret is added,
@@ -195,6 +200,7 @@ function tidySubmission(b) {
     imageId: /^[a-z0-9]+\.(jpg|png|webp|gif)$/.test(b.imageId || '') ? b.imageId : '',
     contact: { name: clean(b.name, 100), email: clean(b.email, 160), phone: clean(b.phone, 40) },
     act: clean(b.act, 140), // set when a musician comes from their Las Cruces Live page
+    boost: b.boost === 'spotlight' ? 'spotlight' : '', // asked for the paid Spotlight package
     source: clean(b.source, 40) || 'form',
   };
 }
@@ -256,6 +262,7 @@ function toCalendarEvents(rec) {
       image: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : '',
       featured: !!rec.featured,
       sponsored: !!rec.sponsored,
+      spotlightUntil: rec.spotlightUntil || '',
       submissionId: rec.id,
     };
   });
@@ -284,7 +291,7 @@ async function reviewApi(request, env, path) {
     const rec = await env.MEDIA.get(`sub/pending/${body.id}`, 'json');
     if (!rec) return json({ error: 'Already handled.' }, { status: 404 });
     // Charlie's edits from the review screen win.
-    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...body.edits, imageId: rec.imageId }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, id: rec.id };
+    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...body.edits, imageId: rec.imageId }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, spotlightUntil: isDate(body.edits?.spotlightUntil) ? body.edits.spotlightUntil : '', id: rec.id };
     if (!edited.shows.length) return json({ error: 'Needs at least one date.' }, { status: 400 });
     const approved = (await getApproved(env)).filter((e) => e.submissionId !== rec.id);
     approved.push(...toCalendarEvents(edited));
@@ -300,6 +307,23 @@ async function reviewApi(request, env, path) {
       await env.MEDIA.put(`sub/done/${rec.id}`, JSON.stringify({ ...rec, status: 'rejected', reviewedAt: new Date().toISOString() }));
       await env.MEDIA.delete(`sub/pending/${rec.id}`);
     }
+    return json({ ok: true });
+  }
+  if (path === 'flags') {
+    // Spotlight / Sponsored on an event that's already approved (e.g. the payment came in later).
+    // Applies to every date of that submission.
+    const approved = await getApproved(env);
+    const hit = approved.find((e) => e.slug === body.slug);
+    if (!hit) return json({ error: 'Not found' }, { status: 404 });
+    for (const e of approved) {
+      if (hit.submissionId ? e.submissionId === hit.submissionId : e.slug === hit.slug) {
+        e.featured = !!body.featured;
+        e.sponsored = !!body.sponsored;
+        e.spotlightUntil = isDate(body.spotlightUntil) ? body.spotlightUntil : '';
+      }
+    }
+    await env.MEDIA.put('sub/approved.json', JSON.stringify(approved));
+    await rebuild(env);
     return json({ ok: true });
   }
   if (path === 'remove') {
@@ -332,7 +356,9 @@ button{font:inherit;font-weight:600;padding:10px 16px;border-radius:999px;border
 .checks{display:flex;gap:16px;margin-top:10px}.checks label{display:flex;gap:6px;align-items:center;color:var(--ink);font-size:.95rem;margin:0}.checks input{width:auto}
 h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:.95rem}
 .ap a{color:var(--ink)}.ap button{padding:4px 12px;font-size:.85rem}#lb{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;place-items:center;z-index:9;cursor:zoom-out}#lb img{max-width:96vw;max-height:96vh}
-.msg{font-size:.9rem;color:var(--muted)}@media(max-width:720px){.sub{grid-template-columns:1fr}.show{grid-template-columns:1fr 1fr}}
+.msg{font-size:.9rem;color:var(--muted)}.boost{background:#fff4d6;border:1px solid #e8c766;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:.95rem}
+.tag{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;background:#f1ece4}.tag.sp{background:#fff4d6}
+.checks input[type=date]{width:auto;padding:4px 8px}.apflags{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.apflags label{display:flex;gap:4px;align-items:center;margin:0;color:var(--ink);font-size:.85rem}.apflags input[type=checkbox]{width:auto}.apflags input[type=date]{width:auto;padding:2px 6px;font-size:.85rem}@media(max-width:720px){.sub{grid-template-columns:1fr}.show{grid-template-columns:1fr 1fr}}
 </style></head><body>
 <header><h1>Event submissions</h1><div class="msg" id="count">Loading…</div></header>
 <main><div id="pending"></div><h2>Recently approved</h2><div id="approved"></div></main>
@@ -350,7 +376,8 @@ function card(r){
   '<div class="row"><div><label>Category</label><select name="category">'+CATS+'</select></div><div><label>Cost</label><input name="price" value="'+esc(r.price)+'"></div><div><label>Link</label><input name="url" value="'+esc(r.url)+'"></div></div>'+
   '<label>Description</label><textarea name="description" rows="3">'+esc(r.description)+'</textarea>'+
   '<label>Dates ('+r.shows.length+')</label><div data-shows>'+r.shows.map(showRow).join('')+'</div><button type="button" data-add>+ Add a date</button>'+
-  '<div class="checks"><label><input type="checkbox" name="featured"> Charlie\\'s pick</label><label><input type="checkbox" name="sponsored"> Sponsored</label></div>'+
+  (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
+  '<div class="checks"><label><input type="checkbox" name="featured"> Spotlight</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
   '<div class="meta">From '+esc(r.contact?.name)+' · <a href="mailto:'+esc(r.contact?.email)+'">'+esc(r.contact?.email)+'</a>'+(r.contact?.phone?' · '+esc(r.contact.phone):'')+(r.act?' · Act: '+esc(r.act):'')+' · '+new Date(r.submittedAt).toLocaleString()+'</div>'+
   '<div class="btns"><button class="approve" type="submit">Approve</button><button class="reject" type="button" data-reject>Reject</button><span class="msg" data-msg></span></div></div></form>';
 }
@@ -360,7 +387,7 @@ async function load(){
   const p=document.getElementById('pending');
   p.innerHTML=d.pending.length?d.pending.map(card).join(''):'<div class="empty">Nothing waiting. New submissions show up here.</div>';
   d.pending.forEach(r=>{const f=p.querySelector('[data-id="'+r.id+'"]');f.category.value=r.category});
-  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+'</span><button data-remove="'+esc(e.slug)+'">Remove</button></div>').join('')||'<div class="msg">None yet.</div>';
+  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Spotlight</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Spotlight</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button><button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
 }
 document.addEventListener('click',async e=>{
   const t=e.target;
@@ -368,12 +395,13 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-del]')){t.closest('.show').remove();return}
   if(t.matches('[data-add]')){t.previousElementSibling.insertAdjacentHTML('beforeend',showRow({}));return}
   if(t.matches('[data-reject]')){const f=t.closest('form');if(!confirm('Reject this submission?'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id})});load();return}
+  if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
   if(t.matches('[data-remove]')){if(!confirm('Take this off the calendar?'))return;await fetch('/review/api/remove',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.remove})});load();return}
 });
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target;const msg=f.querySelector('[data-msg]');msg.textContent='Saving…';
   const shows=[...f.querySelectorAll('.show')].map(s=>({date:s.querySelector('[name=date]').value,start:s.querySelector('[name=start]').value,end:s.querySelector('[name=end]').value,title:s.querySelector('[name=stitle]').value}));
-  const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked};
+  const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked,spotlightUntil:f.spotlightUntil.value};
   const r=await fetch('/review/api/approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id,edits})}).then(r=>r.json());
   if(r.ok){msg.textContent='Approved. The calendar updates in a couple of minutes.';setTimeout(load,1200)}else msg.textContent=r.error||'Something went wrong.';
 });

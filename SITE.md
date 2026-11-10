@@ -16,7 +16,8 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 |---|---|---|
 | CitySpark listings and photos | `cityspark-export` Worker into KV, daily | No |
 | City of Las Cruces events | City feed through `lc-events-proxy` | No |
-| `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Charlie's picks; `sample: true` = preview only) |
+| `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Spotlight; `sponsored: true` = paid Spotlight; `sample: true` = preview only) |
+| `src/data/spotlight.json` | Spotlight for events that didn't come through the form (CitySpark, city), matched by name | **Yes** |
 | `src/data/city-snapshot.json` | Offline copy of the city feed | No |
 | `src/data/venues.json` | Master venue list: one name per venue, every other spelling as an alias | **Yes** (add a spelling whenever a new one turns up) |
 
@@ -32,8 +33,24 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 - Searches are shareable links: `/?q=trivia&when=week`.
 - **Picking a category clears the search and venue** and shows the whole category (Charlie's call, Nov 10). Date buttons still combine with a search.
 - Categories wrap onto extra lines on desktop (no sideways scrolling). On phones (560px and narrower) a "All categories" dropdown replaces the category buttons.
-- **While searching** (a search or a venue filter is on), regulars and city meetings open up into full cards like one-off events. The normal view keeps them as slim rows, each with a small picture (flyer, photo or topic art). Testing on the preview, Nov 10.
+- **While searching** (a search or a venue filter is on), regulars and city meetings open up into full cards like one-off events. The normal view keeps them as slim rows, each with a small picture (flyer, photo or topic art). Approved by Charlie, Nov 10.
+
+## Event pages
+
+- **You might also like:** up to 4 events in the next 3 weeks that share the venue or category, one-offs with a picture first, each event once. Links to "More at <venue>" (the calendar filtered to that venue) and the category page.
+- Later: **While you're nearby** (local businesses near the venue) once the Business Directory exists.
 - Venue names come from `src/data/venues.json` via `src/lib/venues.js`. A room ("Munson Senior Center > Studio 2", "Boardroom at …") is kept next to the venue name, not as a separate venue.
+
+## Spotlight (paid promotion, $50)
+
+Decided by Charlie, Nov 10, 2026. Modeled on SFV Local's "Boosted Event". "Charlie's picks" is gone: Charlie doesn't want his name on it.
+
+- **What the buyer gets:** pinned to the top of its day on the calendar with a **Sponsored** label, rotation through the homepage **Spotlight** section, and one newsletter mention before the event (Charlie adds that by hand).
+- **Buying it:** the last step of `/submit/` offers Free or Spotlight. `/submit/?spotlight=1` pre-selects Spotlight (used by the homepage box and the "Spotlight it" link on every event page). After sending, the buyer gets a Pay button: `SPOTLIGHT.payUrl` in `src/lib/site.js` (Charlie's Stripe Payment Link) with `client_reference_id` = the submission id and the email pre-filled, so the payment can be matched in Stripe. If `payUrl` is empty, the page says Charlie will email a payment link.
+- **Review page:** Spotlight requests are flagged with the reference to look for in Stripe, and Sponsored is pre-ticked. Checkboxes: **Spotlight** (free pick), **Sponsored (paid)**, and **until** (last day; empty = the event's last date). Already-approved events can be switched on or off from "Recently approved".
+- **Homepage section:** only events marked Spotlight or Sponsored, never filled automatically and never CitySpark's old picks. Three at random on each visit, Sponsored first. Nothing marked: a "Your event could be right here" box selling Spotlight.
+- Sponsored events always get a full card (even if they repeat) and are first in their day.
+- Later (Charlie): longer-running packages.
 
 ## Recurring events
 
@@ -114,4 +131,5 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 - Never show an event that has ended. Today's events stay until they're over.
 - Times are always America/Denver.
 - Keep schema.org Event data, `.ics` feeds and Google Calendar links working on every event page.
-- Weekly regulars and city meetings stay visually quieter than one-off events.
+- Weekly regulars and city meetings stay visually quieter than one-off events (except paid Spotlight events).
+- Paid placements always carry a visible **Sponsored** label.

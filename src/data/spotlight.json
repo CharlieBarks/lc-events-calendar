@@ -1,0 +1,4 @@
+{
+  "_about": "Spotlight events that didn't come through the add-your-event form (CitySpark or city listings, or anything already on the calendar). Match is by event name (capitals and punctuation ignored); add 'venue' to narrow it. 'sponsored': true = paid (pinned to the top of its day with a Sponsored label). 'until': last day it's spotlighted (YYYY-MM-DD). Submitted events are spotlighted from the Review page instead.",
+  "events": []
+}

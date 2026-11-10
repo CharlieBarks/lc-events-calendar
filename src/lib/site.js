@@ -14,6 +14,14 @@ export const SITE = {
 // Organizers' own flyers and photos are kept either way.
 export const CITYSPARK_SUBSCRIBED = true;
 
+// Spotlight: the paid boost offered on /submit/.
+//   payUrl: Charlie's Stripe Payment Link. The submission's reference is added to it
+//   (?client_reference_id=…) so the payment can be matched in Stripe. Empty = "I'll email you a payment link".
+export const SPOTLIGHT = {
+  price: 50,
+  payUrl: '',
+};
+
 // Event submissions Worker (source: intake.js): reads flyers, holds the review queue, serves approved events.
 export const INTAKE_URL = 'https://lc-events-intake.cf2-99b.workers.dev';
 

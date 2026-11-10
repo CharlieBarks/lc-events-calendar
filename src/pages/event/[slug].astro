@@ -24,10 +24,21 @@ const when = `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
 const paragraphs = event.description.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
 
 const otherDates = event.series ? event.series.dates.filter((e) => e.slug !== event.slug).slice(0, 6) : [];
+// "You might also like": soonest events that share the venue or category, one-offs with a picture
+// first. Each event once (its next date), never this event's own series.
+const soonKey = (n) => { const d = new Date(Date.UTC(event.start.y, event.start.m - 1, event.start.d + n)); return d.toISOString().slice(0, 10); };
+const horizon = soonKey(21);
+const score = (e) => (e.venueKey && e.venueKey === event.venueKey ? 3 : 0) + (e.category === event.category ? 2 : 0)
+  + (e.compact ? 0 : 1) + (e.image ? 1 : 0) + (e.sponsored ? 1 : 0);
 const related = events
-  .filter((e) => e.slug !== event.slug && e.category === event.category && !e.compact && (!event.series || e.series !== event.series))
-  .slice(0, 3);
-const fallbackRelated = related.length ? related : events.filter((e) => e.slug !== event.slug && !e.compact).slice(0, 3);
+  .filter((e) => e.slug !== event.slug && e.title !== event.title && (!event.series || e.series !== event.series) && e.date <= horizon)
+  .filter((e, i, a) => a.findIndex((x) => x.title === e.title) === i)
+  .map((e) => ({ e, s: score(e) }))
+  .filter((x) => x.s >= 2)
+  .sort((a, b) => b.s - a.s || a.e.date.localeCompare(b.e.date))
+  .slice(0, 4)
+  .map((x) => x.e);
+const venueCount = events.filter((e) => e.venueKey && e.venueKey === event.venueKey).length;
 
 const isFree = /free/i.test(event.price) || /\$0\b/.test(event.description);
 const description = event.description
@@ -78,7 +89,7 @@ const jsonLd = [
     </div>
 
     <div class="info">
-      <p class="eyebrow">{cat.name}{PREVIEW && event.sample && <> <span class="sample-tag">Sample</span></>}</p>
+      <p class="eyebrow">{cat.name}{event.sponsored && <> <span class="sponsored-tag">Sponsored</span></>}{PREVIEW && event.sample && <> <span class="sample-tag">Sample</span></>}</p>
       <h1>{event.title}</h1>
 
       <dl class="facts">
@@ -108,6 +119,10 @@ const jsonLd = [
 
       <p class="source">Listed by <a href={source.url}>{source.name}</a>{event.url && event.source !== 'lllc' && <> · <a href={event.url} rel="noopener">{event.source === 'cityspark' ? 'more from the organizer' : 'see the original listing'}</a></>}. Plans change, so double-check before you head out.</p>
 
+      {!event.sponsored && (
+        <p class="promote">Is this your event? <a href="/submit/?spotlight=1">Spotlight it</a> to pin it to the top of the calendar and get it in the newsletter.</p>
+      )}
+
       {otherDates.length > 0 && (
         <section class="also" aria-labelledby="also-h">
           <h2 id="also-h">Also on</h2>
@@ -119,14 +134,17 @@ const jsonLd = [
     </div>
   </article>
 
-  {fallbackRelated.length > 0 && (
+  {related.length > 0 && (
     <section class="section section-white">
       <div class="wrap">
         <div class="section-head">
-          <h2>{related.length ? `More ${cat.plural.toLowerCase()}` : 'Also coming up'}</h2>
-          <a href={related.length ? `/category/${event.category}/` : '/'}>See all →</a>
+          <h2>You might also like</h2>
+          <div class="more">
+            {venueCount > 1 && event.venueKey && <a href={`/?venue=${event.venueKey}#calendar`}>More at {event.venue} →</a>}
+            <a href={`/category/${event.category}/`}>More {cat.plural.toLowerCase()} →</a>
+          </div>
         </div>
-        <ul class="grid" role="list">{fallbackRelated.map((e) => <EventCard event={e} />)}</ul>
+        <ul class="grid" role="list">{related.map((e) => <EventCard event={e} />)}</ul>
       </div>
     </section>
   )}
@@ -174,6 +192,10 @@ const jsonLd = [
   .desc { color: var(--ink-2); }
   .source { font-size: .9rem; color: var(--muted); border-top: 1px solid var(--line-soft); padding-top: 16px; }
   .source a { color: var(--muted); }
+  .promote { font-size: .92rem; color: var(--muted); }
+  .promote a { color: var(--ev-accent); font-weight: 600; }
+  .sponsored-tag { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: #FFF4D6; color: #6B4E00; vertical-align: 2px; }
+  .more { display: flex; flex-wrap: wrap; gap: 8px 20px; }
   .also h2 { font-size: 1.2rem; font-family: var(--body); font-weight: 700; letter-spacing: 0; margin-bottom: 10px; }
   .also ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 </style>
