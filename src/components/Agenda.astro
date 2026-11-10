@@ -70,7 +70,8 @@ const itemLevel = headingLevel + 1;
   )}
 
   {days.map(([date, list], i) => {
-    const cards = list.filter((e) => !e.compact);
+    // Sponsored (paid Spotlight) events are pinned to the top of their day.
+    const cards = list.filter((e) => !e.compact).sort((a, b) => b.sponsored - a.sponsored);
     const rows = list.filter((e) => e.compact);
     return (
       <section class="day" data-day={date} data-later={initialDays && i >= initialDays ? '' : undefined} aria-labelledby={`d-${date}`}>
