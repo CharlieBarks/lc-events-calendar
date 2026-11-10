@@ -32,6 +32,7 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 - Searches are shareable links: `/?q=trivia&when=week`.
 - **Picking a category clears the search and venue** and shows the whole category (Charlie's call, Nov 10). Date buttons still combine with a search.
 - Categories wrap onto extra lines on desktop (no sideways scrolling). On phones (560px and narrower) a "All categories" dropdown replaces the category buttons.
+- **While searching** (a search or a venue filter is on), regulars and city meetings open up into full cards like one-off events. The normal view keeps them as slim rows, each with a small picture (flyer, photo or topic art). Testing on the preview, Nov 10.
 - Venue names come from `src/data/venues.json` via `src/lib/venues.js`. A room ("Munson Senior Center > Studio 2", "Boardroom at …") is kept next to the venue name, not as a separate venue.
 
 ## Recurring events
