@@ -46,7 +46,7 @@ const itemLevel = headingLevel + 1;
         <button class="filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
       </div>
       {usedCats.length > 1 && (
-        <div class="filter-row scroll" role="group" aria-label="Category">
+        <div class="filter-row cats" role="group" aria-label="Category">
           <button class="filter" type="button" data-cat="all" aria-pressed="true">Everything</button>
           {usedCats.map((k) => (
             <button class="filter" type="button" data-cat={k} aria-pressed="false">
@@ -54,6 +54,15 @@ const itemLevel = headingLevel + 1;
               {CATEGORIES[k].plural} <span class="n">{count(k)}</span>
             </button>
           ))}
+        </div>
+      )}
+      {usedCats.length > 1 && (
+        <div class="cat-select">
+          <label class="sr-only" for="cat-select">Category</label>
+          <select id="cat-select" data-cat-select>
+            <option value="all">All categories</option>
+            {usedCats.map((k) => <option value={k}>{CATEGORIES[k].plural} ({count(k)})</option>)}
+          </select>
         </div>
       )}
       <p class="status" aria-live="polite" data-status></p>
@@ -189,6 +198,8 @@ const itemLevel = headingLevel + 1;
       }
       root.querySelectorAll('[data-when]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.when === state.when)));
       root.querySelectorAll('[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === state.cat)));
+      const sel = root.querySelector('[data-cat-select]');
+      if (sel) sel.value = state.cat;
       if (empty) empty.hidden = shown > 0;
       if (moreWrap) moreWrap.hidden = expanded || searching() || state.when !== 'all' || state.cat !== 'all';
       if (chip) {
@@ -292,13 +303,22 @@ const itemLevel = headingLevel + 1;
         if (li) choose(Number(li.id.slice(3)));
       });
     }
+    // Picking a category starts fresh: it clears any search or venue and shows the whole category.
+    function pickCategory(cat) {
+      state.cat = cat; state.q = ''; state.venue = ''; venueName = ''; matches = null;
+      if (input) input.value = '';
+      closeSuggest();
+    }
+    const catSelect = root.querySelector('[data-cat-select]');
+    catSelect?.addEventListener('change', () => { pickCategory(catSelect.value); apply(true); });
+
     root.querySelector('[data-venue-clear]')?.addEventListener('click', () => { state.venue = ''; venueName = ''; apply(true); input?.focus(); });
 
     root.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.when) state.when = b.dataset.when;
-      else if (b.dataset.cat) state.cat = b.dataset.cat;
+      else if (b.dataset.cat) pickCategory(b.dataset.cat);
       else if (b.hasAttribute('data-more')) { expanded = true; }
       else if (b.hasAttribute('data-reset')) {
         state.when = 'all'; state.cat = 'all'; state.q = ''; state.venue = ''; venueName = ''; matches = null;
@@ -335,7 +355,11 @@ const itemLevel = headingLevel + 1;
   .chip-x { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
   .chip-x:hover { background: rgba(255,255,255,.15); }
   .filter-row { display: flex; flex-wrap: wrap; gap: 8px; }
-  .filter-row.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+  /* Categories wrap onto extra lines instead of scrolling sideways. On phones a dropdown replaces them. */
+  .cat-select { display: none; }
+  .cat-select label { font-size: .85rem; font-weight: 600; color: var(--muted); }
+  .cat-select select { width: 100%; min-height: 48px; padding: 0 44px 0 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231C1B1A' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 16px center / 18px; color: var(--ink); font: inherit; font-size: 1rem; appearance: none; -webkit-appearance: none; }
+  .cat-select select:focus { border-color: var(--ink); }
   .n { font-size: .8rem; opacity: .6; }
   .status { font-size: .9rem; color: var(--muted); }
   .day { margin-bottom: 36px; }
@@ -346,6 +370,7 @@ const itemLevel = headingLevel + 1;
   .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .empty { background: var(--card); border: 1px dashed var(--line); border-radius: var(--ev-radius); padding: 28px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
   @media (max-width: 560px) {
-    .filter-row:first-child { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+    .filter-row.cats { display: none; }
+    .cat-select { display: flex; flex-direction: column; gap: 6px; }
   }
 </style>
