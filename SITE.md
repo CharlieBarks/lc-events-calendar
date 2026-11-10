@@ -18,10 +18,19 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 | City of Las Cruces events | City feed through `lc-events-proxy` | No |
 | `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Charlie's picks; `sample: true` = preview only) |
 | `src/data/city-snapshot.json` | Offline copy of the city feed | No |
+| `src/data/venues.json` | Master venue list: one name per venue, every other spelling as an alias | **Yes** (add a spelling whenever a new one turns up) |
 
 - Offline build: `EVENTS_OFFLINE=1 npm run build`.
 - If the city feed can't be reached, the build stops on purpose. Keep that guard.
 - `CITYSPARK_SUBSCRIBED` in `src/lib/site.js` switches CitySpark placeholder images to our artwork when the subscription ends.
+
+## Search
+
+- One search box at the top of the calendar's filters (homepage and category pages). It narrows the same day-by-day list and works together with the date and category filters.
+- Index: `/search.json`, built with the site (title, venue, venue aliases and keywords, category, tags, short description). The browser only downloads it, plus the MiniSearch library, when someone starts typing.
+- Typing suggests **venues** (picking one filters to that venue: `?venue=rio-grande-winery`) and **events** (opens the event page).
+- Searches are shareable links: `/?q=trivia&when=week`.
+- Venue names come from `src/data/venues.json` via `src/lib/venues.js`. A room ("Munson Senior Center > Studio 2", "Boardroom at …") is kept next to the venue name, not as a separate venue.
 
 ## Recurring events
 

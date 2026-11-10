@@ -7,7 +7,7 @@ const { event, headingLevel = 3 } = Astro.props;
 const Heading = `h${headingLevel}`;
 const cat = CATEGORIES[event.category];
 ---
-<li class="item" data-date={event.date} data-cat={event.category}><a class="row" href={`/event/${event.slug}/`}>
+<li class="item" data-date={event.date} data-cat={event.category} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? "" : undefined}><a class="row" href={`/event/${event.slug}/`}>
   <span class="time">{timeLabel(event.start)}</span>
   <span class="dot" style={`background:${cat.color}`} aria-hidden="true"></span>
   <span class="main">
