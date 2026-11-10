@@ -19,6 +19,7 @@ import path from 'node:path';
 import lllcEvents from '../data/events.json';
 import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL } from './site.js';
 import { topicFor } from './topics.js';
+import { resolveVenue } from './venues.js';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
 const EVENTS_URL = 'https://lc-events-proxy.cf2-99b.workers.dev';
@@ -111,16 +112,21 @@ function normalize(e, source) {
   const end = wall(e.end);
   const place = e.address ? { venue: e.venue || e.city || '', address: e.address } : cleanVenue(e.venue);
   const category = e.tags ? categoryFromTags(e.tags, e.title) : categoryKey(e.category);
+  // One spelling per venue (src/data/venues.json), so search and series grouping see one place.
+  const v = resolveVenue(place.venue || e.venue || '');
   const out = {
     slug: source === 'lllc' ? e.slug : `${slugify(e.title).slice(0, 60).replace(/-$/, '')}-${dateKey(start)}`,
     title: e.title.trim(),
     startRaw: e.start,
     start, end,
     date: dateKey(start),
-    venue: place.venue || e.venue || '',
+    venue: v.venue,
+    room: v.room,
+    venueKey: v.key,
     address: place.address,
     category,
     description: (e.description || '').trim(),
+    summary: (e.summary || '').trim(),
     url: e.url || '',
     ticketUrl: e.ticketUrl || '',
     image: source === 'cityspark' && !CITYSPARK_SUBSCRIBED && CITYSPARK_PLACEHOLDER.test(e.image || '') ? '' : e.image || '',
@@ -235,7 +241,8 @@ export async function getEvents() {
 }
 
 export function shortVenue(e) {
-  return e.venue || 'Location on the original listing';
+  if (!e.venue) return 'Location on the original listing';
+  return e.room ? `${e.venue} · ${e.room}` : e.venue;
 }
 
 export function mapsLink(e) {
