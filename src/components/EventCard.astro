@@ -9,14 +9,15 @@ const { event, headingLevel = 3, big = false, eager = false, layout = 'stack' } 
 const row = layout === 'row';
 const Heading = `h${headingLevel}`;
 ---
-<li class="item" data-date={event.date} data-cat={event.category} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? "" : undefined}><a class:list={['card', { big, row }]} href={`/event/${event.slug}/`}>
+<li class="item" data-date={event.date} data-cat={event.category} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? "" : undefined}><a class:list={['card', { big, row, sponsored: event.sponsored }]} href={`/event/${event.slug}/`}>
   <EventArt event={event} height={big ? 230 : row ? 132 : 170} eager={eager} showDate={!row && !event.ongoing} compact={row} />
   <div class="body">
     <p class="when">{event.ongoing ? event.series.when : row ? timeRange(event.start, event.end) : `${shortDate(event.start)} · ${timeRange(event.start, event.end)}`}</p>
     <Heading class="name">{event.title}</Heading>
     <p class="where">{shortVenue(event)}</p>
-    {(event.price || (PREVIEW && event.sample)) && (
+    {(event.price || event.sponsored || (PREVIEW && event.sample)) && (
       <p class="foot">
+        {event.sponsored && <span class="sponsored-tag">Sponsored</span>}
         {event.price && <span class="price">{event.price}</span>}
         {PREVIEW && event.sample && <span class="sample-tag">Sample</span>}
       </p>
@@ -37,6 +38,8 @@ const Heading = `h${headingLevel}`;
   .row .body { padding: 14px 16px; gap: 4px; }
   .row .name { font-size: 1.15rem; }
   .where { color: var(--muted); font-size: .95rem; }
+  .sponsored { border-color: #D9B44A; box-shadow: 0 0 0 1px #D9B44A inset; }
+  .sponsored-tag { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: #FFF4D6; color: #6B4E00; }
   .foot { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; align-items: center; }
   .price { font-size: .85rem; font-weight: 600; color: var(--agave); background: var(--agave-tint); padding: 3px 10px; border-radius: 999px; }
 </style>
