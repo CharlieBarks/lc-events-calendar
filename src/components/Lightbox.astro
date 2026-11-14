@@ -2,7 +2,7 @@
 // Click a flyer to see it full size. Uses the native <dialog>, so Esc and focus work for free.
 ---
 <dialog class="lightbox" aria-label="Full-size image">
-  <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+  <form method="dialog"><button class="lightbox__close" aria-label="Close">×</button></form>
   <img alt="" />
 </dialog>
 <script>
@@ -22,5 +22,5 @@
   .lightbox { border: 0; padding: 0; background: transparent; max-inline-size: 94vw; max-block-size: 94vh; }
   .lightbox::backdrop { background: rgba(20,18,16,.86); }
   .lightbox img { max-inline-size: 94vw; max-block-size: 90vh; border-radius: var(--radius-s); display: block; }
-  .close { position: fixed; top: 0.875rem; right: 1.125rem; inline-size: 3rem; block-size: 3rem; border-radius: 999px; border: 0; background: var(--white); font-size: 1.8rem; line-height: 1; cursor: pointer; }
+  .lightbox__close { position: fixed; top: 0.875rem; right: 1.125rem; inline-size: 3rem; block-size: 3rem; border-radius: 999px; border: 0; background: var(--white); font-size: 1.8rem; line-height: 1; cursor: pointer; }
 </style>

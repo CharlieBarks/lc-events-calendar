@@ -12,11 +12,11 @@ const label = event.topic?.label || cat.name;
 const seed = [...event.slug].reduce((n, c) => n + c.charCodeAt(0), 0);
 const pid = `p-${event.slug.slice(0, 40)}`;
 ---
-<div class:list={['art', { compact }]} style={`--c:${cat.color};height:${height}px`}>
+<div class="art" data-size={compact ? 'compact' : undefined} style={`--c:${cat.color};height:${height}px`}>
   {event.image
-    ? <img class="photo" src={event.image} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" />
+    ? <img class="art__photo" src={event.image} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" />
     : <>
-        <svg class="pattern" aria-hidden="true" width="100%" height="100%">
+        <svg class="art__pattern" aria-hidden="true" width="100%" height="100%">
           <defs>
             <pattern id={pid} width="56" height="56" patternUnits="userSpaceOnUse" patternTransform={`rotate(${(seed % 5) * 6 - 12}) translate(${seed % 56} 0)`}>
               <g transform="translate(16 16) scale(1)" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" set:html={icon} />
@@ -24,30 +24,30 @@ const pid = `p-${event.slug.slice(0, 40)}`;
           </defs>
           <rect width="100%" height="100%" fill={`url(#${pid})`} />
         </svg>
-        <span class="glow" aria-hidden="true"></span>
-        <svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" set:html={icon} />
-        <svg class="sky" aria-hidden="true" viewBox="0 0 400 120" preserveAspectRatio="none">
+        <span class="art__glow" aria-hidden="true"></span>
+        <svg class="art__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" set:html={icon} />
+        <svg class="art__sky" aria-hidden="true" viewBox="0 0 400 120" preserveAspectRatio="none">
           <path d="M0 120 L0 92 L40 80 L70 88 L104 54 L122 66 L140 30 L152 44 L164 18 L176 40 L190 26 L204 52 L226 44 L250 70 L284 58 L320 82 L360 74 L400 90 L400 120 Z" fill="rgba(0,0,0,.2)"/>
           <path d="M0 120 L0 104 L60 98 L120 106 L200 96 L280 104 L340 98 L400 106 L400 120 Z" fill="rgba(0,0,0,.16)"/>
         </svg>
       </>}
   {showDate && (
-    <span class="date" aria-hidden="true"><b>{monthShort(event.start)}</b>{event.start.d}</span>
+    <span class="art__date" aria-hidden="true"><b>{monthShort(event.start)}</b>{event.start.d}</span>
   )}
-  <span class="label">{event.image ? cat.name : label}</span>
+  <span class="art__label">{event.image ? cat.name : label}</span>
 </div>
 
 <style>
   .art { position: relative; overflow: hidden; background: var(--c); color: var(--white); display: flex; align-items: flex-start; justify-content: space-between; padding: var(--space-s); isolation: isolate; }
-  .photo { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; }
-  .pattern { position: absolute; inset: 0; opacity: .1; z-index: -1; }
-  .glow { position: absolute; right: -8%; top: 50%; inline-size: 70%; aspect-ratio: 1; transform: translateY(-58%); border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.22), rgba(255,255,255,0) 65%); z-index: -1; }
-  .icon { position: absolute; right: 9%; top: 50%; transform: translateY(-62%); block-size: 62%; max-block-size: 11.875rem; aspect-ratio: 1; color: var(--white); opacity: .92; filter: drop-shadow(0 0.25rem 0.625rem rgba(0,0,0,.18)); }
-  .sky { position: absolute; left: 0; right: 0; bottom: 0; inline-size: 100%; block-size: 42%; }
-  .date { position: relative; z-index: 1; order: -1; background: var(--white); color: var(--text-dark); border-radius: var(--radius-s); min-inline-size: 3.25rem; padding: 0.375rem var(--space-xs) 0.4375rem; text-align: center; font-family: var(--heading-font-family); font-weight: 800; font-size: 1.45rem; line-height: 1; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
-  .date b { display: block; font-family: var(--text-font-family); font-size: var(--text-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--primary); margin-block-end: 0.1875rem; }
-  .label { position: relative; z-index: 1; align-self: flex-start; background: rgba(255,255,255,.94); color: var(--text-dark); font-size: var(--text-xs); font-weight: 600; padding: 0.3125rem var(--space-xs); border-radius: 999px; }
-  .compact { padding: var(--space-xs); }
-  .compact .label { display: none; }
-  .compact .icon { right: 50%; transform: translate(50%, -62%); block-size: 58%; }
+  .art__photo { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; }
+  .art__pattern { position: absolute; inset: 0; opacity: .1; z-index: -1; }
+  .art__glow { position: absolute; right: -8%; top: 50%; inline-size: 70%; aspect-ratio: 1; transform: translateY(-58%); border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.22), rgba(255,255,255,0) 65%); z-index: -1; }
+  .art__icon { position: absolute; right: 9%; top: 50%; transform: translateY(-62%); block-size: 62%; max-block-size: 11.875rem; aspect-ratio: 1; color: var(--white); opacity: .92; filter: drop-shadow(0 0.25rem 0.625rem rgba(0,0,0,.18)); }
+  .art__sky { position: absolute; left: 0; right: 0; bottom: 0; inline-size: 100%; block-size: 42%; }
+  .art__date { position: relative; z-index: 1; order: -1; background: var(--white); color: var(--text-dark); border-radius: var(--radius-s); min-inline-size: 3.25rem; padding: 0.375rem var(--space-xs) 0.4375rem; text-align: center; font-family: var(--heading-font-family); font-weight: 800; font-size: 1.45rem; line-height: 1; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+  .art__date b { display: block; font-family: var(--text-font-family); font-size: var(--text-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--primary); margin-block-end: 0.1875rem; }
+  .art__label { position: relative; z-index: 1; align-self: flex-start; background: rgba(255,255,255,.94); color: var(--text-dark); font-size: var(--text-xs); font-weight: 600; padding: 0.3125rem var(--space-xs); border-radius: 999px; }
+  .art[data-size="compact"] { padding: var(--space-xs); }
+  .art[data-size="compact"] .art__label { display: none; }
+  .art[data-size="compact"] .art__icon { right: 50%; transform: translate(50%, -62%); block-size: 58%; }
 </style>

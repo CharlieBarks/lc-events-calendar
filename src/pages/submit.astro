@@ -3,128 +3,128 @@ import Layout from '../layouts/Layout.astro';
 import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
 ---
 <Layout title="Add Your Event" description="List your Las Cruces or Mesilla event for free. Upload your flyer and the details fill themselves in, or type it in yourself.">
-  <section class="wrap-narrow head">
+  <section class="wrap-narrow submit-head">
     <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">Add your event</span></nav>
     <p class="eyebrow">Free, always</p>
     <h1>Put it on the calendar.</h1>
     <p class="lede">If it's open to the public in Las Cruces or Mesilla, it belongs here. I check every listing, usually within a day. – Charlie</p>
   </section>
 
-  <section class="wrap-narrow body" data-app data-intake={INTAKE_URL} data-pay={SPOTLIGHT.payUrl}>
-    <p class="who" data-who hidden>Submitting as <strong data-who-name></strong> · <button type="button" class="link" data-forget>not you?</button></p>
+  <section class="wrap-narrow submit-body" data-app data-intake={INTAKE_URL} data-pay={SPOTLIGHT.payUrl}>
+    <p class="submit-body__who" data-who hidden>Submitting as <strong data-who-name></strong> · <button type="button" class="submit-body__link" data-forget>not you?</button></p>
 
     <!-- Step 1: pick a path -->
-    <div class="choose" data-step="choose">
-      <label class="choice primary" for="flyer">
+    <div class="submit-choose" data-step="choose">
+      <label class="submit-choose__option" data-variant="primary" for="flyer">
         <input type="file" id="flyer" accept="image/*" class="sr-only" data-flyer />
-        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 16l4.5-4.5a2 2 0 0 1 2.8 0L16 16m-2-2 1.5-1.5a2 2 0 0 1 2.8 0L20 14M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><circle cx="15" cy="8.5" r="1.5"/></svg></span>
+        <span class="submit-choose__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 16l4.5-4.5a2 2 0 0 1 2.8 0L16 16m-2-2 1.5-1.5a2 2 0 0 1 2.8 0L20 14M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><circle cx="15" cy="8.5" r="1.5"/></svg></span>
         <strong>I have a flyer</strong>
         <span>Upload it and I'll fill in the details for you. You check them and hit send.</span>
-        <span class="tip">On Facebook or Instagram? Screenshot the post and upload that.</span>
+        <span class="submit-choose__tip">On Facebook or Instagram? Screenshot the post and upload that.</span>
       </label>
-      <button type="button" class="choice" data-manual>
-        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z"/><path d="m13.5 6.5 4 4"/></svg></span>
+      <button type="button" class="submit-choose__option" data-manual>
+        <span class="submit-choose__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z"/><path d="m13.5 6.5 4 4"/></svg></span>
         <strong>No flyer? Type it in</strong>
         <span>Takes about a minute. You can still add a photo.</span>
       </button>
     </div>
 
     <!-- Reading the flyer -->
-    <div class="reading" data-step="reading" hidden>
+    <div class="submit-reading" data-step="reading" hidden>
       <img data-reading-img alt="Your flyer" />
-      <div><span class="spinner" aria-hidden="true"></span><strong>Reading your flyer…</strong><p>This takes about 10 seconds.</p></div>
+      <div><span class="submit-reading__spinner" aria-hidden="true"></span><strong>Reading your flyer…</strong><p>This takes about 10 seconds.</p></div>
     </div>
 
     <!-- Step 2: the form (both paths end here) -->
-    <form class="form" data-step="form" hidden novalidate>
-      <div class="flyer-box" data-flyer-box hidden>
+    <form class="submit-form" data-step="form" hidden novalidate>
+      <div class="submit-form__flyer" data-flyer-box hidden>
         <img data-flyer-img alt="Your flyer" />
         <div>
-          <p class="note" data-read-note></p>
-          <button type="button" class="link" data-change>Use a different flyer</button>
+          <p class="submit-form__note" data-read-note></p>
+          <button type="button" class="submit-body__link" data-change>Use a different flyer</button>
         </div>
       </div>
 
       <fieldset>
         <legend>The basics</legend>
-        <div class="field"><label for="title">Event name</label><input id="title" name="title" required autocomplete="off" placeholder="e.g. Desert Rose Trio, Fall Art Walk" /></div>
+        <div class="submit-form__field"><label for="title">Event name</label><input id="title" name="title" required autocomplete="off" placeholder="e.g. Desert Rose Trio, Fall Art Walk" /></div>
 
-        <div class="field">
-          <span class="label">When</span>
-          <div class="shows" data-shows></div>
-          <button type="button" class="link add" data-add-show>+ Add another date</button>
+        <div class="submit-form__field">
+          <span class="submit-form__label">When</span>
+          <div class="submit-form__shows" data-shows></div>
+          <button type="button" class="submit-body__link submit-form__add" data-add-show>+ Add another date</button>
         </div>
 
-        <div class="two">
-          <div class="field"><label for="venue">Venue</label><input id="venue" name="venue" required autocomplete="off" placeholder="e.g. Rio Grande Winery" /></div>
-          <div class="field"><label for="address">Address <span class="opt">(optional)</span></label><input id="address" name="address" autocomplete="off" /></div>
+        <div class="submit-form__pair">
+          <div class="submit-form__field"><label for="venue">Venue</label><input id="venue" name="venue" required autocomplete="off" placeholder="e.g. Rio Grande Winery" /></div>
+          <div class="submit-form__field"><label for="address">Address <span class="submit-form__optional">(optional)</span></label><input id="address" name="address" autocomplete="off" /></div>
         </div>
-        <div class="two">
-          <div class="field">
+        <div class="submit-form__pair">
+          <div class="submit-form__field">
             <label for="category">What kind of event?</label>
             <select id="category" name="category" required>
               <option value="">Pick one</option>
               {Object.entries(CATEGORIES).filter(([k]) => k !== 'city-hall').map(([k, c]) => <option value={k}>{c.name}</option>)}
             </select>
           </div>
-          <div class="field"><label for="price">Cost</label><input id="price" name="price" placeholder="Free, No cover, $10…" /></div>
+          <div class="submit-form__field"><label for="price">Cost</label><input id="price" name="price" placeholder="Free, No cover, $10…" /></div>
         </div>
-        <div class="field"><label for="description">Tell people why they should come <span class="opt">(optional)</span></label><textarea id="description" name="description" rows="3"></textarea></div>
-        <div class="field"><label for="url">Tickets or more info <span class="opt">(optional)</span></label><input type="url" id="url" name="url" placeholder="https://" inputmode="url" /></div>
+        <div class="submit-form__field"><label for="description">Tell people why they should come <span class="submit-form__optional">(optional)</span></label><textarea id="description" name="description" rows="3"></textarea></div>
+        <div class="submit-form__field"><label for="url">Tickets or more info <span class="submit-form__optional">(optional)</span></label><input type="url" id="url" name="url" placeholder="https://" inputmode="url" /></div>
 
-        <div class="field" data-photo-field hidden>
-          <label class="photo" for="photo">
+        <div class="submit-form__field" data-photo-field hidden>
+          <label class="submit-form__photo" for="photo">
             <input type="file" id="photo" accept="image/*" class="sr-only" data-photo />
-            <strong>+ Add a photo</strong> <span class="opt">(optional, but events with a picture get way more clicks)</span>
+            <strong>+ Add a photo</strong> <span class="submit-form__optional">(optional, but events with a picture get way more clicks)</span>
           </label>
         </div>
       </fieldset>
 
-      <fieldset class="boost" id="spotlight">
+      <fieldset class="submit-form__boost" id="spotlight">
         <legend>Want more eyes on it?</legend>
-        <label class="tier">
+        <label class="submit-tier">
           <input type="radio" name="boost" value="" checked />
-          <span class="tier-body">
-            <span class="tier-head"><strong>Free</strong></span>
-            <span class="tier-text">Your event goes on the calendar. Always free.</span>
+          <span class="submit-tier__body">
+            <span class="submit-tier__head"><strong>Free</strong></span>
+            <span class="submit-tier__text">Your event goes on the calendar. Always free.</span>
           </span>
         </label>
-        <label class="tier">
+        <label class="submit-tier">
           <input type="radio" name="boost" value="spotlight" />
-          <span class="tier-body">
-            <span class="tier-head"><strong>Spotlight</strong> <span class="tier-price">${SPOTLIGHT.price}</span></span>
-            <ul class="tier-list">
+          <span class="submit-tier__body">
+            <span class="submit-tier__head"><strong>Spotlight</strong> <span class="submit-tier__price">${SPOTLIGHT.price}</span></span>
+            <ul class="submit-tier__list">
               <li>Pinned to the <strong>top of the calendar</strong> on your event's date, with a Sponsored label</li>
               <li>Rotates through the <strong>Spotlight</strong> section on the calendar's front page</li>
               <li>A mention in the <strong>Live Love Las Cruces newsletter</strong> ({SITE.subscribers} locals) before your event</li>
             </ul>
-            <span class="tier-text">You'll pay after you send it. Nothing goes live until I've checked it over.</span>
+            <span class="submit-tier__text">You'll pay after you send it. Nothing goes live until I've checked it over.</span>
           </span>
         </label>
       </fieldset>
 
       <fieldset data-contact>
         <legend>How do I reach you?</legend>
-        <p class="hint">Only used if I have a question about your listing. Never shown on the site.</p>
-        <div class="two">
-          <div class="field"><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required /></div>
-          <div class="field"><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="email" required /></div>
+        <p class="submit-form__hint">Only used if I have a question about your listing. Never shown on the site.</p>
+        <div class="submit-form__pair">
+          <div class="submit-form__field"><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required /></div>
+          <div class="submit-form__field"><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="email" required /></div>
         </div>
-        <div class="field"><label for="phone">Phone <span class="opt">(optional)</span></label><input type="tel" id="phone" name="phone" autocomplete="tel" /></div>
-        <label class="check"><input type="checkbox" name="remember" checked /> Remember me on this device</label>
+        <div class="submit-form__field"><label for="phone">Phone <span class="submit-form__optional">(optional)</span></label><input type="tel" id="phone" name="phone" autocomplete="tel" /></div>
+        <label class="submit-form__check"><input type="checkbox" name="remember" checked /> Remember me on this device</label>
       </fieldset>
 
-      <div class="hp" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" name="website" tabindex="-1" autocomplete="off" /></div>
-      <button class="btn--primary submit" type="submit">Send it to Charlie</button>
-      <p class="status" data-status role="status"></p>
+      <div class="submit-form__trap" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" name="website" tabindex="-1" autocomplete="off" /></div>
+      <button class="btn--primary submit-form__send" type="submit">Send it to Charlie</button>
+      <p class="submit-form__status" data-status role="status"></p>
     </form>
 
     <!-- Done -->
-    <div class="done" data-step="done" hidden>
+    <div class="submit-done" data-step="done" hidden>
       <h2>Got it, thanks!</h2>
       <p data-done-text>I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.</p>
       <p data-done-free>The best-looking listings make the Live Love Las Cruces newsletter (10,000+ locals).</p>
-      <div class="pay" data-done-pay hidden>
+      <div class="submit-done__pay" data-done-pay hidden>
         <p><strong>One more step for your Spotlight:</strong> <span data-pay-text>pay the ${SPOTLIGHT.price} below. As soon as it comes through and I've checked your listing, it goes to the top.</span></p>
         <a class="btn--primary" data-pay-link href="#" target="_blank" rel="noopener">Pay ${SPOTLIGHT.price} for Spotlight</a>
       </div>
@@ -134,12 +134,12 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
 </Layout>
 
 <template id="show-row">
-  <div class="show">
-    <div class="sf"><label>Date</label><input type="date" data-k="date" required /></div>
-    <div class="sf"><label>Starts</label><input type="time" data-k="start" /></div>
-    <div class="sf"><label>Ends <span class="opt">(opt.)</span></label><input type="time" data-k="end" /></div>
-    <div class="sf act" hidden><label>Different act? <span class="opt">(opt.)</span></label><input data-k="title" autocomplete="off" /></div>
-    <button type="button" class="del" aria-label="Remove this date" data-del>✕</button>
+  <div class="submit-form__show">
+    <div class="submit-form__show-field"><label>Date</label><input type="date" data-k="date" required /></div>
+    <div class="submit-form__show-field"><label>Starts</label><input type="time" data-k="start" /></div>
+    <div class="submit-form__show-field"><label>Ends <span class="submit-form__optional">(opt.)</span></label><input type="time" data-k="end" /></div>
+    <div class="submit-form__show-field submit-form__act" hidden><label>Different act? <span class="submit-form__optional">(opt.)</span></label><input data-k="title" autocomplete="off" /></div>
+    <button type="button" class="submit-form__remove" aria-label="Remove this date" data-del>✕</button>
   </div>
 </template>
 
@@ -173,17 +173,17 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
     const rows = [...showsEl.children] as HTMLElement[];
     rows.forEach((r) => {
       (r.querySelector('[data-del]') as HTMLElement).hidden = rows.length === 1;
-      (r.querySelector('.act') as HTMLElement).hidden = rows.length === 1;
+      (r.querySelector('.submit-form__act') as HTMLElement).hidden = rows.length === 1;
     });
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver' }).format(new Date());
     showsEl.querySelectorAll<HTMLInputElement>('[data-k="date"]').forEach((i) => (i.min = today));
   }
   showsEl.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('[data-del]');
-    if (b) { b.closest('.show')!.remove(); syncShows(); }
+    if (b) { b.closest('.submit-form__show')!.remove(); syncShows(); }
   });
   $('[data-add-show]').addEventListener('click', () => {
-    const last = [...showsEl.querySelectorAll('.show')].pop();
+    const last = [...showsEl.querySelectorAll('.submit-form__show')].pop();
     const get = (k: string) => (last?.querySelector(`[data-k="${k}"]`) as HTMLInputElement)?.value || '';
     addShow({ start: get('start'), end: get('end') }); // same times as the last date: residencies usually are
     (showsEl.lastElementChild!.querySelector('[data-k="date"]') as HTMLInputElement).focus();
@@ -244,14 +244,14 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
     (x.shows?.length ? x.shows : [{}]).forEach(addShow);
   }
   function markMissing() {
-    form.querySelectorAll('.missing').forEach((el) => el.classList.remove('missing'));
+    form.querySelectorAll('[data-missing]').forEach((el) => el.removeAttribute('data-missing'));
     const empty: string[] = [];
-    if (!field('title').value) { field('title').classList.add('missing'); empty.push('the event name'); }
+    if (!field('title').value) { field('title').setAttribute('data-missing', ''); empty.push('the event name'); }
     const dates = showsEl.querySelectorAll<HTMLInputElement>('[data-k="date"]');
-    if (![...dates].some((d) => d.value)) { dates.forEach((d) => d.classList.add('missing')); empty.push('the date'); }
+    if (![...dates].some((d) => d.value)) { dates.forEach((d) => d.setAttribute('data-missing', '')); empty.push('the date'); }
     if (![...showsEl.querySelectorAll<HTMLInputElement>('[data-k="start"]')].some((d) => d.value)) empty.push('the start time');
-    if (!field('venue').value) { field('venue').classList.add('missing'); empty.push('the venue'); }
-    if (!field('category').value) field('category').classList.add('missing');
+    if (!field('venue').value) { field('venue').setAttribute('data-missing', ''); empty.push('the venue'); }
+    if (!field('category').value) field('category').setAttribute('data-missing', '');
     return empty;
   }
 
@@ -296,7 +296,7 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
   ($('[data-photo]') as HTMLInputElement).addEventListener('change', async (e) => {
     const f = (e.target as HTMLInputElement).files?.[0];
     if (!f) return;
-    const label = $('label.photo strong');
+    const label = $('label.submit-form__photo strong');
     label.textContent = 'Uploading…';
     try {
       const fd = new FormData();
@@ -319,7 +319,7 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
   // ---- Send ----
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const shows = [...showsEl.querySelectorAll('.show')].map((r) => ({
+    const shows = [...showsEl.querySelectorAll('.submit-form__show')].map((r) => ({
       date: (r.querySelector('[data-k="date"]') as HTMLInputElement).value,
       start: (r.querySelector('[data-k="start"]') as HTMLInputElement).value,
       end: (r.querySelector('[data-k="end"]') as HTMLInputElement).value,
@@ -332,7 +332,7 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
       form.reportValidity();
       return;
     }
-    const btn = form.querySelector('.submit') as HTMLButtonElement;
+    const btn = form.querySelector('.submit-form__send') as HTMLButtonElement;
     btn.disabled = true; status.textContent = 'Sending…';
     const body = {
       title: field('title').value, venue: field('venue').value, address: field('address').value, category: field('category').value,
@@ -375,95 +375,95 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
 
   $('[data-again]').addEventListener('click', () => {
     imageId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
-    $('label.photo strong').textContent = '+ Add a photo';
+    $('label.submit-form__photo strong').textContent = '+ Add a photo';
     applyMe(); step('choose');
   });
 
   applyMe();
-  form.addEventListener('input', (e) => (e.target as HTMLElement).classList?.remove('missing'));
+  form.addEventListener('input', (e) => (e.target as HTMLElement).removeAttribute?.('data-missing'));
 </script>
 
 <style>
-  .head { display: flex; flex-direction: column; gap: var(--space-s); padding-block-end: var(--space-m); }
-  .head h1 { margin-block-start: var(--space-s); }
-  .body { padding-block-end: var(--space-xxl); }
-  .who { margin: 0 0 var(--space-s); color: var(--text-dark-muted); }
-  .link { background: none; border: 0; padding: 0; font: inherit; color: var(--primary); text-decoration: underline; cursor: pointer; }
+  .submit-head { display: flex; flex-direction: column; gap: var(--space-s); padding-block-end: var(--space-m); }
+  .submit-head h1 { margin-block-start: var(--space-s); }
+  .submit-body { padding-block-end: var(--space-xxl); }
+  .submit-body__who { margin: 0 0 var(--space-s); color: var(--text-dark-muted); }
+  .submit-body__link { background: none; border: 0; padding: 0; font: inherit; color: var(--primary); text-decoration: underline; cursor: pointer; }
 
-  .choose { display: grid; gap: var(--space-s); grid-template-columns: repeat(auto-fit, minmax(16.25rem, 1fr)); }
-  .choice { display: flex; flex-direction: column; gap: var(--space-xs); align-items: flex-start; text-align: left; padding: var(--space-m); border: 1.5px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); cursor: pointer; font: inherit; color: var(--text-dark); min-block-size: 13.75rem; transition: border-color .15s, transform .15s; }
-  .choice:hover, .choice:focus-within, .choice:focus-visible { border-color: var(--text-dark); transform: translateY(-2px); }
-  .choice.primary { border-color: var(--primary); background: var(--primary-ultra-light); }
-  .choice strong { font-family: var(--heading-font-family); font-size: 1.45rem; font-weight: 800; }
-  .choice span { color: var(--text-dark-muted); }
-  .choice .tip { font-size: var(--text-s); margin-block-start: auto; }
-  .icon { inline-size: 3rem; block-size: 3rem; border-radius: var(--radius-s); background: var(--text-dark); display: grid; place-items: center; }
-  .primary .icon { background: var(--primary); }
-  .icon svg { inline-size: 1.625rem; block-size: 1.625rem; fill: none; stroke: var(--white); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .submit-choose { display: grid; gap: var(--space-s); grid-template-columns: repeat(auto-fit, minmax(16.25rem, 1fr)); }
+  .submit-choose__option { display: flex; flex-direction: column; gap: var(--space-xs); align-items: flex-start; text-align: left; padding: var(--space-m); border: 1.5px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); cursor: pointer; font: inherit; color: var(--text-dark); min-block-size: 13.75rem; transition: border-color .15s, transform .15s; }
+  .submit-choose__option:hover, .submit-choose__option:focus-within, .submit-choose__option:focus-visible { border-color: var(--text-dark); transform: translateY(-2px); }
+  .submit-choose__option[data-variant="primary"] { border-color: var(--primary); background: var(--primary-ultra-light); }
+  .submit-choose__option strong { font-family: var(--heading-font-family); font-size: 1.45rem; font-weight: 800; }
+  .submit-choose__option span { color: var(--text-dark-muted); }
+  .submit-choose__option .submit-choose__tip { font-size: var(--text-s); margin-block-start: auto; }
+  .submit-choose__icon { inline-size: 3rem; block-size: 3rem; border-radius: var(--radius-s); background: var(--text-dark); display: grid; place-items: center; }
+  .submit-choose__option[data-variant="primary"] .submit-choose__icon { background: var(--primary); }
+  .submit-choose__icon svg { inline-size: 1.625rem; block-size: 1.625rem; fill: none; stroke: var(--white); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-  .reading { display: flex; gap: var(--space-m); align-items: center; padding: var(--space-m); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); }
-  .reading img { inline-size: 8.75rem; border-radius: var(--radius-xs); }
-  .reading p { color: var(--text-dark-muted); margin: 0.25rem 0 0; }
-  .spinner { display: inline-block; inline-size: 1.125rem; block-size: 1.125rem; border: 3px solid var(--neutral-light); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; margin-inline-end: var(--space-xs); vertical-align: -3px; }
+  .submit-reading { display: flex; gap: var(--space-m); align-items: center; padding: var(--space-m); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); }
+  .submit-reading img { inline-size: 8.75rem; border-radius: var(--radius-xs); }
+  .submit-reading p { color: var(--text-dark-muted); margin: 0.25rem 0 0; }
+  .submit-reading__spinner { display: inline-block; inline-size: 1.125rem; block-size: 1.125rem; border: 3px solid var(--neutral-light); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; margin-inline-end: var(--space-xs); vertical-align: -3px; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+  @media (prefers-reduced-motion: reduce) { .submit-reading__spinner { animation-duration: 3s; } }
 
-  .form { display: flex; flex-direction: column; gap: var(--space-m); }
-  .flyer-box { display: flex; gap: var(--space-m); align-items: flex-start; padding: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); }
-  .flyer-box img { inline-size: 9.375rem; border-radius: var(--radius-xs); border: 1px solid var(--neutral-light); }
-  .note { margin: 0 0 var(--space-xs); }
+  .submit-form { display: flex; flex-direction: column; gap: var(--space-m); }
+  .submit-form__flyer { display: flex; gap: var(--space-m); align-items: flex-start; padding: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); }
+  .submit-form__flyer img { inline-size: 9.375rem; border-radius: var(--radius-xs); border: 1px solid var(--neutral-light); }
+  .submit-form__note { margin: 0 0 var(--space-xs); }
   fieldset { border: 1px solid var(--neutral-light); background: var(--bg-ultra-light); border-radius: var(--radius); padding: var(--space-m); margin: 0; display: flex; flex-direction: column; gap: var(--space-s); min-inline-size: 0; }
   fieldset[hidden] { display: none; }
   legend { font-family: var(--heading-font-family); font-weight: 800; font-size: var(--text-xl); padding: 0 0.375rem; }
-  .two { display: grid; gap: var(--space-s); grid-template-columns: repeat(auto-fit, minmax(13.75rem, 1fr)); }
-  .field { display: flex; flex-direction: column; gap: 0.375rem; }
-  .field[hidden] { display: none; }
-  label, .label { font-weight: 600; font-size: var(--text-m); }
-  .opt { font-weight: 400; color: var(--text-dark-muted); }
+  .submit-form__pair { display: grid; gap: var(--space-s); grid-template-columns: repeat(auto-fit, minmax(13.75rem, 1fr)); }
+  .submit-form__field { display: flex; flex-direction: column; gap: 0.375rem; }
+  .submit-form__field[hidden] { display: none; }
+  label, .submit-form__label { font-weight: 600; font-size: var(--text-m); }
+  .submit-form__optional { font-weight: 400; color: var(--text-dark-muted); }
   /* Not the visually hidden file inputs (.sr-only): full width there made the page scroll sideways. */
-  input:not(.sr-only), select, textarea { font: inherit; font-size: var(--text-m); min-block-size: 3rem; padding: var(--space-xs) var(--space-s); border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); color: var(--text-dark); inline-size: 100%; }
+  input:not(:where(.sr-only)), select, textarea { font: inherit; font-size: var(--text-m); min-block-size: 3rem; padding: var(--space-xs) var(--space-s); border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); color: var(--text-dark); inline-size: 100%; }
   textarea { min-block-size: 6rem; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--text-dark); box-shadow: 0 0 0 3px var(--primary-ultra-light); }
-  .missing { border-color: var(--primary); background: var(--primary-ultra-light); }
+  [data-missing] { border-color: var(--primary); background: var(--primary-ultra-light); }
 
-  .shows { display: flex; flex-direction: column; gap: var(--space-xs); }
-  .show { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: var(--space-xs); align-items: end; }
-  .show:has(.act:not([hidden])) { grid-template-columns: 1.4fr 1fr 1fr 1.5fr auto; }
-  .sf { display: flex; flex-direction: column; gap: 0.25rem; }
-  .sf[hidden] { display: none; }
-  .sf label { font-size: var(--text-xs); font-weight: 600; }
-  .del { inline-size: 2.75rem; block-size: 3rem; border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); cursor: pointer; color: var(--text-dark-muted); }
-  .del[hidden] { display: none; }
-  .add { align-self: flex-start; margin-block-start: 0.25rem; min-block-size: 2.75rem; }
+  .submit-form__shows { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .submit-form__show { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: var(--space-xs); align-items: end; }
+  .submit-form__show:has(.submit-form__act:not([hidden])) { grid-template-columns: 1.4fr 1fr 1fr 1.5fr auto; }
+  .submit-form__show-field { display: flex; flex-direction: column; gap: 0.25rem; }
+  .submit-form__show-field[hidden] { display: none; }
+  .submit-form__show-field label { font-size: var(--text-xs); font-weight: 600; }
+  .submit-form__remove { inline-size: 2.75rem; block-size: 3rem; border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); cursor: pointer; color: var(--text-dark-muted); }
+  .submit-form__remove[hidden] { display: none; }
+  .submit-form__add { align-self: flex-start; margin-block-start: 0.25rem; min-block-size: 2.75rem; }
   @media (max-width: 620px) {
-    .show, .show:has(.act:not([hidden])) { grid-template-columns: 1fr 1fr; padding-block-end: var(--space-s); border-block-end: 1px dashed var(--neutral-light); }
-    .show .sf:first-child { grid-column: 1 / -1; }
-    .sf.act { grid-column: 1 / -1; }
-    .flyer-box img, .reading img { inline-size: 6rem; }
+    .submit-form__show, .submit-form__show:has(.submit-form__act:not([hidden])) { grid-template-columns: 1fr 1fr; padding-block-end: var(--space-s); border-block-end: 1px dashed var(--neutral-light); }
+    .submit-form__show .submit-form__show-field:first-child { grid-column: 1 / -1; }
+    .submit-form__show-field.act { grid-column: 1 / -1; }
+    .submit-form__flyer img, .submit-reading img { inline-size: 6rem; }
   }
 
-  .photo { display: flex; flex-wrap: wrap; gap: 0.375rem; align-items: baseline; padding: var(--space-s) var(--space-s); border: 1.5px dashed var(--neutral-light); border-radius: var(--radius-s); cursor: pointer; }
-  .photo strong { color: var(--primary); }
-  .check { display: flex; gap: var(--space-xs); align-items: center; font-weight: 400; }
-  .check input { inline-size: 1.25rem; min-block-size: 1.25rem; block-size: 1.25rem; }
-  .hint { color: var(--text-dark-muted); font-size: var(--text-s); margin-block-start: -6px; }
-  .hp { position: absolute; left: -9999px; }
-  .submit { align-self: flex-start; min-block-size: 3.25rem; padding: 0 var(--space-m); font-size: var(--text-l); }
-  .status { font-weight: 600; color: var(--primary); min-block-size: 1.4em; }
+  .submit-form__photo { display: flex; flex-wrap: wrap; gap: 0.375rem; align-items: baseline; padding: var(--space-s) var(--space-s); border: 1.5px dashed var(--neutral-light); border-radius: var(--radius-s); cursor: pointer; }
+  .submit-form__photo strong { color: var(--primary); }
+  .submit-form__check { display: flex; gap: var(--space-xs); align-items: center; font-weight: 400; }
+  .submit-form__check input { inline-size: 1.25rem; min-block-size: 1.25rem; block-size: 1.25rem; }
+  .submit-form__hint { color: var(--text-dark-muted); font-size: var(--text-s); margin-block-start: -6px; }
+  .submit-form__trap { position: absolute; left: -9999px; }
+  .submit-form__send { align-self: flex-start; min-block-size: 3.25rem; padding: 0 var(--space-m); font-size: var(--text-l); }
+  .submit-form__status { font-weight: 600; color: var(--primary); min-block-size: 1.4em; }
 
-  .boost { gap: var(--space-s); }
-  .tier { display: flex; gap: var(--space-s); align-items: flex-start; padding: var(--space-s) var(--space-s); border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); cursor: pointer; font-weight: 400; }
-  .tier:has(input:checked) { border-color: var(--text-dark); box-shadow: 0 0 0 1px var(--text-dark) inset; }
-  .tier input { inline-size: 1.375rem; block-size: 1.375rem; min-block-size: 1.375rem; margin-block-start: 0.125rem; flex: none; accent-color: var(--primary); }
-  .tier-body { display: flex; flex-direction: column; gap: 0.375rem; }
-  .tier-head { display: flex; gap: var(--space-xs); align-items: baseline; font-size: var(--text-l); }
-  .tier-price { font-weight: 700; color: var(--primary); }
-  .tier-text { color: var(--text-dark-muted); font-size: var(--text-s); }
-  .tier-list { margin: 0; padding-inline-start: var(--space-s); display: flex; flex-direction: column; gap: 0.25rem; }
-  .pay { display: flex; flex-direction: column; gap: var(--space-s); align-items: flex-start; padding: var(--space-s); border-radius: var(--radius-s); --_sponsored-bg: #FFF4D6; background: var(--_sponsored-bg); }
-  .pay[hidden] { display: none; }
-  .done { padding: var(--space-l); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); display: flex; flex-direction: column; gap: var(--space-s); }
-  .done h2 { margin: 0; }
-  .done p { margin: 0; }
+  .submit-form__boost { gap: var(--space-s); }
+  .submit-tier { display: flex; gap: var(--space-s); align-items: flex-start; padding: var(--space-s) var(--space-s); border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); cursor: pointer; font-weight: 400; }
+  .submit-tier:has(input:checked) { border-color: var(--text-dark); box-shadow: 0 0 0 1px var(--text-dark) inset; }
+  .submit-tier input { inline-size: 1.375rem; block-size: 1.375rem; min-block-size: 1.375rem; margin-block-start: 0.125rem; flex: none; accent-color: var(--primary); }
+  .submit-tier__body { display: flex; flex-direction: column; gap: 0.375rem; }
+  .submit-tier__head { display: flex; gap: var(--space-xs); align-items: baseline; font-size: var(--text-l); }
+  .submit-tier__price { font-weight: 700; color: var(--primary); }
+  .submit-tier__text { color: var(--text-dark-muted); font-size: var(--text-s); }
+  .submit-tier__list { margin: 0; padding-inline-start: var(--space-s); display: flex; flex-direction: column; gap: 0.25rem; }
+  .submit-done__pay { display: flex; flex-direction: column; gap: var(--space-s); align-items: flex-start; padding: var(--space-s); border-radius: var(--radius-s); --_sponsored-bg: #FFF4D6; background: var(--_sponsored-bg); }
+  .submit-done__pay[hidden] { display: none; }
+  .submit-done { padding: var(--space-l); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); display: flex; flex-direction: column; gap: var(--space-s); }
+  .submit-done h2 { margin: 0; }
+  .submit-done p { margin: 0; }
   .btn-row { display: flex; flex-wrap: wrap; gap: var(--space-s); margin-block-start: var(--space-xs); }
 </style>
