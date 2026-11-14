@@ -27,3 +27,17 @@
     --gutter: clamp(1.25rem, calc(5.3278688525vw + 0.1844262295rem), 4.5rem);
     --section-padding-block: var(--section-space-m);
 }
+
+/* Proven gap until the next acss-sync: base outline buttons were switched on in acss/settings.json
+   (option-base-btn-outline) after the stylesheet was generated. Same shape as ACSS's own
+   .btn--primary.btn--outline. DELETE this rule once scripts/acss-sync.sh has been run. */
+.btn--base.btn--outline {
+    --btn-background: transparent;
+    --btn-background-hover: var(--base-hover);
+    --btn-text-color: var(--base);
+    --btn-text-color-hover: var(--base-ultra-light);
+    --btn-border-width: 1.5px;
+    --btn-border-color: var(--base);
+    --btn-border-color-hover: var(--base-hover);
+    --focus-color: var(--base-semi-light);
+}
