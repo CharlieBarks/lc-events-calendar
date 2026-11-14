@@ -1,4 +1,4 @@
-/* File: automatic.css - Version: 4.0.2 - Generated: 2026-11-09 08:07:07 */
+/* File: automatic.css - Version: 4.0.2 - Generated: 2026-11-14 07:15:56 */
 /* Feat: Text, Headings, & Spacing */
 :root {
   --root-font-size: 100%;
@@ -255,6 +255,7 @@
 :root {
   --option-primary-btn-outline: on;
   --option-secondary-btn-outline: on;
+  --option-base-btn-outline: on;
   --btn-padding-block: 0.875em;
   --btn-padding-inline: 1.25em;
   --btn-min-width: 0rem;
@@ -743,6 +744,26 @@ h6 {
   --btn-text-color-hover: var(--base-ultra-light);
   --btn-border-color: var(--base);
   --btn-border-color-hover: var(--base-hover);
+  --focus-color: var(--base-light);
+}
+.btn--base.btn--outline {
+  --btn-background: transparent;
+  --btn-background-hover: var(--base-hover);
+  --btn-text-color: var(--base);
+  --btn-text-color-hover: var(--base-ultra-light);
+  --btn-border-width: 1.5px;
+  --btn-border-color: var(--base);
+  --btn-border-color-hover: var(--base-hover);
+  --focus-color: var(--base-semi-light);
+}
+.btn--base-light.btn--outline {
+  --btn-background: transparent;
+  --btn-background-hover: var(--base-light);
+  --btn-text-color: var(--base-light);
+  --btn-text-color-hover: var(--base-dark);
+  --btn-border-width: 1.5px;
+  --btn-border-color: var(--base-light);
+  --btn-border-color-hover: var(--base-light);
   --focus-color: var(--base-light);
 }
 [class*="btn--"]:where(:not(.btn--none, .wp-block-button)), [class*="btn--"].wp-block-button > .wp-block-button__link {

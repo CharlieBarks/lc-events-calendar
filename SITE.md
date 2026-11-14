@@ -125,7 +125,7 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
    - **Still to do:** rename the class names on those pages to BEM (they are still short names like `.detail`, `.info`, `.box`), and match the homepage sections listed above to the Paper design.
 6. [ ] PageSpeed check against the targets in `agent-docs/astro.md` before merging to `main`.
 
-**Buttons:** ACSS buttons only: `btn--primary` (main action), `btn--base` (dark), `btn--base btn--outline` (quiet), `btn--primary-light` (on red), plus `btn--s` for small. There is no `.btn` class any more. Neutral buttons are off. Base outline was turned on in `acss/settings.json` on Nov 14; until `scripts/acss-sync.sh` is run, `acss-bridge.css` carries a copy of that one rule. After the sync, delete it from the bridge.
+**Buttons:** ACSS buttons only: `btn--primary` (main action), `btn--base` (dark), `btn--base btn--outline` (quiet), `btn--primary-light` (on red), plus `btn--s` for small. There is no `.btn` class any more. Neutral buttons are off. Base outline was turned on in `acss/settings.json` on Nov 14 and is in the generated `automatic.css` (synced Nov 14).
 
 **Hidden inputs:** a page-level rule like `input { inline-size: 100% }` also hits visually hidden inputs (`.sr-only`) and makes the page scroll sideways. Write `input:not(.sr-only)`.
 
