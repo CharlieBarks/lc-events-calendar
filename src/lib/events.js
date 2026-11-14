@@ -127,6 +127,10 @@ function cleanVenue(raw = '') {
 // (1d2c…-….large.png); organizers' uploads have short ones (6QxtXcZO….large.jpg).
 const CITYSPARK_PLACEHOLDER = /\/img\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\./i;
 
+// Some feeds (CitySpark) send text written in Markdown, with backslashes in front of punctuation:
+// "Wicker \\(105 R\\)". Shown as plain text those backslashes are just clutter, so take them out.
+const unescape = (s = '') => String(s || '').replace(/\\([\\`*_{}\[\]()#+\-.!>~|&$%:;,'"?=/])/g, '$1');
+
 function normalize(e, source) {
   const start = wall(e.start);
   if (!start) return null;
@@ -137,7 +141,7 @@ function normalize(e, source) {
   const v = resolveVenue(place.venue || e.venue || '');
   const out = {
     slug: source === 'lllc' ? e.slug : `${slugify(e.title).slice(0, 60).replace(/-$/, '')}-${dateKey(start)}`,
-    title: e.title.trim(),
+    title: unescape(e.title).trim(),
     startRaw: e.start,
     start, end,
     date: dateKey(start),
@@ -146,8 +150,8 @@ function normalize(e, source) {
     venueKey: v.key,
     address: place.address,
     category,
-    description: (e.description || '').trim(),
-    summary: (e.summary || '').trim(),
+    description: unescape(e.description).trim(),
+    summary: unescape(e.summary).trim(),
     url: e.url || '',
     ticketUrl: e.ticketUrl || '',
     image: source === 'cityspark' && !CITYSPARK_SUBSCRIBED && CITYSPARK_PLACEHOLDER.test(e.image || '') ? '' : e.image || '',
