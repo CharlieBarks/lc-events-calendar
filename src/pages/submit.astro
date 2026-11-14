@@ -1,6 +1,26 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../lib/site.js';
+import { getEvents } from '../lib/events.js';
+import venueData from '../data/venues.json';
+
+// Venue suggestions for the form: every venue on the master list (src/data/venues.json) plus every
+// venue on the calendar right now, each with the address it is most often listed with. Picking one
+// fills in the address, and keeps venue names spelled one way.
+const { events } = await getEvents();
+const seen = new Map(); // venue name -> { address: count }
+for (const v of venueData.venues) seen.set(v.name, {});
+for (const e of events) {
+  if (!e.venue || e.venue.length < 3) continue;
+  const tally = seen.get(e.venue) || {};
+  // Feeds sometimes put the venue name in front of the street address: keep the street part.
+  const address = (e.address || '').replace(new RegExp(`^${e.venue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[,–-]\\s*`, 'i'), '').trim();
+  if (/\d/.test(address) && address.toLowerCase() !== e.venue.toLowerCase()) tally[address] = (tally[address] || 0) + 1;
+  seen.set(e.venue, tally);
+}
+const venueList = [...seen.entries()]
+  .map(([name, tally]) => ({ name, address: Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] || '' }))
+  .sort((a, b) => a.name.localeCompare(b.name));
 ---
 <Layout title="Add Your Event" description="List your Las Cruces or Mesilla event for free. Upload your flyer and the details fill themselves in, or type it in yourself.">
   <section class="wrap-narrow submit-head">
@@ -83,7 +103,8 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../l
         </div>
 
         <div class="submit-form__pair">
-          <div class="submit-form__field"><label for="venue">Venue</label><input id="venue" name="venue" required autocomplete="off" placeholder="e.g. Rio Grande Winery" /></div>
+          <div class="submit-form__field"><label for="venue">Venue</label><input id="venue" name="venue" required autocomplete="off" placeholder="Start typing: Rio Grande Winery…" list="venue-list" data-venues={JSON.stringify(Object.fromEntries(venueList.filter((v) => v.address).map((v) => [v.name, v.address])))} />
+            <datalist id="venue-list">{venueList.map((v) => <option value={v.name}>{v.address}</option>)}</datalist></div>
           <div class="submit-form__field"><label for="address">Address <span class="submit-form__optional">(optional)</span></label><input id="address" name="address" autocomplete="off" /></div>
         </div>
         <div class="submit-form__pair">
@@ -313,6 +334,18 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../l
     const k = b.dataset.rpDate!;
     rpSkip = rpSkip.includes(k) ? rpSkip.filter((x) => x !== k) : [...rpSkip, k];
     syncRepeat();
+  });
+
+  // ---- Venue suggestions ----
+  // Picking a known venue fills in its address, unless the submitter already typed one themselves.
+  const venueInput = field('venue');
+  const venueAddresses: Record<string, string> = JSON.parse(venueInput.dataset.venues || '{}');
+  let filledAddress = '';
+  venueInput.addEventListener('input', () => {
+    const address = field('address');
+    const known = venueAddresses[venueInput.value.trim()];
+    if (known && (!address.value || address.value === filledAddress)) { address.value = known; filledAddress = known; }
+    else if (!known && address.value === filledAddress) { address.value = ''; filledAddress = ''; }
   });
 
   // ---- Remembered submitter ----
