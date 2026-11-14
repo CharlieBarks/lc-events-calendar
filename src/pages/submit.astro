@@ -55,6 +55,31 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../l
           <span class="submit-form__label">When</span>
           <div class="submit-form__shows" data-shows></div>
           <button type="button" class="submit-body__link submit-form__add" data-add-show>+ Add another date</button>
+
+          <!-- Repeating event: the date row above becomes the first date and sets the times. -->
+          <label class="submit-form__check"><input type="checkbox" data-repeat-on /> This repeats (weekly or monthly)</label>
+          <div class="submit-repeat" data-repeat hidden>
+            <div class="submit-form__pair">
+              <div class="submit-form__field"><label for="rp-freq">Repeats</label>
+                <select id="rp-freq" data-rp="freq"><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>
+              <div class="submit-form__field"><label for="rp-every">Every</label>
+                <select id="rp-every" data-rp="every"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+                <span class="submit-repeat__unit" data-rp-unit>week</span></div>
+            </div>
+            <fieldset class="submit-repeat__days" data-rp-days>
+              <legend>On</legend>
+              <div class="submit-repeat__day-list">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => <label class="submit-repeat__day"><input type="checkbox" value={i} data-rp-day /> {d}</label>)}
+              </div>
+            </fieldset>
+            <div class="submit-form__field" data-rp-monthly hidden><label for="rp-by">On</label>
+              <select id="rp-by" data-rp="by"><option value="weekday"></option><option value="date"></option></select></div>
+            <div class="submit-form__field"><label for="rp-until">Ends on <span class="submit-form__optional">(optional: leave empty if it keeps going)</span></label><input id="rp-until" type="date" data-rp="until" /></div>
+            <p class="submit-repeat__summary" data-rp-summary role="status"></p>
+            <ul class="submit-repeat__dates" role="list" data-rp-dates></ul>
+            <p class="submit-form__hint" data-rp-hint hidden>Not happening on one of these? Tap a date to take it out.</p>
+          </div>
+          <label class="submit-form__check"><input type="checkbox" data-annual /> This is an annual event (same time every year)</label>
         </div>
 
         <div class="submit-form__pair">
@@ -146,6 +171,7 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../l
 </template>
 
 <script>
+  import { tidyRepeat, expand, describe, monthlyChoices, addDaysKey } from '../lib/repeat.js';
   const app = document.querySelector('[data-app]') as HTMLElement;
   const INTAKE = app.dataset.intake!;
 
@@ -228,6 +254,65 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../l
     const get = (k: string) => (last?.querySelector(`[data-k="${k}"]`) as HTMLInputElement)?.value || '';
     addShow({ start: get('start'), end: get('end') }); // same times as the last date: residencies usually are
     (showsEl.lastElementChild!.querySelector('[data-k="date"]') as HTMLInputElement).focus();
+  });
+
+  // ---- Repeating events ----
+  // The first date row is the first date and gives the times. The rule itself (weekly/monthly,
+  // every N, weekdays, end date, dates taken out) is worked out by src/lib/repeat.js, the same
+  // code the site uses to list the dates, so what shows here is what will be on the calendar.
+  const rpBox = $('[data-repeat]');
+  const rpOn = $<HTMLInputElement>('[data-repeat-on]');
+  const rp = (k: string) => rpBox.querySelector(`[data-rp="${k}"]`) as HTMLInputElement;
+  let rpSkip: string[] = [];
+  const firstDate = () => (showsEl.querySelector('[data-k="date"]') as HTMLInputElement)?.value || '';
+  function repeatRule() {
+    if (!rpOn.checked || !firstDate()) return null;
+    return tidyRepeat({
+      freq: rp('freq').value, every: rp('every').value, by: rp('by').value, until: rp('until').value, skip: rpSkip, start: firstDate(),
+      days: [...rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]:checked')].map((c) => Number(c.value)),
+    });
+  }
+  function syncRepeat() {
+    const on = rpOn.checked;
+    rpBox.hidden = !on;
+    // A repeating event has one date row: the first date.
+    $('[data-add-show]').hidden = on;
+    [...showsEl.children].slice(1).forEach((r) => { if (on) r.remove(); });
+    if (on) syncShows();
+    if (!on) return;
+    const monthly = rp('freq').value === 'monthly';
+    $('[data-rp-days]').hidden = monthly;
+    $('[data-rp-monthly]').hidden = !monthly;
+    $('[data-rp-unit]').textContent = (monthly ? 'month' : 'week') + (rp('every').value === '1' ? '' : 's');
+    const start = firstDate();
+    const summary = $('[data-rp-summary]');
+    const dates = $('[data-rp-dates]');
+    if (!start) { summary.textContent = 'Pick the first date above to see the dates.'; dates.innerHTML = ''; $('[data-rp-hint]').hidden = true; return; }
+    const choices = monthlyChoices(start);
+    (rp('by').options[0] as HTMLOptionElement).textContent = choices.weekday;
+    (rp('by').options[1] as HTMLOptionElement).textContent = choices.date;
+    // No weekday ticked yet: tick the first date's weekday.
+    const boxes = [...rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]')];
+    if (!boxes.some((b) => b.checked)) boxes[new Date(start + 'T12:00:00Z').getUTCDay()].checked = true;
+    rp('until').min = start;
+    const rule = repeatRule()!;
+    const all = expand({ ...rule, skip: [] }, start, addDaysKey(start, 120), 12);
+    const start_ = showsEl.querySelector('[data-k="start"]') as HTMLInputElement;
+    const at = start_.value ? ` at ${new Date(`2000-01-01T${start_.value}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(':00', '')}` : '';
+    summary.textContent = describe(rule).replace(/( until .*)?$/, (u) => `${at}${u}`) + '.';
+    const nice = (k: string) => new Date(k + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
+    dates.innerHTML = all.map((k) => `<li><button type="button" class="submit-repeat__date" data-rp-date="${k}" aria-pressed="${!rpSkip.includes(k)}" title="${rpSkip.includes(k) ? 'Put this date back' : 'Take this date out'}">${nice(k)}</button></li>`).join('');
+    $('[data-rp-hint]').hidden = all.length === 0;
+  }
+  rpOn.addEventListener('change', syncRepeat);
+  rpBox.addEventListener('input', syncRepeat);
+  showsEl.addEventListener('input', () => { if (rpOn.checked) { rpSkip = []; rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]').forEach((b) => (b.checked = false)); syncRepeat(); } });
+  rpBox.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-rp-date]');
+    if (!b) return;
+    const k = b.dataset.rpDate!;
+    rpSkip = rpSkip.includes(k) ? rpSkip.filter((x) => x !== k) : [...rpSkip, k];
+    syncRepeat();
   });
 
   // ---- Remembered submitter ----
@@ -383,6 +468,8 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../l
       name: field('name').value, email: field('email').value, phone: field('phone').value, website: field('website').value,
       act: new URLSearchParams(location.search).get('act') || '', source,
       boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
+      repeat: repeatRule(),
+      annual: $<HTMLInputElement>('[data-annual]').checked,
     };
     try {
       body.human = await humanToken();
@@ -510,4 +597,26 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../l
   .submit-done h2 { margin: 0; }
   .submit-done p { margin: 0; }
   .btn-row { display: flex; flex-wrap: wrap; gap: var(--space-s); margin-block-start: var(--space-xs); }
+
+  /* Repeating events */
+  .submit-repeat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-s);
+    padding: var(--space-s);
+    border: 1px solid var(--neutral-light);
+    border-radius: var(--radius-s);
+    background: var(--bg-light);
+  }
+  .submit-repeat__unit { color: var(--text-dark-muted); font-size: var(--text-s); }
+  .submit-repeat__days { padding: 0; border: 0; margin: 0; background: none; }
+  .submit-repeat__day-list { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+  .submit-repeat__days legend { font-size: var(--text-s); font-weight: 600; padding: 0; margin-block-end: 0.25rem; }
+  .submit-repeat__day { display: inline-flex; inline-size: auto; margin: 0; align-items: center; gap: 0.375rem; min-block-size: 2.75rem; padding-inline: var(--space-s); border: 1.5px solid var(--neutral-light); border-radius: var(--radius-circle); background: var(--bg-ultra-light); font-size: var(--text-s); font-weight: 500; cursor: pointer; }
+  .submit-repeat__day:has(input:checked) { border-color: var(--text-dark); background: var(--text-dark); color: var(--text-light); }
+  .submit-repeat__day input { inline-size: auto; min-block-size: 0; accent-color: var(--primary); }
+  .submit-repeat__summary { font-weight: 600; }
+  .submit-repeat__dates { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+  .submit-repeat__dates :global(.submit-repeat__date) { min-block-size: 2.75rem; padding-inline: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius-circle); background: var(--bg-ultra-light); font-size: var(--text-s); cursor: pointer; }
+  .submit-repeat__dates :global(.submit-repeat__date[aria-pressed="false"]) { text-decoration: line-through; color: var(--text-dark-muted); background: transparent; }
 </style>

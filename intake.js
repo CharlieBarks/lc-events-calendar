@@ -9,6 +9,11 @@
 //   GET  /review/        Charlie's review queue (behind Cloudflare Access: Charlie only)
 //   /review/api/...      approve / reject / remove / flags (also behind Access)
 //
+// Repeating events: the form can send repeat: { freq, every, days, by, until, skip } (see
+// src/lib/repeat.js). The first date row gives the start date and the times. An approved repeating
+// event is ONE entry in approved.json carrying the rule; the site build turns it into dates.
+// annual: true marks a once-a-year event (kept with the entry for the site to use).
+//
 // Spotlight (paid boost, $50): the form can send boost: "spotlight". It waits in the queue like
 // everything else, marked "Spotlight requested"; Charlie checks Stripe, then approves with
 // Sponsored ticked. Sponsored events are pinned to the top of their day and rotate through the
@@ -19,6 +24,8 @@
 // Claude reads flyers instead (more accurate on busy flyers).
 // Approving rebuilds the calendar through the deploy hooks in the DEPLOY_HOOKS secret (comma-separated URLs).
 // The same hooks are called once a day on a schedule (see "scheduled" at the bottom), CitySpark or not.
+
+import { tidyRepeat, describe, expand, addDaysKey } from './src/lib/repeat.js';
 
 const TZ = 'America/Denver';
 const PUBLIC_ORIGIN = 'https://lc-events-intake.cf2-99b.workers.dev';
@@ -219,7 +226,11 @@ function tidySubmission(b) {
     .map((s) => ({ date: isDate(s?.date) ? s.date : '', start: isTime(s?.start) ? s.start : '', end: isTime(s?.end) ? s.end : '', title: clean(s?.title, 140) }))
     .filter((s) => s.date)
     .slice(0, 20);
+  // A repeat rule starts on the first date row.
+  const repeat = b.repeat && shows.length ? tidyRepeat({ ...b.repeat, start: shows[0].date }) : null;
   return {
+    repeat,
+    annual: !!b.annual,
     title: clean(b.title, 140),
     performers: clean(b.performers, 300),
     venue: clean(b.venue, 140),
@@ -228,7 +239,7 @@ function tidySubmission(b) {
     price: clean(b.price, 80),
     url: /^https?:\/\//i.test(b.url || '') ? clean(b.url, 400) : '',
     description: cleanText(b.description, 2000),
-    shows,
+    shows: repeat ? shows.slice(0, 1) : shows,
     imageId: /^[a-z0-9]+\.(jpg|png|webp|gif)$/.test(b.imageId || '') ? b.imageId : '',
     contact: { name: clean(b.name, 100), email: clean(b.email, 160), phone: clean(b.phone, 40) },
     act: clean(b.act, 140), // set when a musician comes from their Las Cruces Live page
@@ -270,7 +281,8 @@ async function handleSubmit(request, env, origin) {
 // ---------- Approved events -> calendar ----------
 
 function toCalendarEvents(rec) {
-  return rec.shows.map((s, i) => {
+  const shows = rec.repeat ? rec.shows.slice(0, 1) : rec.shows;
+  return shows.map((s, i) => {
     const title = s.title || rec.title;
     const start = s.start ? `${s.date}T${s.start}:00` : s.date; // no time = all day
     let end = '';
@@ -282,7 +294,8 @@ function toCalendarEvents(rec) {
       end = `${d.toISOString().slice(0, 10)}T${s.end}:00`;
     }
     return {
-      slug: `${slugify(title)}-${s.date}${rec.shows.length > 1 && rec.shows.filter((x) => x.date === s.date).length > 1 ? `-${i + 1}` : ''}`,
+      // A repeating event's slug has no date: the site adds each date to it.
+      slug: rec.repeat ? slugify(title) : `${slugify(title)}-${s.date}${rec.shows.length > 1 && rec.shows.filter((x) => x.date === s.date).length > 1 ? `-${i + 1}` : ''}`,
       title,
       start,
       end,
@@ -297,6 +310,8 @@ function toCalendarEvents(rec) {
       sponsored: !!rec.sponsored,
       spotlightUntil: rec.spotlightUntil || '',
       submissionId: rec.id,
+      ...(rec.repeat ? { repeat: rec.repeat } : {}),
+      ...(rec.annual ? { annual: true } : {}),
     };
   });
 }
@@ -315,6 +330,12 @@ async function reviewApi(request, env, path) {
     const list = await env.MEDIA.list({ prefix: 'sub/pending/' });
     const pending = (await Promise.all(list.keys.map((k) => env.MEDIA.get(k.name, 'json')))).filter(Boolean);
     pending.sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+    // Repeating events: say the rule in words and list the next few dates, for the review page.
+    for (const r of pending) {
+      if (!r.repeat) continue;
+      r.repeatText = describe(r.repeat);
+      r.repeatDates = expand(r.repeat, todayLocal(), addDaysKey(todayLocal(), 90)).slice(0, 8);
+    }
     const approved = await getApproved(env);
     return json({ pending, approved: approved.slice(-60).reverse() });
   }
@@ -324,7 +345,10 @@ async function reviewApi(request, env, path) {
     const rec = await env.MEDIA.get(`sub/pending/${body.id}`, 'json');
     if (!rec) return json({ error: 'Already handled.' }, { status: 404 });
     // Charlie's edits from the review screen win.
-    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...body.edits, imageId: rec.imageId }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, spotlightUntil: isDate(body.edits?.spotlightUntil) ? body.edits.spotlightUntil : '', id: rec.id };
+    const { repeat: repeatEdit, ...plainEdits } = body.edits || {};
+    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...plainEdits, imageId: rec.imageId }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, spotlightUntil: isDate(body.edits?.spotlightUntil) ? body.edits.spotlightUntil : '', id: rec.id };
+    // The review page can change when a repeating event stops and take single dates out.
+    if (edited.repeat && repeatEdit) edited.repeat = tidyRepeat({ ...edited.repeat, until: repeatEdit.until, skip: repeatEdit.skip });
     if (!edited.shows.length) return json({ error: 'Needs at least one date.' }, { status: 400 });
     const approved = (await getApproved(env)).filter((e) => e.submissionId !== rec.id);
     approved.push(...toCalendarEvents(edited));
@@ -409,6 +433,8 @@ function card(r){
   '<div class="row"><div><label>Category</label><select name="category">'+CATS+'</select></div><div><label>Cost</label><input name="price" value="'+esc(r.price)+'"></div><div><label>Link</label><input name="url" value="'+esc(r.url)+'"></div></div>'+
   '<label>Description</label><textarea name="description" rows="3">'+esc(r.description)+'</textarea>'+
   '<label>Dates ('+r.shows.length+')</label><div data-shows>'+r.shows.map(showRow).join('')+'</div><button type="button" data-add>+ Add a date</button>'+
+  (r.repeat?'<div class="boost" data-repeat><strong>Repeats: '+esc(r.repeatText)+'.</strong> The first date above sets the start and the times. Next dates: '+esc((r.repeatDates||[]).join(', ')||'none in the next 90 days')+'<div class="row"><div><label>Stops after (empty = keeps going)</label><input type="date" name="repeatUntil" value="'+esc(r.repeat.until||'')+'"></div><div><label>Dates to leave out (YYYY-MM-DD, commas)</label><input name="repeatSkip" value="'+esc((r.repeat.skip||[]).join(', '))+'"></div></div></div>':'')+
+  (r.annual?'<div class="boost"><strong>Annual event.</strong> The organizer says this happens every year.</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
   '<div class="checks"><label><input type="checkbox" name="featured"> Spotlight</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
   '<div class="meta">From '+esc(r.contact?.name)+' · <a href="mailto:'+esc(r.contact?.email)+'">'+esc(r.contact?.email)+'</a>'+(r.contact?.phone?' · '+esc(r.contact.phone):'')+(r.act?' · Act: '+esc(r.act):'')+' · '+new Date(r.submittedAt).toLocaleString()+'</div>'+
@@ -420,7 +446,7 @@ async function load(){
   const p=document.getElementById('pending');
   p.innerHTML=d.pending.length?d.pending.map(card).join(''):'<div class="empty">Nothing waiting. New submissions show up here.</div>';
   d.pending.forEach(r=>{const f=p.querySelector('[data-id="'+r.id+'"]');f.category.value=r.category});
-  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Spotlight</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Spotlight</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button><button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
+  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Spotlight</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Spotlight</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button><button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
 }
 document.addEventListener('click',async e=>{
   const t=e.target;
@@ -435,6 +461,7 @@ document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target;const msg=f.querySelector('[data-msg]');msg.textContent='Saving…';
   const shows=[...f.querySelectorAll('.show')].map(s=>({date:s.querySelector('[name=date]').value,start:s.querySelector('[name=start]').value,end:s.querySelector('[name=end]').value,title:s.querySelector('[name=stitle]').value}));
   const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked,spotlightUntil:f.spotlightUntil.value};
+  if(f.repeatUntil)edits.repeat={until:f.repeatUntil.value,skip:f.repeatSkip.value.split(',').map(x=>x.trim()).filter(Boolean)};
   const r=await fetch('/review/api/approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id,edits})}).then(r=>r.json());
   if(r.ok){msg.textContent='Approved. The calendar updates in a couple of minutes.';setTimeout(load,1200)}else msg.textContent=r.error||'Something went wrong.';
 });

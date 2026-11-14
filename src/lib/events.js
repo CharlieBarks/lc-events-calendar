@@ -18,7 +18,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import lllcEvents from '../data/events.json';
-import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL } from './site.js';
+import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL, REPEAT_DAYS } from './site.js';
+import { expand, describe, addDaysKey } from './repeat.js';
 import { topicFor } from './topics.js';
 import { resolveVenue, fold } from './venues.js';
 import { addThumbs } from './thumbs.js';
@@ -95,6 +96,23 @@ async function loadCity() {
   return [];
 }
 
+// A repeating event arrives as one entry with a rule ("every Tuesday"). This turns it into one
+// entry per date for the next REPEAT_DAYS days, so the rest of the site treats each date like any
+// other listing. `start` and `end` on the entry give the times (and the first date).
+function spread(e, today) {
+  if (!e.repeat) return [e];
+  const time = (iso) => (String(iso || '').match(/T(\d\d:\d\d)/) || [])[1] || '';
+  const startTime = time(e.start), endTime = time(e.end);
+  const overnight = startTime && endTime && endTime < startTime;
+  return expand(e.repeat, today, addDaysKey(today, REPEAT_DAYS)).map((date) => ({
+    ...e,
+    slug: `${e.slug}-${date}`,
+    start: startTime ? `${date}T${startTime}:00` : date,
+    end: endTime ? `${overnight ? addDaysKey(date, 1) : date}T${endTime}:00` : '',
+    seriesKey: e.slug,
+  }));
+}
+
 const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
 function cleanVenue(raw = '') {
@@ -141,6 +159,10 @@ function normalize(e, source) {
     sponsored: source !== 'cityspark' && !!e.sponsored,
     spotlightUntil: e.spotlightUntil || '',
     sample: !!e.sample,
+    // Set on dates that come from a repeat rule (see spread above).
+    rule: e.repeat || null,
+    seriesKey: e.seriesKey || '',
+    annual: !!e.annual,
     source,
   };
   out.topic = topicFor(out);
@@ -182,15 +204,15 @@ export async function getEvents() {
     };
     const dupOf = (map, e) => (map.get(key(e)) || []).some((x) => samePlace(x, e));
     // Submissions beat the feeds: same event, but with the organizer's own full-size flyer.
-    const subs = subsRaw.map((e) => normalize(e, 'lllc')).filter(Boolean);
+    const today = dateKey(todayWall());
+    const subs = subsRaw.flatMap((e) => spread(e, today)).map((e) => normalize(e, 'lllc')).filter(Boolean);
     const subIndex = index(subs);
     const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => e && !dupOf(subIndex, e));
     // Between the two feeds, keep the CitySpark copy (it has a photo).
     const sparkIndex = index(spark);
     const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !dupOf(sparkIndex, e) && !dupOf(subIndex, e));
     // Sample listings only show on the private preview, never on the live site.
-    const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).map((e) => normalize(e, 'lllc'))];
-    const today = dateKey(todayWall());
+    const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).flatMap((e) => spread(e, today)).map((e) => normalize(e, 'lllc'))];
 
     const events = [...spark, ...city, ...ours]
       .filter(Boolean)
@@ -251,6 +273,23 @@ export async function getEvents() {
       };
       list.forEach((e) => { e.series = s; });
       series.push(s);
+    }
+
+    // Events with a repeat rule say exactly how they repeat, so use that wording, and count as a
+    // series even with only one or two dates inside the window.
+    const ruled = new Map();
+    for (const e of events) if (e.rule) ruled.set(e.seriesKey, [...(ruled.get(e.seriesKey) || []), e]);
+    for (const list of ruled.values()) {
+      const first = list[0];
+      let s = first.series;
+      if (!s) {
+        s = { ongoing: false, gap: 7, until: list[list.length - 1], id: first.seriesKey, title: first.title, venue: first.venue, category: first.category, time: timeLabel(first.start), next: first, dates: list };
+        series.push(s);
+      }
+      s.when = describe(first.rule);
+      s.ruled = true;
+      s.ongoing = false; // a rule is a schedule, not an exhibit that is simply open every day
+      list.forEach((e) => { e.series = s; });
     }
 
     // Ongoing things keep a single listing (their next date) so they get one page, not hundreds.

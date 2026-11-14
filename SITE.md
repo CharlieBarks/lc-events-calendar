@@ -74,12 +74,17 @@ Decided by Charlie, Nov 10, 2026. Modeled on SFV Local's "Boosted Event". "Charl
 
 ## Recurring events
 
-Charlie wants real recurring-event support. What exists today and what's planned:
+Built Nov 14, 2026. One set of rules, `src/lib/repeat.js`, is used by the form, the submissions Worker and the site build, so a rule means the same thing everywhere. No extra library: the calendar works in plain Las Cruces dates, so daylight saving time can't shift a repeating date.
 
-- **Today:** `src/lib/events.js` *detects* series in the feeds (same title and venue 3+ times) and shows them as compact rows.
-- **Planned:** events added by us or by organizers can carry a repeat rule (weekly / every other week / monthly by weekday or date, until date, skip dates). The build expands the rule into dates for the next 60 to 90 days using the `rrule` library (ask before adding the dependency). Dates are calculated in America/Denver so daylight saving time doesn't shift them.
-- One page per series (evergreen, better for SEO) that lists upcoming dates. Add-to-calendar links and `.ics` keep the repeat rule.
-- A one-off change ("moved to 8pm this week") is a skip date on the series plus a single replacement event.
+- **The form (`/submit/`):** "This repeats (weekly or monthly)" under the date row. The date row becomes the first date and sets the times. Choices: weekly or monthly, every 1 to 4, weekdays (weekly), "the 3rd Tuesday" or "the 17th" (monthly), an optional end date. It shows the rule in words and the next dates; tapping a date takes it out.
+- **The review page:** shows the rule in words and the next dates. Charlie can set when it stops and list dates to leave out.
+- **Stored as one entry** in the approved list, carrying the rule. Its slug has no date.
+- **The build** turns each rule into dated listings for the next 90 days (`REPEAT_DAYS` in `src/lib/site.js`); each nightly build moves the window on. Each date gets its own page (`/event/<slug>-<date>/`). They show as regulars with the rule's wording ("Every other Tuesday"), even with one or two dates in the window. An overnight event (10 PM to 1 AM) ends the next day.
+- **Replacing a CitySpark regular:** enter it once as a repeating event. On every date both exist, ours wins and the CitySpark copy is dropped (same name, day and venue).
+- **Hand-added events** in `src/data/events.json` can carry the same `repeat` object.
+- **Annual events:** the form has "This is an annual event". It is saved with the event and shown on the review page. Nothing uses it yet.
+- **Not built yet:** one permanent page per series; add-to-calendar that repeats (`rrule()` in `repeat.js` is ready for it); annual events staying up after they pass and coming back to the review queue next year; changing a rule after approval other than its end date and left-out dates (remove it and add it again).
+- **Detected series still exist:** feeds without rules (CitySpark, city) are still grouped when the same title and venue appear 3+ times.
 
 ## Submissions (planned)
 
