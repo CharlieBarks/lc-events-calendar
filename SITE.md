@@ -87,9 +87,15 @@ Built Nov 14, 2026. One set of rules, `src/lib/repeat.js`, is used by the form, 
 - **Not built yet:** one permanent page per series; add-to-calendar that repeats (`rrule()` in `repeat.js` is ready for it); annual events staying up after they pass and coming back to the review queue next year; changing a rule after approval other than its end date and left-out dates (remove it and add it again).
 - **Detected series still exist:** feeds without rules (CitySpark, city) are still grouped when the same title and venue appear 3+ times.
 
-## Submissions (planned)
+## Submissions and editing
 
-`/submit/` will feed an approval queue using the same system as the Art Trail: private edit links, Review queue, Trusted Editors. Difference: a venue's edit link opens **its own list of events** (add, change, set up a series) instead of a single listing. Trusted venues' events publish directly; new ones wait for Charlie.
+- **Edit links (built Nov 14, 2026):** every submission gets a private link, `/submit/?edit=<key>`, shown on the thank-you screen with a Copy button. Whoever has the link can change that one event. Events sent from a device are also listed on that device under "Your events" at the top of `/submit/`.
+  - Changing an event that's still waiting simply updates it.
+  - Changing an event that's on the calendar puts the change in the review queue, marked "Changed by the organizer". The calendar keeps the earlier version until Charlie approves. Reject keeps the earlier version.
+  - An organizer can't switch on Spotlight or change the contact email through an edit.
+- **Charlie editing an approved event:** "Edit" next to it under Recently approved on the review page. It reopens in the queue with every field editable; Approve replaces the live version, Reject leaves it as it was.
+- **Not built yet:** emailing the link to the submitter (the link is only shown on screen and kept on their device), Trusted Editors whose changes go live without review, and one link per venue that lists all of its events.
+- Feed events (CitySpark, city) can't be edited: they are copies and are overwritten nightly. To change one, enter it through the form; ours replaces the feed's copy.
 
 ## Header and navigation: match livelovelascruces.com
 
