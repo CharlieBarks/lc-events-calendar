@@ -118,6 +118,8 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 5. [x] Convert components one at a time: Agenda, EventRow, EventCard, Header, Footer. Footer was converted to ACSS tokens only, with no redesign. Still on the old look: the homepage hero (tagline, "Tonight" panel, stat line), On now, Weekly regulars, Browse by vibe and the newsletter band in `src/pages/index.astro`, and page content is 1200px wide rather than the design's 1296px.
 6. [ ] PageSpeed check against the targets in `agent-docs/astro.md` before merging to `main`.
 
+**Buttons:** only primary, secondary and base buttons exist (neutral is off). Base outline (`btn--base btn--outline`) was turned on in `acss/settings.json` on Nov 14 but needs `scripts/acss-sync.sh` run to reach the stylesheet; until then those buttons show solid.
+
 **Turned off in ACSS for this site:** the accent color and its buttons (no accent role in the design), transparency shades for accent, tertiary, danger, info, success and warning, the light/dark color scheme switcher, basic overlays, text-shadow variables, forms plus automatic form styling (so loading ACSS can't restyle `/submit/`), default section styles (they turn every top-level `<section>` into a flex column and break the existing `.wrap` layout; revisit in step 5) and automatic image rounding.
 
 ## Design status

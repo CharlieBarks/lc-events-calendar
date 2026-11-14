@@ -99,14 +99,14 @@ const itemLevel = headingLevel + 1;
   )}
 
   {initialDays > 0 && days.length > initialDays && (
-    <div class="agenda__more" data-more-wrap><button class="btn--neutral btn--outline" type="button" data-more>Show the rest of the calendar</button></div>
+    <div class="agenda__more" data-more-wrap><button class="btn--base btn--outline" type="button" data-more>Show the rest of the calendar</button></div>
   )}
 
   <div class="agenda__empty" data-empty hidden>
     <p><strong>Nothing listed for that yet.</strong> Know of something? Add it and I'll get it on here.</p>
     <div class="btn-row">
-      <button class="btn--neutral btn--outline btn--s" type="button" data-reset>Show everything</button>
-      <a class="btn--neutral btn--s" href="/submit/">Add an event</a>
+      <button class="btn--base btn--outline btn--s" type="button" data-reset>Show everything</button>
+      <a class="btn--base btn--s" href="/submit/">Add an event</a>
     </div>
   </div>
 </div>

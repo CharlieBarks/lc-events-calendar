@@ -1600,7 +1600,7 @@
   "option-auto-radius": "off",
   "option-auto-style-blockquotes": "on",
   "option-base-btn": "on",
-  "option-base-btn-outline": "off",
+  "option-base-btn-outline": "on",
   "option-base-btn-shades": "off",
   "option-base-clr": "on",
   "option-base-clr-alt": "off",
