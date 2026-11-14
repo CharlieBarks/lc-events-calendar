@@ -323,13 +323,25 @@ export function mapsLink(e) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}`;
 }
 
+// Wall-clock time plus some hours, rolling past midnight into the next day (a 10 PM start + 2h = midnight).
+function addHours(w, n) {
+  const d = new Date(Date.UTC(w.y, w.m - 1, w.d, w.H + n, w.M));
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), H: d.getUTCHours(), M: d.getUTCMinutes(), allDay: false };
+}
+
 export function googleCalendarLink(e, { offsetIso }) {
   const stamp = (w) => offsetIso(w).replace(/[-:]/g, '').slice(0, 15);
-  const end = e.end || { ...e.start, H: e.start.H + 2 };
+  // All-day events use plain dates (the end date is the day after), so Google shows them as all day.
+  const day = (w) => `${w.y}${String(w.m).padStart(2, '0')}${String(w.d).padStart(2, '0')}`;
+  const nextDay = (w) => addHours({ ...w, H: 0, M: 0 }, 24);
+  // No end time listed: assume two hours.
+  const dates = e.start.allDay
+    ? `${day(e.start)}/${day(nextDay(e.end?.allDay ? e.end : e.start))}`
+    : `${stamp(e.start)}/${stamp(e.end && !e.end.allDay ? e.end : addHours(e.start, 2))}`;
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: e.title,
-    dates: `${stamp(e.start)}/${stamp(end)}`,
+    dates,
     ctz: 'America/Denver',
     details: `${e.description.slice(0, 800)}\n\nhttps://events.livelovelascruces.com/event/${e.slug}/`,
     location: e.address || e.venue,
