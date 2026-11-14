@@ -5,3 +5,7 @@ https://:worker.:subdomain.workers.dev/*
 
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Pieces of pages fetched by the calendar (later days). Not pages of their own.
+/more/*
+  X-Robots-Tag: noindex

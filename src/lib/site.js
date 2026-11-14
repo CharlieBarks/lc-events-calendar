@@ -22,6 +22,11 @@ export const SPOTLIGHT = {
   payUrl: '',
 };
 
+// How many days of listings are part of the page itself. Later days are fetched when a visitor
+// asks for them (src/pages/more/[key].astro), which keeps these pages small and fast.
+export const HOME_DAYS = 7;
+export const CATEGORY_DAYS = 14;
+
 // Event submissions Worker (source: intake.js): reads flyers, holds the review queue, serves approved events.
 export const INTAKE_URL = 'https://lc-events-intake.cf2-99b.workers.dev';
 

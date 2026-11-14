@@ -1,0 +1,24 @@
+---
+// The later days of a calendar list, as a bare piece of a page (no header, footer or styles).
+// The homepage and category pages leave these days out and fetch them when a visitor needs them:
+// see "rest" in src/components/Agenda.astro.
+//   /more/home/         everything after the homepage's first days
+//   /more/<category>/   the same for a category page
+import Agenda from '../../components/Agenda.astro';
+import { CATEGORIES, HOME_DAYS, CATEGORY_DAYS } from '../../lib/site.js';
+import { getEvents } from '../../lib/events.js';
+
+export const partial = true;
+
+export async function getStaticPaths() {
+  const { dated } = await getEvents();
+  return [
+    { params: { key: 'home' }, props: { events: dated, headingLevel: 3, initialDays: HOME_DAYS } },
+    ...Object.keys(CATEGORIES)
+      .filter((k) => dated.some((e) => e.category === k))
+      .map((k) => ({ params: { key: k }, props: { events: dated.filter((e) => e.category === k), headingLevel: 2, initialDays: CATEGORY_DAYS } })),
+  ];
+}
+const { events, headingLevel, initialDays } = Astro.props;
+---
+<Agenda events={events} headingLevel={headingLevel} initialDays={initialDays} fragment />

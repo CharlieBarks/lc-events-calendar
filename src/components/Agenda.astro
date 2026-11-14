@@ -10,22 +10,34 @@ import { CATEGORIES } from '../lib/site.js';
 import { dayLabel } from '../lib/time.js';
 
 // initialDays: how many days show before "Show more" (only in the unfiltered view).
+// rest: address of a page fragment holding the days after initialDays (src/pages/more/[key].astro).
+//   When set, those days are left out of this page and fetched the first time they're needed
+//   (Show more, a category, a search, a later date). Keeps the page small: most visitors
+//   only look at the first week.
+// fragment: render only the days after initialDays and nothing else. Used by that fragment page.
 // ongoing: exhibits and long runs. Not part of the day-by-day list, but shown when a search matches them.
-const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0 } = Astro.props;
+const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0, rest = '', fragment = false } = Astro.props;
 
 const byDay = new Map();
 for (const e of events) {
   if (!byDay.has(e.date)) byDay.set(e.date, []);
   byDay.get(e.date).push(e);
 }
-const days = [...byDay.entries()].slice(0, maxDays);
+const allDays = [...byDay.entries()].slice(0, maxDays);
+const split = initialDays > 0 && allDays.length > initialDays && (fragment || !!rest);
+const later = split ? allDays.slice(initialDays) : [];
+// Days rendered here: the later ones in a fragment, the first ones when the rest is fetched, else all.
+const days = fragment ? later : split ? allDays.slice(0, initialDays) : allDays;
+const laterCount = later.reduce((n, [, list]) => n + list.length, 0);
+// The first pictures on the page load right away; everything further down waits until it's scrolled to.
+let eagerLeft = fragment ? 0 : 4;
 const usedCats = Object.keys(CATEGORIES).filter((k) => events.some((e) => e.category === k));
 const count = (k) => events.filter((e) => e.category === k).length;
 const H = `h${headingLevel}`;
 const itemLevel = headingLevel + 1;
 ---
-<div class="agenda" data-agenda>
-  {filters && (
+<div class="agenda" data-agenda={fragment ? undefined : ''}>
+  {!fragment && filters && (
     <div class="agenda__filters" role="group" aria-label="Filter events">
       <div class="agenda__search" role="search" data-search>
         <label class="sr-only" for="event-search">Search events</label>
@@ -75,13 +87,13 @@ const itemLevel = headingLevel + 1;
     const rows = list.filter((e) => e.compact);
     const [weekday, monthDay] = dayLabel(list[0].start).split(', ');
     return (
-      <section class="agenda__day" data-day={date} data-later={initialDays && i >= initialDays ? '' : undefined} aria-labelledby={`d-${date}`}>
+      <section class="agenda__day" data-day={date} data-later={fragment || (initialDays && i >= initialDays) ? '' : undefined} aria-labelledby={`d-${date}`}>
         <H class="agenda__day-head" id={`d-${date}`}>
           <span class="agenda__day-name" data-rel>{weekday}</span>{' '}
           <span class="agenda__day-date" data-date-label>{monthDay}</span>
         </H>
         <div class="agenda__day-list">
-          {cards.length > 0 && <ul class="agenda__cards" role="list">{cards.map((e) => <EventCard event={e} headingLevel={itemLevel} layout="row" />)}</ul>}
+          {cards.length > 0 && <ul class="agenda__cards" role="list">{cards.map((e) => <EventCard event={e} headingLevel={itemLevel} layout="row" eager={eagerLeft-- > 0} />)}</ul>}
           {rows.length > 0 && <ul class="agenda__rows" role="list" data-row-list>{rows.map((e) => <EventRow event={e} headingLevel={itemLevel} />)}</ul>}
           {rows.length > 0 && <button class="agenda__more-rows" type="button" data-more-rows hidden></button>}
         </div>
@@ -89,7 +101,9 @@ const itemLevel = headingLevel + 1;
     );
   })}
 
-  {ongoing.length > 0 && (
+  {!fragment && split && <div data-rest={rest} data-rest-from={later[0][0]} data-rest-count={laterCount} hidden></div>}
+
+  {!fragment && ongoing.length > 0 && (
     <section class="agenda__day" data-ongoing-sec hidden aria-labelledby="d-ongoing">
       <H class="agenda__day-head" id="d-ongoing"><span class="agenda__day-name">On view now</span> <span class="agenda__day-date">Any day</span></H>
       <div class="agenda__day-list">
@@ -98,17 +112,19 @@ const itemLevel = headingLevel + 1;
     </section>
   )}
 
-  {initialDays > 0 && days.length > initialDays && (
+  {!fragment && initialDays > 0 && allDays.length > initialDays && (
     <div class="agenda__more" data-more-wrap><button class="btn--base btn--outline" type="button" data-more>Show the rest of the calendar</button></div>
   )}
 
-  <div class="agenda__empty" data-empty hidden>
-    <p><strong>Nothing listed for that yet.</strong> Know of something? Add it and I'll get it on here.</p>
-    <div class="btn-row">
-      <button class="btn--base btn--outline btn--s" type="button" data-reset>Show everything</button>
-      <a class="btn--base btn--s" href="/submit/">Add an event</a>
+  {!fragment && (
+    <div class="agenda__empty" data-empty hidden>
+      <p><strong>Nothing listed for that yet.</strong> Know of something? Add it and I'll get it on here.</p>
+      <div class="btn-row">
+        <button class="btn--base btn--outline btn--s" type="button" data-reset>Show everything</button>
+        <a class="btn--base btn--s" href="/submit/">Add an event</a>
+      </div>
     </div>
-  </div>
+  )}
 </div>
 
 <script>
@@ -156,7 +172,7 @@ const itemLevel = headingLevel + 1;
     const labels = { all: 'coming up', today: 'today', tomorrow: 'tomorrow', weekend: 'this weekend', week: 'in the next 7 days' };
 
     // "Today" / "Tomorrow" in the day headings, and drop days that have already passed.
-    root.querySelectorAll('[data-day]').forEach((sec) => {
+    const prep = (sec) => {
       const d = sec.dataset.day;
       if (d < today) { sec.remove(); return; }
       if (d !== today && d !== tomorrow) return;
@@ -165,7 +181,8 @@ const itemLevel = headingLevel + 1;
       date.textContent = `${name.textContent}, ${date.textContent}`;
       name.textContent = d === today ? 'Today' : 'Tomorrow';
       if (d === today) sec.setAttribute('data-today', '');
-    });
+    };
+    root.querySelectorAll('[data-day]').forEach(prep);
 
     const params = new URLSearchParams(location.search);
     const state = {
@@ -187,7 +204,41 @@ const itemLevel = headingLevel + 1;
 
     const searching = () => !!(matches || state.venue);
 
+    // The days after the first screenful live in a separate page fragment (see "rest" at the top).
+    // It is fetched once, the first time something needs it, and its days are added to this list.
+    const restEl = root.querySelector('[data-rest]');
+    const restCount = Number(restEl?.dataset.restCount || 0);
+    let restLoaded = !restEl;
+    let restPromise;
+    function loadRest() {
+      if (restLoaded) return Promise.resolve();
+      restPromise ??= fetch(restEl.dataset.rest)
+        .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((html) => {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const days = [...doc.querySelectorAll('section[data-day]')].map((sec) => document.importNode(sec, true));
+          restEl.before(...days);
+          days.forEach(prep);
+        })
+        .catch((err) => { console.warn('Could not load the rest of the calendar', err); })
+        // Whatever is showing now (a filter may have been picked while it loaded) is applied to the new days too.
+        .finally(() => { restLoaded = true; render(false); });
+      return restPromise;
+    }
+    // Needed for anything beyond the plain first view: Show more, a category, a search or venue, or a date range that reaches past the days on the page.
+    const needsRest = () => !restLoaded && (expanded || state.cat !== 'all' || searching() || !!state.q
+      || (state.when !== 'all' && ranges[state.when][1] >= restEl.dataset.restFrom));
+
     function apply(push) {
+      if (needsRest()) {
+        if (status) status.textContent = 'Loading the rest of the calendar…';
+        loadRest().then(() => render(push));
+        return;
+      }
+      render(push);
+    }
+
+    function render(push) {
       const [from, to] = ranges[state.when];
       let shown = 0;
       const ok = (li) => (state.cat === 'all' || li.dataset.cat === state.cat)
@@ -222,6 +273,8 @@ const itemLevel = headingLevel + 1;
         ongoingSec.hidden = n === 0;
         shown += n;
       }
+      // Plain first view: the days still to be fetched count toward "N events coming up".
+      if (!restLoaded) shown += state.when === 'all' ? restCount : 0;
       root.querySelectorAll('button[data-when]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.when === state.when)));
       root.querySelectorAll('button[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === state.cat)));
       const sel = root.querySelector('[data-cat-select]');
@@ -307,7 +360,7 @@ const itemLevel = headingLevel + 1;
     if (input) {
       let timer;
       input.value = state.q;
-      input.addEventListener('focus', () => { loadIndex(); }, { once: true });
+      input.addEventListener('focus', () => { loadIndex(); loadRest(); }, { once: true });
       input.addEventListener('input', () => {
         clearTimeout(timer);
         timer = setTimeout(() => { state.q = input.value.trim(); runSearch(true, true); }, 120);
@@ -362,6 +415,9 @@ const itemLevel = headingLevel + 1;
       else return;
       apply(true);
     });
+
+    // Start fetching as soon as someone reaches for the filters, so it's there by the time they click.
+    root.querySelector('.agenda__filters')?.addEventListener('pointerenter', () => { loadRest(); }, { once: true });
 
     apply(false);
     // Arriving from a shared link (?q=… or ?venue=…): run it once the index is in.
