@@ -116,6 +116,9 @@ function toCalendar(e, tags, origin) {
 
 async function step(env, origin) {
   const state = await getJSON(env, 'cityspark/state.json', { phase: 'idle' });
+  // Off switch for the day CitySpark is cancelled: add a variable FROZEN = 1 to this Worker in
+  // Cloudflare. Nothing is fetched or changed after that; the saved listings and photos keep being served.
+  if (env.FROZEN === '1') return { ...state, frozen: true };
   const now = Date.now();
 
   if (state.phase === 'idle' || state.phase === 'done') {
@@ -186,6 +189,14 @@ async function step(env, origin) {
       const raw = await getJSON(env, 'cityspark/raw.json', []);
       const tags = await getJSON(env, 'cityspark/tags.json', {});
       const events = raw.map((e) => toCalendar(e, tags, origin));
+      // Never replace a good copy with a much smaller one. When the CitySpark subscription ends, their
+      // API may answer with an empty or tiny list instead of an error; without this check that would
+      // wipe every listing we saved. The last good copy stays and simply runs out as its events pass.
+      const prev = state.published || 0;
+      if (prev >= 20 && events.length < prev * 0.5) {
+        Object.assign(state, { phase: 'done', finishedAt: now });
+        throw new Error(`New copy has ${events.length} events, the last had ${prev}. Kept the last copy.`);
+      }
       await putJSON(env, 'cityspark/events.json', { exportedAt: new Date().toISOString(), count: events.length, events });
       Object.assign(state, { phase: 'done', finishedAt: now, published: events.length });
       // Rebuild the calendar so the fresh listings go live.

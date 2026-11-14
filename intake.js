@@ -17,6 +17,7 @@
 // Flyer reading: Workers AI (Llama 4 Scout, bound as AI). If an ANTHROPIC_API_KEY secret is added,
 // Claude reads flyers instead (more accurate on busy flyers).
 // Approving rebuilds the calendar through the deploy hooks in the DEPLOY_HOOKS secret (comma-separated URLs).
+// The same hooks are called once a day on a schedule (see "scheduled" at the bottom), CitySpark or not.
 
 const TZ = 'America/Denver';
 const PUBLIC_ORIGIN = 'https://lc-events-intake.cf2-99b.workers.dev';
@@ -412,6 +413,13 @@ load();
 // ---------- Router ----------
 
 export default {
+  // Daily rebuild (schedule in wrangler.intake.jsonc). The calendar is a static site, so it needs one
+  // build a day to drop finished events and pick up feed changes. This used to ride on the CitySpark
+  // copy finishing; it now runs on its own, so it keeps going after CitySpark is cancelled.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(rebuild(env));
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     const origin = request.headers.get('origin');

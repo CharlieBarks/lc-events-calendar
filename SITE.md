@@ -22,7 +22,10 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 | `src/data/venues.json` | Master venue list: one name per venue, every other spelling as an alias | **Yes** (add a spelling whenever a new one turns up) |
 
 - Offline build: `EVENTS_OFFLINE=1 npm run build`.
-- If the city feed can't be reached, the build stops on purpose. Keep that guard.
+- The build stops on purpose if the CitySpark copy or the submissions can't be read, or if no source has any upcoming event. The city feed is optional. Keep those guards.
+- Daily rebuild: the `lc-events-intake` Worker's schedule (`wrangler.intake.jsonc`, 12:10 AM Las Cruces time), not CitySpark.
+- Cancelling CitySpark: set `FROZEN` = `1` on the `cityspark-export` Worker **first** (see README), then `CITYSPARK_SUBSCRIBED = false`.
+- `cityspark-export` and `lc-events-proxy` are not deployed from this repo automatically. After changing `cityspark-export.js` or `worker.js`, the Worker has to be deployed by hand.
 - `CITYSPARK_SUBSCRIBED` in `src/lib/site.js` switches CitySpark placeholder images to our artwork when the subscription ends.
 
 ## Search
