@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Agenda from '../components/Agenda.astro';
+import { HOME_DAYS } from '../lib/site.js';
 import EventCard from '../components/EventCard.astro';
 import Newsletter from '../components/Newsletter.astro';
 import { SITE, CATEGORIES, SPOTLIGHT } from '../lib/site.js';
@@ -96,7 +97,7 @@ const jsonLd = [
           <p>Tap a day or a category to narrow it down. Regulars and city meetings are tucked into the short rows so the one-night-only stuff stands out.</p>
         </div>
       </div>
-      <Agenda events={events} ongoing={ongoing} initialDays={7} />
+      <Agenda events={events} ongoing={ongoing} initialDays={HOME_DAYS} rest="/more/home/" />
     </div>
   </section>
 

@@ -14,7 +14,7 @@ const pid = `p-${event.slug.slice(0, 40)}`;
 ---
 <div class="art" data-size={compact ? 'compact' : undefined} style={`--c:${cat.color};height:${height}px`}>
   {event.image
-    ? <img class="art__photo" src={event.image} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" />
+    ? <img class="art__photo" src={event.image} alt="" width={Math.round(height * 1.5)} height={height} loading={eager ? 'eager' : 'lazy'} decoding="async" />
     : <>
         <svg class="art__pattern" aria-hidden="true" width="100%" height="100%">
           <defs>

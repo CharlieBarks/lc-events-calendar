@@ -38,6 +38,14 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 - Categories wrap onto extra lines on desktop (no sideways scrolling). On phones (560px and narrower) a "All categories" dropdown replaces the category buttons.
 - **While searching** (a search or a venue filter is on), regulars and city meetings open up into full cards like one-off events. The normal view keeps them as slim rows, each with a small picture (flyer, photo or topic art). Approved by Charlie, Nov 10.
 
+## Page weight
+
+- The homepage holds the first 7 days of listings and category pages the first 14 (`HOME_DAYS`, `CATEGORY_DAYS` in `src/lib/site.js`). Later days live in page fragments at `/more/home/` and `/more/<category>/` and are fetched the first time a visitor needs them: Show the rest, a category, a search or venue, or a date past those days. Search, filters and shared links behave exactly as before.
+- When changing `Agenda.astro`, test both halves: the plain first view, and each filter after the rest has loaded.
+- The first four pictures in the list load right away; the rest load as they're scrolled to. Every picture has a width and height.
+- `/calendar.ics` carries the next 60 days.
+- Still to do: thumbnails. Small pictures still download the full-size flyer.
+
 ## Event pages
 
 - **You might also like:** up to 4 events in the next 3 weeks that share the venue or category, one-offs with a picture first, each event once. Links to "More at <venue>" (the calendar filtered to that venue) and the category page.
