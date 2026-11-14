@@ -22,6 +22,9 @@ export const SPOTLIGHT = {
   payUrl: '',
 };
 
+// Repeating events (src/lib/repeat.js) are listed this many days ahead. Each nightly build moves the window on.
+export const REPEAT_DAYS = 90;
+
 // How many days of listings are part of the page itself. Later days are fetched when a visitor
 // asks for them (src/pages/more/[key].astro), which keeps these pages small and fast.
 export const HOME_DAYS = 7;
