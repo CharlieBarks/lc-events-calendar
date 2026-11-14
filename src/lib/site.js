@@ -27,6 +27,14 @@ export const SPOTLIGHT = {
 export const HOME_DAYS = 7;
 export const CATEGORY_DAYS = 14;
 
+// "Are you a person?" check on the add-your-event form (Cloudflare Turnstile). This key is public.
+// Its secret half lives on the lc-events-intake Worker as TURNSTILE_SECRET. Empty = no check.
+export const TURNSTILE_SITEKEY = '0x4AAAAAAGA4KxanswdzNIWA';
+
+// Cloudflare Web Analytics (visits, top pages, where visitors come from; no cookies). Public token.
+// Not loaded on the private preview. Empty = off.
+export const ANALYTICS_TOKEN = '39a223de0ee940dab9ad80fbe5db241e';
+
 // Event submissions Worker (source: intake.js): reads flyers, holds the review queue, serves approved events.
 export const INTAKE_URL = 'https://lc-events-intake.cf2-99b.workers.dev';
 

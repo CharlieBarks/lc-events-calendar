@@ -1,0 +1,7 @@
+# Old addresses from the WordPress calendar, so links on livelovelascruces.com and in old
+# newsletters keep working once this site takes over events.livelovelascruces.com.
+/add-event      /submit/                        301
+/add-event/     /submit/                        301
+# The old calendar's blog isn't part of this site. Temporary (302) until Charlie decides where it lives.
+/blog           https://livelovelascruces.com/  302
+/blog/*         https://livelovelascruces.com/  302

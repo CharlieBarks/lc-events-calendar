@@ -2,6 +2,7 @@
 //
 // Event submissions for the calendar:
 //   POST /extract        flyer image (multipart "image") -> saves it full size and reads the event details off it
+//                        (both POSTs carry a Turnstile token, "human": see isHuman below)
 //   POST /submit         the finished form (JSON) -> waits in Charlie's review queue
 //   GET  /approved.json  approved submissions in the calendar's format (the site build reads this)
 //   GET  /img/<id>.jpg   a submitted flyer, full size
@@ -52,6 +53,35 @@ const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
 const isTime = (s) => /^\d{2}:\d{2}$/.test(s || '');
 const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-$/, '');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+// ---------- "Are you a person?" (Cloudflare Turnstile) ----------
+// The form sends a one-time token with every upload and every submission; this asks Cloudflare
+// whether it is real. Set up with the TURNSTILE_SECRET secret (no secret = no check).
+// TURNSTILE_ENFORCE = "1" turns failures away. Anything else only writes them to the log, which
+// is how this was switched on safely: watch the log first, then enforce.
+async function isHuman(env, token, ip, what) {
+  if (!env.TURNSTILE_SECRET) return true;
+  let ok = false;
+  let why = 'no token';
+  if (token) {
+    try {
+      const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST', body: new URLSearchParams({ secret: env.TURNSTILE_SECRET, response: String(token), remoteip: ip }),
+      });
+      const data = await res.json();
+      ok = !!data.success;
+      why = (data['error-codes'] || []).join(',') || 'rejected';
+    } catch (err) {
+      // Cloudflare's checker itself is unreachable: don't punish real people for that.
+      console.log('Turnstile unreachable, letting it through', err.message);
+      return true;
+    }
+  }
+  if (ok) return true;
+  console.log(`Turnstile failed on ${what} (${why})${env.TURNSTILE_ENFORCE === '1' ? '' : ', not enforced'}`);
+  return env.TURNSTILE_ENFORCE !== '1';
+}
+const NOT_HUMAN = "Couldn't confirm you're a person. Reload the page and try once more.";
 
 // ---------- Reading a flyer ----------
 
@@ -160,6 +190,7 @@ async function handleExtract(request, env, origin) {
   const form = await request.formData();
   const file = form.get('image');
   if (!file || typeof file === 'string') return json({ error: 'No image received.' }, { status: 400 }, origin);
+  if (!(await isHuman(env, form.get('human'), ip, 'upload'))) return json({ error: NOT_HUMAN }, { status: 403 }, origin);
   if (file.size > MAX_IMAGE) return json({ error: 'That image is too big. Try a screenshot of it instead.' }, { status: 413 }, origin);
   const type = /^image\/(jpeg|png|webp|gif)$/.test(file.type) ? file.type : 'image/jpeg';
   const buf = await file.arrayBuffer();
@@ -215,6 +246,7 @@ async function handleSubmit(request, env, origin) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'Bad request.' }, { status: 400 }, origin); }
   if (body.website) return json({ ok: true }, {}, origin); // honeypot: bots fill every field
+  if (!(await isHuman(env, body.human, ip, 'submission'))) return json({ error: NOT_HUMAN }, { status: 403 }, origin);
   const sub = tidySubmission(body);
   const problems = [];
   if (!sub.title) problems.push('event name');

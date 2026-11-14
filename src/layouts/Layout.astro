@@ -8,7 +8,7 @@ import '../styles/global.css';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import PreviewBanner from '../components/PreviewBanner.astro';
-import { SITE, PREVIEW } from '../lib/site.js';
+import { SITE, PREVIEW, ANALYTICS_TOKEN } from '../lib/site.js';
 
 // ogImage: path to this page's share image, e.g. /og/event/first-friday-ramble.png
 // ogImage may also be a full URL (an event's own flyer); then the 1200x630 size tags are left off.
@@ -53,6 +53,7 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
   <meta name="geo.placename" content="Las Cruces" />
   <link rel="sitemap" href="/sitemap-index.xml" />
   {jsonLd.map((obj) => <script type="application/ld+json" set:html={JSON.stringify(obj)} />)}
+  {ANALYTICS_TOKEN && !PREVIEW && <script is:inline defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({ token: ANALYTICS_TOKEN })}></script>}
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
