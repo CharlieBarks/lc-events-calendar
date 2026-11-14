@@ -10,8 +10,9 @@
 //      organizer's full-size flyer.
 //   4. src/data/events.json: events Live Love Las Cruces adds by hand.
 //
-// A source that can't be reached is skipped with a warning. If that leaves NO events at all,
-// the build stops, so Cloudflare keeps the last good version live instead of an empty calendar.
+// The city feed is optional (skipped with a warning). The CitySpark copy and the submissions must answer,
+// or the build stops. If every source together has NO upcoming events, the build also stops.
+// Either way Cloudflare keeps the last good version live instead of a thin or empty calendar.
 // Working without internet? EVENTS_OFFLINE=1 uses src/data/city-snapshot.json instead.
 
 import fs from 'node:fs';
@@ -163,14 +164,18 @@ export async function getEvents() {
     const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).map((e) => normalize(e, 'lllc'))];
     const today = dateKey(todayWall());
 
-    if (spark.length + city.length === 0) {
-      throw new Error('No events from CitySpark or the city. Stopping the build so the last good site stays up.');
-    }
-
     const events = [...spark, ...city, ...ours]
       .filter(Boolean)
-      .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today)
-      .sort((a, b) => a.date.localeCompare(b.date) || a.start.H * 60 + a.start.M - (b.start.H * 60 + b.start.M));
+      .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today);
+
+    // Last line of defense: never publish an empty calendar. Every source counts (CitySpark copy, city,
+    // submissions, events.json), so this keeps working after CitySpark is cancelled and its copy runs dry.
+    // Offline builds are exempt: the saved city snapshot is usually all in the past.
+    if (events.length === 0 && process.env.EVENTS_OFFLINE !== '1') {
+      throw new Error('No upcoming events from any source. Stopping the build so the last good site stays up.');
+    }
+
+    events.sort((a, b) => a.date.localeCompare(b.date) || a.start.H * 60 + a.start.M - (b.start.H * 60 + b.start.M));
 
     // Same slug twice (two sessions on one day): add a counter.
     const seen = new Map();

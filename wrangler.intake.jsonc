@@ -9,5 +9,7 @@
   "kv_namespaces": [{ "binding": "MEDIA", "id": "def0354e4d124ff2927b4134c54e6418" }],
   "ai": { "binding": "AI" },
   "ratelimits": [{ "name": "LIMIT", "namespace_id": "4101", "simple": { "limit": 12, "period": 60 } }],
+  // Daily calendar rebuild: 07:10 UTC = 12:10 AM in Las Cruces (1:10 AM during daylight saving time).
+  "triggers": { "crons": ["10 7 * * *"] },
   "observability": { "enabled": true }
 }
