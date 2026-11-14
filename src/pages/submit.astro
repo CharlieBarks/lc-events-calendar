@@ -1,26 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../lib/site.js';
-import { getEvents } from '../lib/events.js';
-import venueData from '../data/venues.json';
+import { getVenues } from '../lib/events.js';
 
-// Venue suggestions for the form: every venue on the master list (src/data/venues.json) plus every
-// venue on the calendar right now, each with the address it is most often listed with. Picking one
-// fills in the address, and keeps venue names spelled one way.
-const { events } = await getEvents();
-const seen = new Map(); // venue name -> { address: count }
-for (const v of venueData.venues) seen.set(v.name, {});
-for (const e of events) {
-  if (!e.venue || e.venue.length < 3) continue;
-  const tally = seen.get(e.venue) || {};
-  // Feeds sometimes put the venue name in front of the street address: keep the street part.
-  const address = (e.address || '').replace(new RegExp(`^${e.venue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[,–-]\\s*`, 'i'), '').trim();
-  if (/\d/.test(address) && address.toLowerCase() !== e.venue.toLowerCase()) tally[address] = (tally[address] || 0) + 1;
-  seen.set(e.venue, tally);
-}
-const venueList = [...seen.entries()]
-  .map(([name, tally]) => ({ name, address: Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] || '' }))
-  .sort((a, b) => a.name.localeCompare(b.name));
+// Venue suggestions for the form (see getVenues). Picking one fills in the address and keeps
+// venue names spelled one way.
+const venueList = await getVenues();
 ---
 <Layout title="Add Your Event" description="List your Las Cruces or Mesilla event for free. Upload your flyer and the details fill themselves in, or type it in yourself.">
   <section class="wrap-narrow submit-head">
@@ -557,7 +542,9 @@ const venueList = [...seen.entries()]
   function prefill() {
     const p = new URLSearchParams(location.search);
     const act = p.get('act');
-    return act ? { title: act, category: 'live-music' } : {};
+    const venue = p.get('venue'); // from a venue page's "Add an event here"
+    const known = venue && venueAddresses[venue] ? { address: venueAddresses[venue] } : {};
+    return { ...(act ? { title: act, category: 'live-music' } : {}), ...(venue ? { venue, ...known } : {}) };
   }
 
   // ---- Send ----

@@ -61,6 +61,16 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 - Later: **While you're nearby** (local businesses near the venue) once the Business Directory exists.
 - Venue names come from `src/data/venues.json` via `src/lib/venues.js`. A room ("Munson Senior Center > Studio 2", "Boardroom at …") is kept next to the venue name, not as a separate venue.
 
+## Venue pages
+
+Built Nov 14, 2026.
+
+- `/venue/<key>/` for every venue on the master list (`src/data/venues.json`) and every venue with something on the calendar: name, address, Directions, "Add an event here" (opens the form with the venue and address filled in) and everything coming up there. `/venues/` lists them all, busiest first. Linked from the footer, from "Where" and "More at" on event pages.
+- The list comes from `getVenues()` in `src/lib/events.js`, which also feeds the venue suggestions on the form.
+- **Addresses come from current listings**, the one a venue is most often listed with. A venue with nothing upcoming has no address. Planned: store address, description and website per venue so they are permanent, with a screen for Charlie to edit them.
+- "Las Cruces, NM" and other non-venues don't get a page.
+- To add a venue or a spelling today: edit `src/data/venues.json`.
+
 ## Spotlight (paid promotion, $50)
 
 Decided by Charlie, Nov 10, 2026. Modeled on SFV Local's "Boosted Event". "Charlie's picks" is gone: Charlie doesn't want his name on it.

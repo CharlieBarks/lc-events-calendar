@@ -21,7 +21,8 @@ import lllcEvents from '../data/events.json';
 import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL, REPEAT_DAYS } from './site.js';
 import { expand, describe, addDaysKey } from './repeat.js';
 import { topicFor } from './topics.js';
-import { resolveVenue, fold } from './venues.js';
+import { resolveVenue, fold, venueKey, venueInfo } from './venues.js';
+import venueData from '../data/venues.json';
 import { addThumbs } from './thumbs.js';
 import spotlightList from '../data/spotlight.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
@@ -397,3 +398,33 @@ export function googleCalendarLink(e, { offsetIso }) {
 }
 
 export const categoryOf = (e) => CATEGORIES[e.category];
+
+// Every venue: the master list (src/data/venues.json) plus every venue on the calendar right now.
+// Each has the address it is most often listed with (from current listings), its upcoming events,
+// and its other spellings. Used by the venue pages and by the venue suggestions on the form.
+let venueCache;
+export async function getVenues() {
+  venueCache ??= (async () => {
+    const { events } = await getEvents();
+    const map = new Map();
+    const entry = (name) => {
+      const key = venueKey(name);
+      if (!map.has(key)) map.set(key, { key, name, tally: {}, events: [], aliases: venueInfo(name).aliases || [] });
+      return map.get(key);
+    };
+    for (const v of venueData.venues) entry(v.name);
+    for (const e of events) {
+      if (!e.venue || e.venue.length < 3 || !e.venueKey || NO_VENUE.has(fold(e.venue))) continue; // "Las Cruces, NM" isn't a venue
+      const v = entry(e.venue);
+      v.events.push(e);
+      // Feeds sometimes put the venue name in front of the street address: keep the street part.
+      const escaped = e.venue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const address = (e.address || '').replace(new RegExp(`^${escaped}\\s*[,–-]\\s*`, 'i'), '').trim();
+      if (/\d/.test(address) && address.toLowerCase() !== e.venue.toLowerCase()) v.tally[address] = (v.tally[address] || 0) + 1;
+    }
+    return [...map.values()]
+      .map(({ tally, ...v }) => ({ ...v, address: Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] || '' }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  })();
+  return venueCache;
+}
