@@ -1,0 +1,49 @@
+---
+// Every venue with something on the calendar, busiest first, then the rest of the master list.
+import Layout from '../layouts/Layout.astro';
+import Newsletter from '../components/Newsletter.astro';
+import { breadcrumbJsonLd } from '../lib/site.js';
+import { getVenues } from '../lib/events.js';
+
+const venues = await getVenues();
+const active = venues.filter((v) => v.events.length).sort((a, b) => b.events.length - a.events.length || a.name.localeCompare(b.name));
+const quiet = venues.filter((v) => !v.events.length);
+const jsonLd = [breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Venues', path: '/venues/' }])];
+---
+<Layout title="Las Cruces Venues" description={`${active.length} Las Cruces and Mesilla venues with events coming up: breweries, wineries, theaters, galleries, libraries and more.`} jsonLd={jsonLd}>
+  <section class="venues-head wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">Venues</span></nav>
+    <p class="eyebrow">Where it's happening</p>
+    <h1>Venues</h1>
+    <p class="lede">{active.length} places around Las Cruces and Mesilla with something on the calendar. Pick one to see what's coming up there.</p>
+  </section>
+  <section class="wrap venues-list">
+    <ul class="venues-list__grid" role="list">
+      {active.map((v) => (
+        <li><a class="venues-list__item" href={`/venue/${v.key}/`}>
+          <span class="venues-list__name">{v.name}</span>
+          <span class="venues-list__meta">{v.events.length} upcoming{v.address && ` · ${v.address.split(',')[0]}`}</span>
+        </a></li>
+      ))}
+    </ul>
+    {quiet.length > 0 && (
+      <div class="venues-list__quiet">
+        <h2>Nothing listed right now</h2>
+        <ul class="chips" role="list">{quiet.map((v) => <li><a class="chip" href={`/venue/${v.key}/`}>{v.name}</a></li>)}</ul>
+      </div>
+    )}
+  </section>
+  <Newsletter />
+</Layout>
+
+<style>
+  .venues-head { display: flex; flex-direction: column; gap: var(--space-s); padding-block-end: var(--space-l); }
+  .venues-head h1 { margin-block-start: var(--space-xs); }
+  .venues-list { padding-block-end: var(--space-xl); }
+  .venues-list__grid { display: grid; gap: var(--space-s); grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr)); }
+  .venues-list__item { display: flex; flex-direction: column; gap: 0.25rem; block-size: 100%; padding: var(--space-s) var(--space-m); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--bg-ultra-light); color: var(--text-dark); text-decoration: none; }
+  .venues-list__item:hover { border-color: var(--text-dark); color: var(--text-dark); }
+  .venues-list__name { font-family: var(--heading-font-family); font-weight: 700; font-size: var(--text-l); line-height: 1.2; }
+  .venues-list__meta { color: var(--text-dark-muted); font-size: var(--text-s); }
+  .venues-list__quiet { display: flex; flex-direction: column; gap: var(--space-s); margin-block-start: var(--space-xl); }
+</style>

@@ -100,7 +100,7 @@ const jsonLd = [
 
       <dl class="event-facts">
         <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="event-facts__sub">{event.series.when} · {event.series.time}</span>}</dd></div>
-        <div><dt>Where</dt><dd>{shortVenue(event)}{event.address && event.address !== event.venue && <span class="event-facts__sub">{event.address}</span>}</dd></div>
+        <div><dt>Where</dt><dd>{event.venueKey && event.venue && venueCount > 0 ? <a href={`/venue/${event.venueKey}/`}>{shortVenue(event)}</a> : shortVenue(event)}{event.address && event.address !== event.venue && <span class="event-facts__sub">{event.address}</span>}</dd></div>
         {event.price && <div><dt>Cost</dt><dd>{event.price}</dd></div>}
       </dl>
 
@@ -146,7 +146,7 @@ const jsonLd = [
         <div class="section-head">
           <h2>You might also like</h2>
           <div class="event-also__more">
-            {venueCount > 1 && event.venueKey && <a href={`/?venue=${event.venueKey}#calendar`}>More at {event.venue} →</a>}
+            {venueCount > 1 && event.venueKey && <a href={`/venue/${event.venueKey}/`}>More at {event.venue} →</a>}
             <a href={`/category/${event.category}/`}>More {cat.plural.toLowerCase()} →</a>
           </div>
         </div>

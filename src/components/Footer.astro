@@ -16,6 +16,7 @@ const year = new Date().getFullYear();
     <nav aria-label="Browse">
       <h2>Browse</h2>
       <a href="/this-weekend/">This weekend</a>
+      <a href="/venues/">Venues</a>
       {used.map((k) => <a href={`/category/${k}/`}>{CATEGORIES[k].plural}</a>)}
     </nav>
     <nav aria-label="Get involved">

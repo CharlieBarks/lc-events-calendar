@@ -1,0 +1,72 @@
+---
+// One page per venue: where it is, how to get there and everything coming up.
+// The list of venues comes from getVenues() in src/lib/events.js.
+import Layout from '../../layouts/Layout.astro';
+import Agenda from '../../components/Agenda.astro';
+import Newsletter from '../../components/Newsletter.astro';
+import { SITE, breadcrumbJsonLd } from '../../lib/site.js';
+import { getVenues } from '../../lib/events.js';
+
+export async function getStaticPaths() {
+  const venues = await getVenues();
+  return venues.map((venue) => ({ params: { key: venue.key }, props: { venue } }));
+}
+
+const { venue } = Astro.props;
+const dated = venue.events.filter((e) => !e.ongoing);
+const onNow = venue.events.filter((e) => e.ongoing);
+const count = venue.events.length;
+const place = venue.address || `${venue.name}, Las Cruces, NM`;
+const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(venue.address ? `${venue.name}, ${venue.address}` : place)}`;
+const path = `/venue/${venue.key}/`;
+const description = count
+  ? `${count} upcoming event${count === 1 ? '' : 's'} at ${venue.name} in Las Cruces, NM${venue.address ? ` (${venue.address})` : ''}. Dates, times and directions, updated daily.`
+  : `Events at ${venue.name} in Las Cruces, NM. Nothing is listed right now; check back or add an event.`;
+const jsonLd = [
+  { '@context': 'https://schema.org', '@type': 'Place', name: venue.name, url: `${SITE.url}${path}`,
+    ...(venue.address ? { address: { '@type': 'PostalAddress', streetAddress: venue.address, addressRegion: 'NM', addressCountry: 'US' } } : {}) },
+  breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Venues', path: '/venues/' }, { name: venue.name, path }]),
+];
+---
+<Layout title={`${venue.name}: Upcoming Events`} description={description} jsonLd={jsonLd}>
+  <section class="venue-head wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Events</a><span aria-hidden="true">›</span>
+      <a href="/venues/">Venues</a><span aria-hidden="true">›</span>
+      <span aria-current="page">{venue.name}</span>
+    </nav>
+    <p class="eyebrow">Venue</p>
+    <h1>{venue.name}</h1>
+    {venue.address && <p class="lede">{venue.address}</p>}
+    <p class="venue-head__count">{count ? `${count} event${count === 1 ? '' : 's'} coming up` : 'Nothing on the calendar here right now'}</p>
+    <div class="btn-row">
+      <a class="btn--primary" href={directions} rel="noopener">Directions</a>
+      <a class="btn--base btn--outline" href={`/submit/?venue=${encodeURIComponent(venue.name)}`}>Add an event here</a>
+    </div>
+  </section>
+
+  <section class="wrap venue-list">
+    {dated.length > 0
+      ? <Agenda events={dated} filters={false} headingLevel={2} />
+      : onNow.length === 0 && <p class="notice">Nothing posted here yet. <a href="/">See everything coming up</a> or <a href={`/submit/?venue=${encodeURIComponent(venue.name)}`}>add an event at {venue.name}</a>.</p>}
+    {onNow.length > 0 && (
+      <div class="venue-list__on-now">
+        <h2>On now</h2>
+        <ul class="venue-list__links" role="list">
+          {onNow.map((e) => <li><a href={`/event/${e.slug}/`}>{e.title}</a> <span>{e.series?.when}</span></li>)}
+        </ul>
+      </div>
+    )}
+  </section>
+  <Newsletter />
+</Layout>
+
+<style>
+  .venue-head { display: flex; flex-direction: column; gap: var(--space-s); padding-block-end: var(--space-l); }
+  .venue-head h1 { margin-block-start: var(--space-xs); }
+  .venue-head__count { color: var(--text-dark-muted); }
+  .venue-list { padding-block-end: var(--space-xl); }
+  .venue-list__on-now { display: flex; flex-direction: column; gap: var(--space-s); margin-block-start: var(--space-l); }
+  .venue-list__links { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .venue-list__links span { color: var(--text-dark-muted); font-size: var(--text-s); }
+</style>
