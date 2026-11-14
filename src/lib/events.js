@@ -10,8 +10,9 @@
 //      organizer's full-size flyer.
 //   4. src/data/events.json: events Live Love Las Cruces adds by hand.
 //
-// A source that can't be reached is skipped with a warning. If that leaves NO events at all,
-// the build stops, so Cloudflare keeps the last good version live instead of an empty calendar.
+// The city feed is optional (skipped with a warning). The CitySpark copy and the submissions must answer,
+// or the build stops. If every source together has NO upcoming events, the build also stops.
+// Either way Cloudflare keeps the last good version live instead of a thin or empty calendar.
 // Working without internet? EVENTS_OFFLINE=1 uses src/data/city-snapshot.json instead.
 
 import fs from 'node:fs';
@@ -146,31 +147,62 @@ function normalize(e, source) {
   return out;
 }
 
+// Could these two listings be the same place? Yes when the venue names match, when either listing
+// has no real venue to compare, or when they start at the same time and one name contains the other
+// ("Branigan Library" / "Thomas Branigan Memorial Library") or the street address matches.
+// A wrong "no" shows an event twice, which is easy to spot and is fixed by adding the spelling to
+// src/data/venues.json. A wrong "yes" would silently drop a real event, so "no" needs clear evidence.
+const NO_VENUE = new Set(['', 'las cruces', 'las cruces nm', 'mesilla', 'mesilla nm', 'nm']);
+const street = (e) => (fold(e.address || '').match(/\b\d+ [a-z0-9]+ [a-z0-9]+/) || [''])[0];
+function samePlace(a, b) {
+  const va = fold(a.venue), vb = fold(b.venue);
+  if (NO_VENUE.has(va) || NO_VENUE.has(vb)) return true;
+  if (va === vb) return true;
+  // A partial name match or a shared street address only counts with the same start time
+  // ("The Game" and "The Game II" are different bars).
+  const sa = street(a), sb = street(b);
+  const close = va.includes(vb) || vb.includes(va) || (!!sa && sa === sb);
+  return close && a.start.H === b.start.H && a.start.M === b.start.M;
+}
+
 let cache;
 
 export async function getEvents() {
   cache ??= (async () => {
     const [cityRaw, sparkRaw, subsRaw] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
+    // The same event often arrives from two sources. Two listings are the same event when the name
+    // and the day match AND nothing says they are in different places (see samePlace). Two different
+    // "Trivia Night" listings at two breweries on one evening are both kept.
     const key = (e) => `${e.title.toLowerCase().replace(/[^a-z0-9]/g, '')}|${e.date}`;
+    const index = (list) => {
+      const map = new Map();
+      for (const e of list) map.set(key(e), [...(map.get(key(e)) || []), e]);
+      return map;
+    };
+    const dupOf = (map, e) => (map.get(key(e)) || []).some((x) => samePlace(x, e));
     // Submissions beat the feeds: same event, but with the organizer's own full-size flyer.
     const subs = subsRaw.map((e) => normalize(e, 'lllc')).filter(Boolean);
-    const subKeys = new Set(subs.map(key));
-    const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => e && !subKeys.has(key(e)));
-    // The same event often appears in both feeds. Keep the CitySpark copy (it has a photo).
-    const sparkKeys = new Set(spark.map(key));
-    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !sparkKeys.has(key(e)) && !subKeys.has(key(e)));
+    const subIndex = index(subs);
+    const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => e && !dupOf(subIndex, e));
+    // Between the two feeds, keep the CitySpark copy (it has a photo).
+    const sparkIndex = index(spark);
+    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !dupOf(sparkIndex, e) && !dupOf(subIndex, e));
     // Sample listings only show on the private preview, never on the live site.
     const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).map((e) => normalize(e, 'lllc'))];
     const today = dateKey(todayWall());
 
-    if (spark.length + city.length === 0) {
-      throw new Error('No events from CitySpark or the city. Stopping the build so the last good site stays up.');
-    }
-
     const events = [...spark, ...city, ...ours]
       .filter(Boolean)
-      .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today)
-      .sort((a, b) => a.date.localeCompare(b.date) || a.start.H * 60 + a.start.M - (b.start.H * 60 + b.start.M));
+      .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today);
+
+    // Last line of defense: never publish an empty calendar. Every source counts (CitySpark copy, city,
+    // submissions, events.json), so this keeps working after CitySpark is cancelled and its copy runs dry.
+    // Offline builds are exempt: the saved city snapshot is usually all in the past.
+    if (events.length === 0 && process.env.EVENTS_OFFLINE !== '1') {
+      throw new Error('No upcoming events from any source. Stopping the build so the last good site stays up.');
+    }
+
+    events.sort((a, b) => a.date.localeCompare(b.date) || a.start.H * 60 + a.start.M - (b.start.H * 60 + b.start.M));
 
     // Same slug twice (two sessions on one day): add a counter.
     const seen = new Map();
@@ -205,6 +237,7 @@ export async function getEvents() {
       const s = {
         // Exhibits and other things open nearly every day: shown once in "On view now", not on every day.
         ongoing: gap <= 1 && list.length >= 10,
+        gap,
         until: list[list.length - 1],
         id: slugify(first.title),
         title: first.title,
@@ -223,6 +256,25 @@ export async function getEvents() {
     const ongoing = series.filter((x) => x.ongoing);
     const dropped = new Set(ongoing.flatMap((x) => x.dates.slice(1)));
     const kept = events.filter((e) => !dropped.has(e));
+    // Ongoing things get an address without a date (/event/lean-in/), so a link to an exhibit keeps
+    // working for its whole run instead of changing every day with the "next date".
+    const taken = new Set(kept.map((e) => e.slug));
+    const dateless = (x) => {
+      const base = slugify(x.title).slice(0, 60).replace(/-$/, '');
+      return [base, `${base}-${x.next.venueKey}`].find((s) => s && !taken.has(s));
+    };
+    for (const x of ongoing) {
+      const stable = dateless(x);
+      if (stable) { taken.delete(x.next.slug); x.next.slug = stable; taken.add(stable); }
+    }
+    // In its last days a long run has too few dates left to count as "ongoing" and goes back to one
+    // listing per day. The dateless address then forwards to the next date, so the link still works.
+    const aliases = [];
+    for (const x of series) {
+      if (x.ongoing || x.gap > 1) continue;
+      const stable = dateless(x);
+      if (stable) { taken.add(stable); aliases.push({ slug: stable, to: x.next.slug }); }
+    }
     for (const x of ongoing) {
       x.next.ongoing = true;
       x.when = `${x.category === 'arts-culture' ? 'On view' : 'Daily'} through ${monthShort(x.until.start)} ${x.until.start.d}`;
@@ -254,6 +306,8 @@ export async function getEvents() {
       dated: kept.filter((e) => !e.ongoing),
       ongoing: ongoing.map((x) => x.next),
       series: series.filter((x) => !x.ongoing),
+      // Dateless addresses that forward to an event page: [{ slug, to }]
+      aliases,
     };
   })();
   return cache;
@@ -269,13 +323,25 @@ export function mapsLink(e) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}`;
 }
 
+// Wall-clock time plus some hours, rolling past midnight into the next day (a 10 PM start + 2h = midnight).
+function addHours(w, n) {
+  const d = new Date(Date.UTC(w.y, w.m - 1, w.d, w.H + n, w.M));
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), H: d.getUTCHours(), M: d.getUTCMinutes(), allDay: false };
+}
+
 export function googleCalendarLink(e, { offsetIso }) {
   const stamp = (w) => offsetIso(w).replace(/[-:]/g, '').slice(0, 15);
-  const end = e.end || { ...e.start, H: e.start.H + 2 };
+  // All-day events use plain dates (the end date is the day after), so Google shows them as all day.
+  const day = (w) => `${w.y}${String(w.m).padStart(2, '0')}${String(w.d).padStart(2, '0')}`;
+  const nextDay = (w) => addHours({ ...w, H: 0, M: 0 }, 24);
+  // No end time listed: assume two hours.
+  const dates = e.start.allDay
+    ? `${day(e.start)}/${day(nextDay(e.end?.allDay ? e.end : e.start))}`
+    : `${stamp(e.start)}/${stamp(e.end && !e.end.allDay ? e.end : addHours(e.start, 2))}`;
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: e.title,
-    dates: `${stamp(e.start)}/${stamp(end)}`,
+    dates,
     ctz: 'America/Denver',
     details: `${e.description.slice(0, 800)}\n\nhttps://events.livelovelascruces.com/event/${e.slug}/`,
     location: e.address || e.venue,

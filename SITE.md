@@ -22,7 +22,10 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 | `src/data/venues.json` | Master venue list: one name per venue, every other spelling as an alias | **Yes** (add a spelling whenever a new one turns up) |
 
 - Offline build: `EVENTS_OFFLINE=1 npm run build`.
-- If the city feed can't be reached, the build stops on purpose. Keep that guard.
+- The build stops on purpose if the CitySpark copy or the submissions can't be read, or if no source has any upcoming event. The city feed is optional. Keep those guards.
+- Daily rebuild: the `lc-events-intake` Worker's schedule (`wrangler.intake.jsonc`, 12:10 AM Las Cruces time), not CitySpark.
+- Cancelling CitySpark: set `FROZEN` = `1` on the `cityspark-export` Worker **first** (see README), then `CITYSPARK_SUBSCRIBED = false`.
+- `cityspark-export` and `lc-events-proxy` are not deployed from this repo automatically. After changing `cityspark-export.js` or `worker.js`, the Worker has to be deployed by hand.
 - `CITYSPARK_SUBSCRIBED` in `src/lib/site.js` switches CitySpark placeholder images to our artwork when the subscription ends.
 
 ## Search
@@ -38,6 +41,8 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 ## Event pages
 
 - **You might also like:** up to 4 events in the next 3 weeks that share the venue or category, one-offs with a picture first, each event once. Links to "More at <venue>" (the calendar filtered to that venue) and the category page.
+- **Duplicates:** two listings are one event only when the name and day match and nothing says they're in different places. Same name at two different venues stays as two events. If one event shows twice because its venue is spelled two ways, add the spelling to `src/data/venues.json`.
+- **Exhibits and long daily runs** ("On now") have an address without a date (`/event/lean-in/`) for the whole run. In the last days, when the run goes back to one listing per day, that address forwards to the next date.
 - Later: **While you're nearby** (local businesses near the venue) once the Business Directory exists.
 - Venue names come from `src/data/venues.json` via `src/lib/venues.js`. A room ("Munson Senior Center > Studio 2", "Boardroom at …") is kept next to the venue name, not as a separate venue.
 

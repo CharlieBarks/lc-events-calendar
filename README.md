@@ -18,7 +18,8 @@ Every push rebuilds automatically (about 1–2 minutes). This only works while t
 2. **City of Las Cruces** feed via the proxy. Duplicates of CitySpark listings are dropped.
 3. **`src/data/events.json`**: events we add ourselves (later: approved submissions). `featured: true` puts it in Spotlight (`sponsored: true` for paid). `sample: true` only shows on the design preview.
 
-If the city feed can't be reached, the build stops on purpose so the last good version stays live.
+The build stops on purpose, so the last good version stays live, when the CitySpark copy or the submissions
+can't be read, or when all sources together have no upcoming events. The city feed is optional.
 Working offline: `EVENTS_OFFLINE=1 npm run build` uses `src/data/city-snapshot.json`.
 
 ## Images
@@ -29,8 +30,13 @@ illustration is drawn on the category color with the Organ Mountains skyline. Th
 
 **When the CitySpark subscription ends:** set `CITYSPARK_SUBSCRIBED = false` in `src/lib/site.js`. CitySpark's own
 generated placeholder pictures are then swapped for our artwork; organizers' flyers and photos stay.
-Also remove the `cityspark-export` Worker's schedule in Cloudflare (Workers > cityspark-export > Settings > Triggers),
-since it will have nothing left to copy. Everything already copied stays.
+**Before** cancelling, freeze the copy: in Cloudflare, Workers > cityspark-export > Settings > Variables, add `FROZEN` = `1`
+(and remove its schedule under Triggers). A frozen copy never changes again, so a cancelled CitySpark account can't
+empty it. Everything already copied stays and keeps showing until each event has passed (up to about 120 days out).
+As a second safety net, the Worker refuses to replace a copy with one less than half its size.
+
+The calendar no longer depends on CitySpark to rebuild: the `lc-events-intake` Worker rebuilds it every night at
+12:10 AM Las Cruces time (schedule in `wrangler.intake.jsonc`), and again whenever an event is approved.
 
 
 CitySpark listings come with photos, copied into our own storage. The city feed has none. Events with an `image` show it (flyers open full size). Everything else gets
@@ -48,6 +54,6 @@ category artwork (color + icon + Organ Mountains skyline), and every event gets 
 
 ## Still to do
 
-- Daily automatic rebuild: done (the CitySpark copy triggers it after each daily refresh)
+- Daily automatic rebuild: done (nightly, from the `lc-events-intake` Worker's schedule; no longer tied to CitySpark)
 - Connect `/submit/` to an approval queue (Notion or D1), with flyer text read automatically
 - More feeds (venues, Eventbrite, Bandsintown)
