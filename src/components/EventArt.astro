@@ -11,10 +11,12 @@ const label = event.topic?.label || cat.name;
 // A small repeating version of the icon in the background, offset per event so cards don't look identical.
 const seed = [...event.slug].reduce((n, c) => n + c.charCodeAt(0), 0);
 const pid = `p-${event.slug.slice(0, 40)}`;
+// The small copy that fits this spot (src/lib/thumbs.js), or the original when there isn't one.
+const thumb = (height <= 80 ? event.thumbs?.s : event.thumbs?.m) || event.image;
 ---
 <div class="art" data-size={compact ? 'compact' : undefined} style={`--c:${cat.color};height:${height}px`}>
   {event.image
-    ? <img class="art__photo" src={event.image} alt="" width={Math.round(height * 1.5)} height={height} loading={eager ? 'eager' : 'lazy'} decoding="async" />
+    ? <img class="art__photo" src={thumb} alt="" width={Math.round(height * 1.5)} height={height} loading={eager ? 'eager' : 'lazy'} decoding="async" />
     : <>
         <svg class="art__pattern" aria-hidden="true" width="100%" height="100%">
           <defs>

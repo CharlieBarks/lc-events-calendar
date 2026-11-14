@@ -9,3 +9,7 @@ https://:worker.:subdomain.workers.dev/*
 # Pieces of pages fetched by the calendar (later days). Not pages of their own.
 /more/*
   X-Robots-Tag: noindex
+
+# Small copies of event pictures. The name changes whenever the picture's address does.
+/thumbs/*
+  Cache-Control: public, max-age=604800

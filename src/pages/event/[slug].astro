@@ -90,7 +90,7 @@ const jsonLd = [
   <article class="wrap event-detail">
     <div class="event-detail__media">
       {event.image
-        ? <a href={event.image} data-lightbox={event.image} data-alt={`${event.title} flyer`} class="event-detail__flyer"><img src={event.image} alt={`${event.title} flyer`} /><span class="event-detail__zoom">Tap to enlarge</span></a>
+        ? <a href={event.image} data-lightbox={event.image} data-alt={`${event.title} flyer`} class="event-detail__flyer"><img src={event.thumbs?.l || event.image} alt={`${event.title} flyer`} /><span class="event-detail__zoom">Tap to enlarge</span></a>
         : <div class="event-detail__art"><EventArt event={event} height={340} eager /></div>}
     </div>
 

@@ -21,6 +21,7 @@ import lllcEvents from '../data/events.json';
 import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL } from './site.js';
 import { topicFor } from './topics.js';
 import { resolveVenue, fold } from './venues.js';
+import { addThumbs } from './thumbs.js';
 import spotlightList from '../data/spotlight.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
@@ -299,6 +300,9 @@ export async function getEvents() {
       // Paid events always get a full card, even when they repeat.
       e.compact = !e.sponsored && (!!e.series || e.category === 'city-hall');
     }
+
+    // Small copies of the pictures (src/lib/thumbs.js). Adds e.thumbs where it worked.
+    await addThumbs(kept);
 
     return {
       events: kept,
