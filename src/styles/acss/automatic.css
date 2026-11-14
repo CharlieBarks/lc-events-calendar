@@ -1,4 +1,4 @@
-/* File: automatic.css - Version: 4.0.2 - Generated: 2026-11-09 05:35:14 */
+/* File: automatic.css - Version: 4.0.2 - Generated: 2026-11-09 08:07:07 */
 /* Feat: Text, Headings, & Spacing */
 :root {
   --root-font-size: 100%;
@@ -39,11 +39,6 @@
   --neutral-ultra-dark: oklch(0.2 0.0009 67.7);
   --white: #fff;
   --black: #000;
-}
-/* Feat: Default Section Styles */
-:root {
-  --content-width: 81rem;
-  --content-width-safe: min(var(--content-width), calc(100% - var(--gutter) * 2));
 }
 /* Feat: Focus Styles */
 :root {
@@ -143,11 +138,6 @@
   --h1-to-h4: clamp(1.125rem, calc(5.5327868852vw + 0.018442623rem), 4.5rem);
   --h1-to-h5: clamp(0.75rem, calc(6.1475409836vw + -0.4795081967rem), 4.5rem);
   --h1-to-h6: clamp(0.6875rem, calc(6.25vw + -0.5625rem), 4.5rem);
-}
-/* Feat: Default Section Styles */
-:root {
-  --section-padding-block: var(--section-space-m);
-  --gutter: clamp(1.25rem, calc(5.3278688525vw + 0.1844262295rem), 4.5rem);
 }
 /* Feat: Space Variables */
 :root {
@@ -265,9 +255,9 @@
 :root {
   --option-primary-btn-outline: on;
   --option-secondary-btn-outline: on;
-  --btn-padding-block: 0.75em;
-  --btn-padding-inline: 1.5em;
-  --btn-min-width: 12.5rem;
+  --btn-padding-block: 0.875em;
+  --btn-padding-inline: 1.25em;
+  --btn-min-width: 0rem;
   --btn-width: max-content;
   --btn-line-height: 1;
   --btn-font-size: var(--text-m);
@@ -278,7 +268,7 @@
   --btn-text-decoration-hover: none;
   --btn-letter-spacing: 0;
   --btn-text-transform: none;
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-style: solid;
   --btn-border-radius: 999px;
   --btn-radius: 999px;
@@ -291,10 +281,10 @@
   --link-color: var(--primary);
   --link-color-hover: var(--primary-hover);
   --link-transition: var(--transition);
-  --link-decoration: none;
+  --link-decoration: underline;
   --link-decoration-hover: inherit;
   --link-underline-offset: auto;
-  --link-weight: 400;
+  --link-weight: inherit;
 }
 /* Feat: Column Variables */
 :root {
@@ -526,9 +516,9 @@ html {
 /* Feat: Link Defaults */
 body a:where(:not([class*= btn--])) {
   color: var(--link-color, var(--primary));
-  font-weight: var(--link-weight, 400);
-  -webkit-text-decoration: var(--link-decoration, none);
-  text-decoration: var(--link-decoration, none);
+  font-weight: var(--link-weight, inherit);
+  -webkit-text-decoration: var(--link-decoration, underline);
+  text-decoration: var(--link-decoration, underline);
   text-underline-offset: var(--link-underline-offset, auto);
   transition: var(--link-transition, var(--transition));
 }
@@ -664,7 +654,7 @@ h6 {
   --btn-background-hover: var(--primary-hover);
   --btn-text-color: var(--primary);
   --btn-text-color-hover: var(--primary-ultra-light);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--primary);
   --btn-border-color-hover: var(--primary-hover);
   --focus-color: var(--primary-semi-light);
@@ -674,7 +664,7 @@ h6 {
   --btn-background-hover: var(--primary-dark);
   --btn-text-color: var(--primary-dark);
   --btn-text-color-hover: var(--primary-ultra-light);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--primary-dark);
   --btn-border-color-hover: var(--primary-dark);
   --focus-color: var(--primary-semi-dark);
@@ -684,7 +674,7 @@ h6 {
   --btn-background-hover: var(--primary-light);
   --btn-text-color: var(--primary-light);
   --btn-text-color-hover: var(--primary-dark);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--primary-light);
   --btn-border-color-hover: var(--primary-light);
   --focus-color: var(--primary-light);
@@ -721,7 +711,7 @@ h6 {
   --btn-background-hover: var(--secondary-hover);
   --btn-text-color: var(--secondary);
   --btn-text-color-hover: var(--secondary-ultra-light);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--secondary);
   --btn-border-color-hover: var(--secondary-hover);
   --focus-color: var(--secondary-semi-light);
@@ -731,7 +721,7 @@ h6 {
   --btn-background-hover: var(--secondary-dark);
   --btn-text-color: var(--secondary-dark);
   --btn-text-color-hover: var(--secondary-ultra-light);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--secondary-dark);
   --btn-border-color-hover: var(--secondary-dark);
   --focus-color: var(--secondary-semi-dark);
@@ -741,7 +731,7 @@ h6 {
   --btn-background-hover: var(--secondary-light);
   --btn-text-color: var(--secondary-light);
   --btn-text-color-hover: var(--secondary-dark);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--secondary-light);
   --btn-border-color-hover: var(--secondary-light);
   --focus-color: var(--secondary-light);
@@ -1066,13 +1056,6 @@ h6 {
     outline-offset: var(--focus-offset);
   }
 }
-/* Feat: Default Section Styles */
-:where(section:not(section section)) {
-  display: flex;
-  flex-direction: column;
-  padding-block: var(--section-padding-block);
-  padding-inline: var(--gutter);
-}
 .bg--ultra-light {
   background: var(--bg-ultra-light);
 }
@@ -1191,7 +1174,7 @@ h6 {
   --btn-background-hover: var(--primary-hover);
   --btn-text-color: var(--primary);
   --btn-text-color-hover: var(--primary-ultra-light);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--primary);
   --btn-border-color-hover: var(--primary-hover);
   --focus-color: var(--primary-semi-light);
@@ -1210,7 +1193,7 @@ h6 {
   --btn-background-hover: var(--primary-hover);
   --btn-text-color: var(--primary);
   --btn-text-color-hover: var(--primary-ultra-light);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--primary);
   --btn-border-color-hover: var(--primary-hover);
   --focus-color: var(--primary-semi-light);
@@ -1229,7 +1212,7 @@ h6 {
   --btn-background-hover: var(--primary-hover);
   --btn-text-color: var(--primary);
   --btn-text-color-hover: var(--primary-ultra-light);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--primary);
   --btn-border-color-hover: var(--primary-hover);
   --focus-color: var(--primary-semi-light);
@@ -1248,7 +1231,7 @@ h6 {
   --btn-background-hover: var(--primary-hover);
   --btn-text-color: var(--primary);
   --btn-text-color-hover: var(--primary-ultra-light);
-  --btn-border-width: 0.25rem;
+  --btn-border-width: 1.5px;
   --btn-border-color: var(--primary);
   --btn-border-color-hover: var(--primary-hover);
   --focus-color: var(--primary-semi-light);
@@ -1577,9 +1560,6 @@ figure[class*="width--"] img {
 section > div:where([class*="grid--"]), :where([class*="grid--"]) {
   gap: var(--grid-gap);
 }
-:where(:where(img), :where(figure:not(figure:has(img)))) {
-  border-radius: var(--radius);
-}
 :root {
   --transition-duration: 0.3s;
   --transition-timing: ease-in-out;
@@ -1727,8 +1707,4 @@ section > div:where([class*="grid--"]), :where([class*="grid--"]) {
 }
 .content-grid:is([class*="padding--"], [class*="section--"], [class*="header--"]) {
   padding-inline: 0;
-}
-/* Feat: Default Section Styles */
-#shadow-host-companion {
-  padding: 0;
 }

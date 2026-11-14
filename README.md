@@ -10,7 +10,7 @@ Built with [Astro](https://astro.build), hosted on Cloudflare Workers. Same desi
 - **CitySpark copy:** https://cityspark-export.cf2-99b.workers.dev (Worker `cityspark-export`, source in `cityspark-export.js`). Copies every CitySpark listing within 30 miles plus its photo into Cloudflare KV (`lc-events-media`) every day, then rebuilds the site. `/status` shows progress. Photos are kept even after CitySpark is cancelled.
 - **City feed proxy:** https://lc-events-proxy.cf2-99b.workers.dev (Worker `lc-events-proxy`, source in `worker.js`). lascruces.gov blocks Cloudflare's build servers, so the build reads the city feed through this. `/debug` shows feed health.
 
-Every push rebuilds automatically (about 1–2 minutes).
+Every push rebuilds automatically (about 1–2 minutes). This only works while the repo is listed under the **Cloudflare Workers and Pages** app in GitHub (Settings → Applications → Configure → Repository access). If pushes stop building but manual builds still work, check that list first: public repos can still be read without being on it.
 
 ## Where events come from
 
