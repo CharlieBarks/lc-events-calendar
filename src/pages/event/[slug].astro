@@ -188,7 +188,9 @@ const jsonLd = [
   .facts dd { margin: 0; font-weight: 600; display: flex; flex-direction: column; }
   .sub { font-weight: 400; color: var(--text-dark-muted); font-size: var(--text-m); }
   .actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
-  .actions .btn--outline { background: var(--bg-ultra-light); }
+  /* White fill at rest. Set through ACSS's own button variable so the hover fill still applies
+     (a plain `background` here kept the button white on hover, under near-white hover text). */
+  .actions .btn--outline { --btn-background: var(--bg-ultra-light); }
   .addcal { position: relative; }
   .addcal summary { list-style: none; }
   .addcal summary::-webkit-details-marker { display: none; }
