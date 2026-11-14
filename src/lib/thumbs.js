@@ -6,7 +6,8 @@
 // The full-size original is still what opens when someone taps a flyer on its event page.
 //
 // Nothing here can stop a build or lose a picture: if one can't be fetched or read, that event
-// simply keeps using its original picture address.
+// simply keeps using its original picture address. The one exception: a picture that no longer
+// exists (404) is dropped, so the event shows our artwork instead of a broken image.
 //
 // Skipped in offline builds (EVENTS_OFFLINE=1), in `astro dev`, and with EVENTS_THUMBS=0.
 import fs from 'node:fs';
@@ -23,6 +24,7 @@ export const thumbsEnabled = () => import.meta.env.PROD && process.env.EVENTS_OF
 
 async function makeOne(sharp, url) {
   const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+  if (res.status === 404) throw Object.assign(new Error('HTTP 404'), { gone: true });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const input = Buffer.from(await res.arrayBuffer());
   const id = crypto.createHash('sha1').update(url).digest('hex').slice(0, 12);
@@ -46,18 +48,23 @@ export async function addThumbs(events) {
   fs.mkdirSync(dir, { recursive: true });
   const urls = [...new Set(events.map((e) => e.image).filter((u) => /^https?:/.test(u)))];
   const done = new Map();
+  const gone = new Set(); // pictures that no longer exist (404)
   let failed = 0;
   const queue = [...urls];
   const worker = async () => {
     for (let url = queue.shift(); url; url = queue.shift()) {
       try { done.set(url, await makeOne(sharp, url)); }
-      catch (err) { failed++; if (failed <= 5) console.warn(`Thumbnail skipped (${err.message}): ${url}`); }
+      catch (err) { failed++; if (err.gone) gone.add(url); if (failed <= 5) console.warn(`Thumbnail skipped (${err.message}): ${url}`); }
     }
   };
   const started = Date.now();
   await Promise.all(Array.from({ length: 6 }, worker));
-  for (const e of events) if (done.has(e.image)) e.thumbs = done.get(e.image);
-  console.log(`Thumbnails: ${done.size} pictures in ${Math.round((Date.now() - started) / 1000)}s${failed ? `, ${failed} skipped (those keep their original picture)` : ''}`);
+  for (const e of events) {
+    if (done.has(e.image)) e.thumbs = done.get(e.image);
+    // A picture that no longer exists would show as a broken image. Use our artwork instead.
+    else if (gone.has(e.image)) e.image = '';
+  }
+  console.log(`Thumbnails: ${done.size} pictures in ${Math.round((Date.now() - started) / 1000)}s${failed ? `, ${failed} skipped (${gone.size} no longer exist and now show artwork, the rest keep their original picture)` : ''}`);
 }
 
 // For src/pages/thumbs/[name].webp.js
