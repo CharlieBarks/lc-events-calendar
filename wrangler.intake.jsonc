@@ -14,5 +14,7 @@
   // 403 "Just a moment" page when it reads our own feeds, and that build stops (seen twice on Nov 14).
   // A repeat that isn't needed just rebuilds the same site.
   "triggers": { "crons": ["10 7 * * *", "40 7 * * *", "10 8 * * *"] },
+  // "1" = turn away uploads and submissions that fail the "are you a person?" check. See isHuman in intake.js.
+  "vars": { "TURNSTILE_ENFORCE": "0" },
   "observability": { "enabled": true }
 }

@@ -39,6 +39,12 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 - Categories wrap onto extra lines on desktop (no sideways scrolling). On phones (560px and narrower) a "All categories" dropdown replaces the category buttons.
 - **While searching** (a search or a venue filter is on), regulars and city meetings open up into full cards like one-off events. The normal view keeps them as slim rows, each with a small picture (flyer, photo or topic art). Approved by Charlie, Nov 10.
 
+## Analytics, spam check, old addresses
+
+- **Analytics:** Cloudflare Web Analytics, the same as livelovelascruces.com and the Art Trail (`ANALYTICS_TOKEN` in `src/lib/site.js`, loaded in `Layout.astro`). Visits, top pages and where visitors come from; no cookies, so no cookie banner. Not loaded on the preview. Read it in Cloudflare under Analytics & Logs > Web Analytics > events.livelovelascruces.com. It has no custom events (it can't count Spotlight clicks).
+- **"Are you a person?" check:** Cloudflare Turnstile on `/submit/` (widget "Las Cruces Events submissions"; public key `TURNSTILE_SITEKEY` in `src/lib/site.js`, secret `TURNSTILE_SECRET` on the `lc-events-intake` Worker). Invisible unless Cloudflare wants a box ticked. Every flyer upload and every submission carries a one-time token that the Worker verifies. `TURNSTILE_ENFORCE` in `wrangler.intake.jsonc`: `"1"` turns failures away, `"0"` only logs them. A new address for the site must be added to the widget's domain list in Cloudflare (Turnstile), or the check fails there.
+- **Old addresses:** `public/_redirects`. `/add-event/` goes to `/submit/`. `/blog/` goes to livelovelascruces.com for now (temporary redirect until Charlie decides where the old blog lives).
+
 ## Page weight
 
 - The homepage holds the first 7 days of listings and category pages the first 14 (`HOME_DAYS`, `CATEGORY_DAYS` in `src/lib/site.js`). Later days live in page fragments at `/more/home/` and `/more/<category>/` and are fetched the first time a visitor needs them: Show the rest, a category, a search or venue, or a date past those days. Search, filters and shared links behave exactly as before.

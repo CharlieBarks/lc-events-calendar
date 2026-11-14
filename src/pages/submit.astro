@@ -1,6 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
+import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE, TURNSTILE_SITEKEY } from '../lib/site.js';
 ---
 <Layout title="Add Your Event" description="List your Las Cruces or Mesilla event for free. Upload your flyer and the details fill themselves in, or type it in yourself.">
   <section class="wrap-narrow submit-head">
@@ -10,7 +10,9 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
     <p class="lede">If it's open to the public in Las Cruces or Mesilla, it belongs here. I check every listing, usually within a day. – Charlie</p>
   </section>
 
-  <section class="wrap-narrow submit-body" data-app data-intake={INTAKE_URL} data-pay={SPOTLIGHT.payUrl}>
+  <section class="wrap-narrow submit-body" data-app data-intake={INTAKE_URL} data-pay={SPOTLIGHT.payUrl} data-sitekey={TURNSTILE_SITEKEY}>
+    <!-- The "are you a person?" check. Invisible unless Cloudflare needs the visitor to tick a box. -->
+    <div data-human></div>
     <p class="submit-body__who" data-who hidden>Submitting as <strong data-who-name></strong> · <button type="button" class="submit-body__link" data-forget>not you?</button></p>
 
     <!-- Step 1: pick a path -->
@@ -146,6 +148,45 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
 <script>
   const app = document.querySelector('[data-app]') as HTMLElement;
   const INTAKE = app.dataset.intake!;
+
+  // "Are you a person?" check (Cloudflare Turnstile). Each upload and each send gets its own
+  // one-time token, which the lc-events-intake Worker verifies. The script only loads once someone
+  // starts using the form. If it can't load (a blocker), the token is empty and the Worker decides.
+  const SITEKEY = app.dataset.sitekey || '';
+  let tsLoading: Promise<void> | undefined;
+  let tsWidget: string | undefined;
+  let tsDone: (token: string) => void = () => {};
+  function loadHumanCheck() {
+    if (!SITEKEY) return Promise.resolve();
+    tsLoading ??= new Promise<void>((resolve, reject) => {
+      (window as any).__humanCheckReady = () => resolve();
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=__humanCheckReady';
+      s.async = true;
+      s.onerror = () => reject(new Error('blocked'));
+      document.head.append(s);
+    });
+    return tsLoading;
+  }
+  async function humanToken(): Promise<string> {
+    if (!SITEKEY) return '';
+    try {
+      await loadHumanCheck();
+      const ts = (window as any).turnstile;
+      return await new Promise<string>((resolve) => {
+        tsDone = resolve;
+        setTimeout(() => resolve(''), 30000);
+        if (tsWidget === undefined) {
+          tsWidget = ts.render(app.querySelector('[data-human]'), {
+            sitekey: SITEKEY, appearance: 'interaction-only',
+            callback: (t: string) => tsDone(t), 'error-callback': () => tsDone(''), 'timeout-callback': () => tsDone(''),
+          });
+        } else ts.reset(tsWidget); // a token works once, so ask for a fresh one
+      });
+    } catch { return ''; }
+  }
+  app.addEventListener('pointerenter', () => { loadHumanCheck().catch(() => {}); }, { once: true });
+  app.addEventListener('focusin', () => { loadHumanCheck().catch(() => {}); }, { once: true });
   const form = app.querySelector('form') as HTMLFormElement;
   const showsEl = app.querySelector('[data-shows]') as HTMLElement;
   const tpl = document.getElementById('show-row') as HTMLTemplateElement;
@@ -231,6 +272,7 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
   async function upload(file: File) {
     const fd = new FormData();
     fd.append('image', await prepare(file), 'flyer.jpg');
+    fd.append('human', await humanToken());
     const res = await fetch(`${INTAKE}/extract`, { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Upload failed');
@@ -301,6 +343,7 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
     try {
       const fd = new FormData();
       fd.append('image', await prepare(f), 'photo.jpg');
+      fd.append('human', await humanToken());
       const res = await fetch(`${INTAKE}/extract?read=0`, { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -342,6 +385,7 @@ import { CATEGORIES, INTAKE_URL, SPOTLIGHT, SITE } from '../lib/site.js';
       boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
     };
     try {
+      body.human = await humanToken();
       const res = await fetch(`${INTAKE}/submit`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
