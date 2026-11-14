@@ -30,6 +30,9 @@
 // Storage: KV namespace lc-events-media (bound as MEDIA), keys under sub/.
 // Flyer reading: Workers AI (Llama 4 Scout, bound as AI). If an ANTHROPIC_API_KEY secret is added,
 // Claude reads flyers instead (more accurate on busy flyers).
+// Email (Cloudflare Email Service, bound as EMAIL; livelovelascruces.com is the sending domain): a thank-you
+// with the private edit link when someone submits, a note when their event goes on the calendar, and a
+// heads-up to Charlie (NOTIFY_TO) for every new submission and organizer change. See "Email" below.
 // Approving rebuilds the calendar through the deploy hooks in the DEPLOY_HOOKS secret (comma-separated URLs).
 // The same hooks are called once a day on a schedule (see "scheduled" at the bottom), CitySpark or not.
 
@@ -68,6 +71,72 @@ const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
 const isTime = (s) => /^\d{2}:\d{2}$/.test(s || '');
 const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-$/, '');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+// ---------- Email ----------
+// Sent from events@livelovelascruces.com; replies go to Charlie (NOTIFY_TO). Sending never holds up or
+// breaks a submission: it runs after the answer has gone out, and a failure is only written to the log.
+// No EMAIL binding (local testing) = nothing is sent.
+const MAIL_FROM = { email: 'events@livelovelascruces.com', name: 'Live Love Las Cruces' };
+const LIVE_SITE = 'https://lc-events-calendar.cf2-99b.workers.dev'; // becomes events.livelovelascruces.com when the domain moves
+const siteFor = (origin) => (origin && ALLOWED_ORIGINS.includes(origin) && !origin.includes('localhost') ? origin : LIVE_SITE);
+const firstName = (name) => clean(name, 100).split(' ')[0] || 'there';
+
+async function sendMail(env, to, subject, paragraphs) {
+  if (!env.EMAIL || !to) return;
+  // A paragraph is plain text, or { text, href } for a link on its own line.
+  const text = paragraphs.map((p) => (typeof p === 'string' ? p : `${p.text}\n${p.href}`)).join('\n\n');
+  const html = `<div style="font:16px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2a44;max-width:560px">${paragraphs
+    .map((p) => (typeof p === 'string'
+      ? `<p style="margin:0 0 16px">${esc(p).replace(/\n/g, '<br>')}</p>`
+      : `<p style="margin:0 0 16px">${esc(p.text)}<br><a href="${esc(p.href)}" style="color:#b23a2b">${esc(p.href)}</a></p>`))
+    .join('')}</div>`;
+  try {
+    await env.EMAIL.send({ from: MAIL_FROM, to, subject, text, html, ...(env.NOTIFY_TO ? { replyTo: env.NOTIFY_TO } : {}) });
+  } catch (err) {
+    console.log('Email not sent', subject, err.code || '', err.message);
+  }
+}
+
+const SIGN_OFF = 'Charlie Barks\nLive Love Las Cruces';
+const whenLine = (rec) => (rec.repeat ? describe(rec.repeat) : rec.shows.map((s) => s.date).join(', '));
+
+// To the submitter, right after they send an event.
+function mailThanks(env, rec, site) {
+  return sendMail(env, rec.contact?.email, `Thank you! "${rec.title}" is in`, [
+    `Hi ${firstName(rec.contact?.name)},`,
+    `Thank you for adding "${rec.title}" to the Las Cruces events calendar. I mean that. This calendar only works because people like you take a few minutes to share what's happening, and every event you add helps a neighbor find something good to do in town.`,
+    `Here's what happens next: I look over every event myself, usually within a day. You'll hear from me again as soon as it's on the calendar.`,
+    { text: 'Need to fix a time or swap the flyer? This is your private edit link. Keep it handy, and only share it with someone you want editing this event:', href: `${site}/submit/?edit=${rec.id}.${rec.token}` },
+    `Got more coming up? Add as many as you like: ${site}/submit/`,
+    `Thanks again for showing up for Las Cruces.`,
+    SIGN_OFF,
+  ]);
+}
+
+// To the submitter, when Charlie approves it (or approves a change they made).
+function mailApproved(env, rec, wasChange) {
+  const site = rec.site || LIVE_SITE;
+  const page = rec.repeat ? `${site}/` : `${site}/event/${toCalendarEvents(rec)[0].slug}/`;
+  return sendMail(env, rec.contact?.email, wasChange ? `Your changes to "${rec.title}" are live` : `"${rec.title}" is on the calendar`, [
+    `Hi ${firstName(rec.contact?.name)},`,
+    wasChange
+      ? `Your changes to "${rec.title}" are approved and on the Las Cruces events calendar.`
+      : `Good news: "${rec.title}" is approved and on the Las Cruces events calendar. Thank you for sharing it. Events like yours are what make this town feel like home.`,
+    { text: 'It shows up within a few minutes here:', href: page },
+    `Share that link anywhere you like. The more people who see it, the better the turnout.`,
+    ...(rec.token ? [{ text: 'If anything changes, your private edit link still works:', href: `${site}/submit/?edit=${rec.id}.${rec.token}` }] : []),
+    SIGN_OFF,
+  ]);
+}
+
+// To Charlie: something new is waiting in the review queue.
+function mailCharlie(env, rec, what) {
+  return sendMail(env, env.NOTIFY_TO, `${what}: ${rec.title}`, [
+    `${what} on the events calendar.`,
+    `${rec.title}\n${rec.venue}\n${whenLine(rec)}\nFrom ${rec.contact?.name || 'someone'} (${rec.contact?.email || 'no email'})${rec.boost ? '\nSpotlight requested' : ''}`,
+    { text: 'Review it here:', href: `${PUBLIC_ORIGIN}/review/` },
+  ]);
+}
 
 // ---------- "Are you a person?" (Cloudflare Turnstile) ----------
 // The form sends a one-time token with every upload and every submission; this asks Cloudflare
@@ -256,7 +325,7 @@ function tidySubmission(b) {
   };
 }
 
-async function handleSubmit(request, env, origin) {
+async function handleSubmit(request, env, origin, ctx) {
   const ip = request.headers.get('cf-connecting-ip') || 'x';
   if (env.LIMIT) {
     const { success } = await env.LIMIT.limit({ key: `submit:${ip}` });
@@ -282,8 +351,9 @@ async function handleSubmit(request, env, origin) {
   }
   const id = newId();
   const token = newToken();
-  const record = { id, token, status: 'pending', submittedAt: new Date().toISOString(), ip, ...sub };
+  const record = { id, token, status: 'pending', submittedAt: new Date().toISOString(), ip, site: siteFor(origin), ...sub };
   await env.MEDIA.put(`sub/pending/${id}`, JSON.stringify(record));
+  ctx.waitUntil(Promise.all([mailThanks(env, record, record.site), mailCharlie(env, record, 'New event')]));
   return json({ ok: true, id, key: `${id}.${token}`, shows: sub.shows.length }, {}, origin);
 }
 
@@ -322,7 +392,7 @@ async function handleMine(request, env, origin) {
   }, { headers: { 'cache-control': 'no-store' } }, origin);
 }
 
-async function handleUpdate(request, env, origin) {
+async function handleUpdate(request, env, origin, ctx) {
   const ip = request.headers.get('cf-connecting-ip') || 'x';
   if (env.LIMIT) {
     const { success } = await env.LIMIT.limit({ key: `submit:${ip}` });
@@ -357,6 +427,7 @@ async function handleUpdate(request, env, origin) {
     ...(live ? { change: true, changedBy: 'organizer' } : {}),
   };
   await env.MEDIA.put(`sub/pending/${rec.id}`, JSON.stringify(next));
+  ctx.waitUntil(mailCharlie(env, next, live ? 'Organizer changed a live event' : 'Organizer updated a waiting event'));
   return json({ ok: true, id: rec.id, live }, {}, origin);
 }
 
@@ -407,7 +478,7 @@ async function rebuild(env) {
   await Promise.all(env.DEPLOY_HOOKS.split(',').map((s) => s.trim()).filter(Boolean).map((h) => fetch(h, { method: 'POST' }).catch(() => {})));
 }
 
-async function reviewApi(request, env, path) {
+async function reviewApi(request, env, path, ctx) {
   if (request.method === 'GET' && path === 'list') {
     const list = await env.MEDIA.list({ prefix: 'sub/pending/' });
     const pending = (await Promise.all(list.keys.map((k) => env.MEDIA.get(k.name, 'json')))).filter(Boolean);
@@ -438,6 +509,9 @@ async function reviewApi(request, env, path) {
     await env.MEDIA.put(`sub/done/${rec.id}`, JSON.stringify({ ...edited, change: false, status: 'approved', reviewedAt: new Date().toISOString() }));
     await env.MEDIA.delete(`sub/pending/${rec.id}`);
     await rebuild(env);
+    // Tell the submitter: the first time it goes live, and when a change they made is approved.
+    // Not when Charlie reopened it himself to fix something.
+    if (!rec.change || rec.changedBy === 'organizer') ctx.waitUntil(mailApproved(env, edited, !!rec.change));
     return json({ ok: true });
   }
   if (path === 'reopen') {
@@ -576,7 +650,7 @@ export default {
     ctx.waitUntil(rebuild(env));
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const origin = request.headers.get('origin');
     const path = url.pathname;
@@ -585,8 +659,8 @@ export default {
 
     try {
       if (path === '/extract' && request.method === 'POST') return await handleExtract(request, env, origin);
-      if (path === '/submit' && request.method === 'POST') return await handleSubmit(request, env, origin);
-      if (path === '/update' && request.method === 'POST') return await handleUpdate(request, env, origin);
+      if (path === '/submit' && request.method === 'POST') return await handleSubmit(request, env, origin, ctx);
+      if (path === '/update' && request.method === 'POST') return await handleUpdate(request, env, origin, ctx);
       if (path === '/mine' && request.method === 'GET') return await handleMine(request, env, origin);
 
       if (path === '/approved.json') {
@@ -616,7 +690,7 @@ export default {
         }
       }
       if (path === '/review' || path === '/review/') return new Response(reviewPage(), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
-      if (path.startsWith('/review/api/')) return await reviewApi(request, env, path.slice('/review/api/'.length));
+      if (path.startsWith('/review/api/')) return await reviewApi(request, env, path.slice('/review/api/'.length), ctx);
 
       if (path === '/') return new Response('Las Cruces Events submissions. Add an event at https://events.livelovelascruces.com/submit/', { headers: { 'content-type': 'text/plain' } });
       return new Response('Not found', { status: 404 });

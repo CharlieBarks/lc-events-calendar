@@ -15,6 +15,9 @@
   // A repeat that isn't needed just rebuilds the same site.
   "triggers": { "crons": ["10 7 * * *", "40 7 * * *", "10 8 * * *"] },
   // "1" = turn away uploads and submissions that fail the "are you a person?" check. See isHuman in intake.js.
-  "vars": { "TURNSTILE_ENFORCE": "0" },
+  // NOTIFY_TO: where "new event waiting" emails go, and where replies to our emails land.
+  "vars": { "TURNSTILE_ENFORCE": "0", "NOTIFY_TO": "charlie@livelovelascruces.com" },
+  // Cloudflare Email Service. Only ever sends from events@livelovelascruces.com.
+  "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["events@livelovelascruces.com"] }],
   "observability": { "enabled": true }
 }
