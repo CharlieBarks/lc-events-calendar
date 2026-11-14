@@ -9,9 +9,15 @@ import { getEvents, shortVenue, mapsLink, googleCalendarLink } from '../../lib/e
 import { longDate, shortDate, timeRange, offsetIso } from '../../lib/time.js';
 
 export async function getStaticPaths() {
-  const { events } = await getEvents();
-  return events.map((event) => ({ params: { slug: event.slug }, props: { event } }));
+  const { events, aliases } = await getEvents();
+  return [
+    ...events.map((event) => ({ params: { slug: event.slug }, props: { event } })),
+    // Dateless addresses of long runs in their last days: forward to the next date.
+    ...aliases.map((a) => ({ params: { slug: a.slug }, props: { forwardTo: `/event/${a.to}/` } })),
+  ];
 }
+
+if (Astro.props.forwardTo) return Astro.redirect(Astro.props.forwardTo);
 
 const { event } = Astro.props;
 const { events } = await getEvents();

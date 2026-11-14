@@ -147,19 +147,46 @@ function normalize(e, source) {
   return out;
 }
 
+// Could these two listings be the same place? Yes when the venue names match, when either listing
+// has no real venue to compare, or when they start at the same time and one name contains the other
+// ("Branigan Library" / "Thomas Branigan Memorial Library") or the street address matches.
+// A wrong "no" shows an event twice, which is easy to spot and is fixed by adding the spelling to
+// src/data/venues.json. A wrong "yes" would silently drop a real event, so "no" needs clear evidence.
+const NO_VENUE = new Set(['', 'las cruces', 'las cruces nm', 'mesilla', 'mesilla nm', 'nm']);
+const street = (e) => (fold(e.address || '').match(/\b\d+ [a-z0-9]+ [a-z0-9]+/) || [''])[0];
+function samePlace(a, b) {
+  const va = fold(a.venue), vb = fold(b.venue);
+  if (NO_VENUE.has(va) || NO_VENUE.has(vb)) return true;
+  if (va === vb) return true;
+  // A partial name match or a shared street address only counts with the same start time
+  // ("The Game" and "The Game II" are different bars).
+  const sa = street(a), sb = street(b);
+  const close = va.includes(vb) || vb.includes(va) || (!!sa && sa === sb);
+  return close && a.start.H === b.start.H && a.start.M === b.start.M;
+}
+
 let cache;
 
 export async function getEvents() {
   cache ??= (async () => {
     const [cityRaw, sparkRaw, subsRaw] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
+    // The same event often arrives from two sources. Two listings are the same event when the name
+    // and the day match AND nothing says they are in different places (see samePlace). Two different
+    // "Trivia Night" listings at two breweries on one evening are both kept.
     const key = (e) => `${e.title.toLowerCase().replace(/[^a-z0-9]/g, '')}|${e.date}`;
+    const index = (list) => {
+      const map = new Map();
+      for (const e of list) map.set(key(e), [...(map.get(key(e)) || []), e]);
+      return map;
+    };
+    const dupOf = (map, e) => (map.get(key(e)) || []).some((x) => samePlace(x, e));
     // Submissions beat the feeds: same event, but with the organizer's own full-size flyer.
     const subs = subsRaw.map((e) => normalize(e, 'lllc')).filter(Boolean);
-    const subKeys = new Set(subs.map(key));
-    const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => e && !subKeys.has(key(e)));
-    // The same event often appears in both feeds. Keep the CitySpark copy (it has a photo).
-    const sparkKeys = new Set(spark.map(key));
-    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !sparkKeys.has(key(e)) && !subKeys.has(key(e)));
+    const subIndex = index(subs);
+    const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => e && !dupOf(subIndex, e));
+    // Between the two feeds, keep the CitySpark copy (it has a photo).
+    const sparkIndex = index(spark);
+    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !dupOf(sparkIndex, e) && !dupOf(subIndex, e));
     // Sample listings only show on the private preview, never on the live site.
     const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).map((e) => normalize(e, 'lllc'))];
     const today = dateKey(todayWall());
@@ -210,6 +237,7 @@ export async function getEvents() {
       const s = {
         // Exhibits and other things open nearly every day: shown once in "On view now", not on every day.
         ongoing: gap <= 1 && list.length >= 10,
+        gap,
         until: list[list.length - 1],
         id: slugify(first.title),
         title: first.title,
@@ -228,6 +256,25 @@ export async function getEvents() {
     const ongoing = series.filter((x) => x.ongoing);
     const dropped = new Set(ongoing.flatMap((x) => x.dates.slice(1)));
     const kept = events.filter((e) => !dropped.has(e));
+    // Ongoing things get an address without a date (/event/lean-in/), so a link to an exhibit keeps
+    // working for its whole run instead of changing every day with the "next date".
+    const taken = new Set(kept.map((e) => e.slug));
+    const dateless = (x) => {
+      const base = slugify(x.title).slice(0, 60).replace(/-$/, '');
+      return [base, `${base}-${x.next.venueKey}`].find((s) => s && !taken.has(s));
+    };
+    for (const x of ongoing) {
+      const stable = dateless(x);
+      if (stable) { taken.delete(x.next.slug); x.next.slug = stable; taken.add(stable); }
+    }
+    // In its last days a long run has too few dates left to count as "ongoing" and goes back to one
+    // listing per day. The dateless address then forwards to the next date, so the link still works.
+    const aliases = [];
+    for (const x of series) {
+      if (x.ongoing || x.gap > 1) continue;
+      const stable = dateless(x);
+      if (stable) { taken.add(stable); aliases.push({ slug: stable, to: x.next.slug }); }
+    }
     for (const x of ongoing) {
       x.next.ongoing = true;
       x.when = `${x.category === 'arts-culture' ? 'On view' : 'Daily'} through ${monthShort(x.until.start)} ${x.until.start.d}`;
@@ -259,6 +306,8 @@ export async function getEvents() {
       dated: kept.filter((e) => !e.ongoing),
       ongoing: ongoing.map((x) => x.next),
       series: series.filter((x) => !x.ongoing),
+      // Dateless addresses that forward to an event page: [{ slug, to }]
+      aliases,
     };
   })();
   return cache;
