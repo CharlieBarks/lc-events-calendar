@@ -24,6 +24,7 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 - Offline build: `EVENTS_OFFLINE=1 npm run build`.
 - The build stops on purpose if the CitySpark copy or the submissions can't be read, or if no source has any upcoming event. The city feed is optional. Keep those guards.
 - Daily rebuild: the `lc-events-intake` Worker's schedule (`wrangler.intake.jsonc`, 12:10 AM Las Cruces time), not CitySpark.
+- **Builds sometimes fail with HTTP 403 from our own feeds** (Cloudflare shows the build server a "Just a moment" check). The guards stop that build and the last good site stays up. Nothing is wrong with the code: run the build again. The nightly rebuild repeats at 12:40 and 1:10 AM for this reason.
 - Cancelling CitySpark: set `FROZEN` = `1` on the `cityspark-export` Worker **first** (see README), then `CITYSPARK_SUBSCRIBED = false`.
 - `cityspark-export` and `lc-events-proxy` are not deployed from this repo automatically. After changing `cityspark-export.js` or `worker.js`, the Worker has to be deployed by hand.
 - `CITYSPARK_SUBSCRIBED` in `src/lib/site.js` switches CitySpark placeholder images to our artwork when the subscription ends.
