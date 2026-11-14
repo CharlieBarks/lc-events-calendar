@@ -4,10 +4,18 @@
 //   POST /extract        flyer image (multipart "image") -> saves it full size and reads the event details off it
 //                        (both POSTs carry a Turnstile token, "human": see isHuman below)
 //   POST /submit         the finished form (JSON) -> waits in Charlie's review queue
+//   GET  /mine?key=       the submitter's own submission, for their private edit link
+//   POST /update          changes from that edit link (JSON, with "key")
 //   GET  /approved.json  approved submissions in the calendar's format (the site build reads this)
 //   GET  /img/<id>.jpg   a submitted flyer, full size
 //   GET  /review/        Charlie's review queue (behind Cloudflare Access: Charlie only)
 //   /review/api/...      approve / reject / remove / flags (also behind Access)
+//
+// Edit links: every submission gets a secret key ("<id>.<token>"). The form shows the submitter a
+// private link carrying it (/submit/?edit=<key>). Whoever has the link can change that one
+// submission. A change to something still waiting simply updates it. A change to something already
+// on the calendar waits in the review queue as "Changed by the organizer"; the calendar keeps the
+// old version until Charlie approves. Charlie can reopen any approved event the same way ("Edit").
 //
 // Repeating events: the form can send repeat: { freq, every, days, by, until, skip } (see
 // src/lib/repeat.js). The first date row gives the start date and the times. An approved repeating
@@ -273,9 +281,83 @@ async function handleSubmit(request, env, origin) {
     else sub.imageId = '';
   }
   const id = newId();
-  const record = { id, status: 'pending', submittedAt: new Date().toISOString(), ip, ...sub };
+  const token = newToken();
+  const record = { id, token, status: 'pending', submittedAt: new Date().toISOString(), ip, ...sub };
   await env.MEDIA.put(`sub/pending/${id}`, JSON.stringify(record));
-  return json({ ok: true, id, shows: sub.shows.length }, {}, origin);
+  return json({ ok: true, id, key: `${id}.${token}`, shows: sub.shows.length }, {}, origin);
+}
+
+// ---------- The submitter's edit link ----------
+
+const newToken = () => [...crypto.getRandomValues(new Uint8Array(18))].map((b) => b.toString(16).padStart(2, '0')).join('');
+
+// Finds the submission a key belongs to: waiting first, then already reviewed.
+async function findMine(env, key) {
+  const [id, token] = String(key || '').split('.');
+  if (!/^[a-z0-9]{6,40}$/.test(id || '') || !/^[a-f0-9]{36}$/.test(token || '')) return null;
+  const pending = await env.MEDIA.get(`sub/pending/${id}`, 'json');
+  const done = pending ? null : await env.MEDIA.get(`sub/done/${id}`, 'json');
+  const rec = pending || done;
+  if (!rec || !rec.token || rec.token !== token) return null;
+  return { rec, live: !!done || !!pending?.change };
+}
+
+async function handleMine(request, env, origin) {
+  const ip = request.headers.get('cf-connecting-ip') || 'x';
+  if (env.LIMIT) {
+    const { success } = await env.LIMIT.limit({ key: `mine:${ip}` });
+    if (!success) return json({ error: 'Too many tries. Give it a minute.' }, { status: 429 }, origin);
+  }
+  const found = await findMine(env, new URL(request.url).searchParams.get('key'));
+  if (!found) return json({ error: "That edit link doesn't match any event. It may have been removed." }, { status: 404 }, origin);
+  const { rec } = found;
+  if (rec.status === 'rejected') return json({ error: "This one wasn't added to the calendar, so it can't be changed here. Send it again as a new event." }, { status: 410 }, origin);
+  // Only what the form needs. Never the token, IP or review notes.
+  return json({
+    status: rec.status === 'approved' && !rec.change ? 'live' : rec.change ? 'change-waiting' : 'waiting',
+    title: rec.title, venue: rec.venue, address: rec.address, category: rec.category, price: rec.price, url: rec.url,
+    description: rec.description, shows: rec.shows, repeat: rec.repeat || null, annual: !!rec.annual,
+    imageId: rec.imageId || '', imageUrl: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : '',
+    name: rec.contact?.name || '', email: rec.contact?.email || '', phone: rec.contact?.phone || '',
+  }, { headers: { 'cache-control': 'no-store' } }, origin);
+}
+
+async function handleUpdate(request, env, origin) {
+  const ip = request.headers.get('cf-connecting-ip') || 'x';
+  if (env.LIMIT) {
+    const { success } = await env.LIMIT.limit({ key: `submit:${ip}` });
+    if (!success) return json({ error: 'Too many changes in a row. Give it a minute and try again.' }, { status: 429 }, origin);
+  }
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Bad request.' }, { status: 400 }, origin); }
+  if (!(await isHuman(env, body.human, ip, 'change'))) return json({ error: NOT_HUMAN }, { status: 403 }, origin);
+  const found = await findMine(env, body.key);
+  if (!found || found.rec.status === 'rejected') return json({ error: "That edit link doesn't match any event." }, { status: 404 }, origin);
+  const { rec, live } = found;
+  const sub = tidySubmission(body);
+  const problems = [];
+  if (!sub.title) problems.push('event name');
+  if (!sub.shows.length) problems.push('date');
+  if (!sub.venue) problems.push('where it is');
+  if (problems.length) return json({ error: `Please add: ${problems.join(', ')}.` }, { status: 400 }, origin);
+  // A new picture moves out of the "uploaded" area; otherwise keep the one it had.
+  if (sub.imageId && sub.imageId !== rec.imageId) {
+    const { value, metadata } = await env.MEDIA.getWithMetadata(`sub/upload/${sub.imageId}`, 'arrayBuffer');
+    if (value) await env.MEDIA.put(`sub/img/${sub.imageId}`, value, { metadata });
+    else sub.imageId = rec.imageId || '';
+  }
+  // The organizer can't hand themselves a Spotlight or change who submitted it.
+  const next = {
+    ...rec, ...sub,
+    contact: { name: sub.contact.name || rec.contact?.name || '', email: rec.contact?.email || '', phone: sub.contact.phone || rec.contact?.phone || '' },
+    boost: rec.boost || '', source: rec.source, act: rec.act,
+    id: rec.id, token: rec.token, submittedAt: rec.submittedAt, ip: rec.ip,
+    status: 'pending', changedAt: new Date().toISOString(),
+    // Already on the calendar: the old version stays live until Charlie approves this one.
+    ...(live ? { change: true, changedBy: 'organizer' } : {}),
+  };
+  await env.MEDIA.put(`sub/pending/${rec.id}`, JSON.stringify(next));
+  return json({ ok: true, id: rec.id, live }, {}, origin);
 }
 
 // ---------- Approved events -> calendar ----------
@@ -337,7 +419,7 @@ async function reviewApi(request, env, path) {
       r.repeatDates = expand(r.repeat, todayLocal(), addDaysKey(todayLocal(), 90)).slice(0, 8);
     }
     const approved = await getApproved(env);
-    return json({ pending, approved: approved.slice(-60).reverse() });
+    return json({ pending: pending.map(({ token, ...r }) => r), approved: approved.slice(-60).reverse() });
   }
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
@@ -353,14 +435,27 @@ async function reviewApi(request, env, path) {
     const approved = (await getApproved(env)).filter((e) => e.submissionId !== rec.id);
     approved.push(...toCalendarEvents(edited));
     await env.MEDIA.put('sub/approved.json', JSON.stringify(approved));
-    await env.MEDIA.put(`sub/done/${rec.id}`, JSON.stringify({ ...edited, status: 'approved', reviewedAt: new Date().toISOString() }));
+    await env.MEDIA.put(`sub/done/${rec.id}`, JSON.stringify({ ...edited, change: false, status: 'approved', reviewedAt: new Date().toISOString() }));
     await env.MEDIA.delete(`sub/pending/${rec.id}`);
     await rebuild(env);
     return json({ ok: true });
   }
+  if (path === 'reopen') {
+    // Charlie's "Edit" on an approved event: put it back in the queue as a change. The calendar
+    // keeps the current version until it is approved again.
+    const rec = await env.MEDIA.get(`sub/done/${body.id}`, 'json');
+    if (!rec || rec.status !== 'approved') return json({ error: 'Not found' }, { status: 404 });
+    if (!(await env.MEDIA.get(`sub/pending/${rec.id}`, 'json'))) {
+      await env.MEDIA.put(`sub/pending/${rec.id}`, JSON.stringify({ ...rec, status: 'pending', change: true, changedBy: 'charlie', changedAt: new Date().toISOString() }));
+    }
+    return json({ ok: true });
+  }
   if (path === 'reject') {
     const rec = await env.MEDIA.get(`sub/pending/${body.id}`, 'json');
-    if (rec) {
+    if (rec?.change) {
+      // Turning down a change: the version already on the calendar stays as it is.
+      await env.MEDIA.delete(`sub/pending/${rec.id}`);
+    } else if (rec) {
       await env.MEDIA.put(`sub/done/${rec.id}`, JSON.stringify({ ...rec, status: 'rejected', reviewedAt: new Date().toISOString() }));
       await env.MEDIA.delete(`sub/pending/${rec.id}`);
     }
@@ -433,6 +528,7 @@ function card(r){
   '<div class="row"><div><label>Category</label><select name="category">'+CATS+'</select></div><div><label>Cost</label><input name="price" value="'+esc(r.price)+'"></div><div><label>Link</label><input name="url" value="'+esc(r.url)+'"></div></div>'+
   '<label>Description</label><textarea name="description" rows="3">'+esc(r.description)+'</textarea>'+
   '<label>Dates ('+r.shows.length+')</label><div data-shows>'+r.shows.map(showRow).join('')+'</div><button type="button" data-add>+ Add a date</button>'+
+  (r.change?'<div class="boost"><strong>'+(r.changedBy==='charlie'?'You reopened this to edit it.':'Changed by the organizer.')+'</strong> The calendar keeps the current version until you approve. Reject = keep the current version.</div>':'')+
   (r.repeat?'<div class="boost" data-repeat><strong>Repeats: '+esc(r.repeatText)+'.</strong> The first date above sets the start and the times. Next dates: '+esc((r.repeatDates||[]).join(', ')||'none in the next 90 days')+'<div class="row"><div><label>Stops after (empty = keeps going)</label><input type="date" name="repeatUntil" value="'+esc(r.repeat.until||'')+'"></div><div><label>Dates to leave out (YYYY-MM-DD, commas)</label><input name="repeatSkip" value="'+esc((r.repeat.skip||[]).join(', '))+'"></div></div></div>':'')+
   (r.annual?'<div class="boost"><strong>Annual event.</strong> The organizer says this happens every year.</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
@@ -446,7 +542,7 @@ async function load(){
   const p=document.getElementById('pending');
   p.innerHTML=d.pending.length?d.pending.map(card).join(''):'<div class="empty">Nothing waiting. New submissions show up here.</div>';
   d.pending.forEach(r=>{const f=p.querySelector('[data-id="'+r.id+'"]');f.category.value=r.category});
-  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Spotlight</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Spotlight</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button><button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
+  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Spotlight</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Spotlight</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
 }
 document.addEventListener('click',async e=>{
   const t=e.target;
@@ -455,6 +551,7 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-add]')){t.previousElementSibling.insertAdjacentHTML('beforeend',showRow({}));return}
   if(t.matches('[data-reject]')){const f=t.closest('form');if(!confirm('Reject this submission?'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id})});load();return}
   if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
+  if(t.matches('[data-reopen]')){t.textContent='Opening…';await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.reopen})});await load();window.scrollTo({top:0,behavior:'smooth'});return}
   if(t.matches('[data-remove]')){if(!confirm('Take this off the calendar?'))return;await fetch('/review/api/remove',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.remove})});load();return}
 });
 document.addEventListener('submit',async e=>{
@@ -489,6 +586,8 @@ export default {
     try {
       if (path === '/extract' && request.method === 'POST') return await handleExtract(request, env, origin);
       if (path === '/submit' && request.method === 'POST') return await handleSubmit(request, env, origin);
+      if (path === '/update' && request.method === 'POST') return await handleUpdate(request, env, origin);
+      if (path === '/mine' && request.method === 'GET') return await handleMine(request, env, origin);
 
       if (path === '/approved.json') {
         const approved = await getApproved(env);

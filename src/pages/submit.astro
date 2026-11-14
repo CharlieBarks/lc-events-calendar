@@ -35,6 +35,12 @@ const venueList = [...seen.entries()]
     <div data-human></div>
     <p class="submit-body__who" data-who hidden>Submitting as <strong data-who-name></strong> · <button type="button" class="submit-body__link" data-forget>not you?</button></p>
 
+    <p class="notice" data-edit-note role="status" hidden></p>
+    <div class="submit-mine" data-mine hidden>
+      <p><strong>Your events</strong> (sent from this device). Open one to change it.</p>
+      <ul role="list"></ul>
+    </div>
+
     <!-- Step 1: pick a path -->
     <div class="submit-choose" data-step="choose">
       <label class="submit-choose__option" data-variant="primary" for="flyer">
@@ -128,7 +134,7 @@ const venueList = [...seen.entries()]
         </div>
       </fieldset>
 
-      <fieldset class="submit-form__boost" id="spotlight">
+      <fieldset class="submit-form__boost" id="spotlight" data-boost>
         <legend>Want more eyes on it?</legend>
         <label class="submit-tier">
           <input type="radio" name="boost" value="" checked />
@@ -171,6 +177,11 @@ const venueList = [...seen.entries()]
     <div class="submit-done" data-step="done" hidden>
       <h2>Got it, thanks!</h2>
       <p data-done-text>I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.</p>
+      <div class="submit-done__edit" data-done-edit hidden>
+        <p><strong>Need to change it later?</strong> This private link opens your event so you can fix a date, a time or anything else. Keep it somewhere safe: anyone with the link can edit this event.</p>
+        <p class="submit-done__link"><a data-edit-link href="#"></a></p>
+        <button class="btn--base btn--outline btn--s" type="button" data-copy-edit>Copy the link</button>
+      </div>
       <p data-done-free>The best-looking listings make the Live Love Las Cruces newsletter (10,000+ locals).</p>
       <div class="submit-done__pay" data-done-pay hidden>
         <p><strong>One more step for your Spotlight:</strong> <span data-pay-text>pay the ${SPOTLIGHT.price} below. As soon as it comes through and I've checked your listing, it goes to the top.</span></p>
@@ -327,7 +338,12 @@ const venueList = [...seen.entries()]
   }
   rpOn.addEventListener('change', syncRepeat);
   rpBox.addEventListener('input', syncRepeat);
-  showsEl.addEventListener('input', () => { if (rpOn.checked) { rpSkip = []; rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]').forEach((b) => (b.checked = false)); syncRepeat(); } });
+  showsEl.addEventListener('input', (e) => {
+    if (!rpOn.checked) return;
+    // A new first date starts the rule over (its weekday and any dates taken out). A new time doesn't.
+    if ((e.target as HTMLElement).matches('[data-k="date"]')) { rpSkip = []; rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]').forEach((b) => (b.checked = false)); }
+    syncRepeat();
+  });
   rpBox.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-rp-date]');
     if (!b) return;
@@ -396,6 +412,73 @@ const venueList = [...seen.entries()]
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     return data;
   }
+
+  // ---- Editing an event through its private link (/submit/?edit=<key>) ----
+  // The key is only ever sent to the submissions Worker. Events sent from this device are also
+  // remembered here, so the submitter can find their links again ("Your events").
+  const MINE = 'lc-events-mine';
+  const editKey = new URLSearchParams(location.search).get('edit') || '';
+  const editUrl = (key: string) => `${location.origin}/submit/?edit=${key}`;
+  function rememberEvent(key: string, title: string) {
+    try {
+      const list = JSON.parse(localStorage.getItem(MINE) || '[]').filter((x: any) => x.key !== key);
+      list.unshift({ key, title, at: new Date().toISOString().slice(0, 10) });
+      localStorage.setItem(MINE, JSON.stringify(list.slice(0, 30)));
+    } catch {}
+  }
+  function showMine() {
+    let list: any[] = [];
+    try { list = JSON.parse(localStorage.getItem(MINE) || '[]'); } catch {}
+    const box = $('[data-mine]');
+    if (!list.length || editKey) { box.hidden = true; return; }
+    box.hidden = false;
+    const ul = box.querySelector('ul')!;
+    ul.innerHTML = '';
+    for (const x of list.slice(0, 8)) {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = editUrl(x.key); a.textContent = x.title || 'Untitled event';
+      li.append(a, ` · sent ${x.at}`);
+      ul.append(li);
+    }
+  }
+  async function startEdit() {
+    step('reading');
+    try {
+      const res = await fetch(`${INTAKE}/mine?key=${encodeURIComponent(editKey)}`);
+      const x = await res.json();
+      if (!res.ok) throw new Error(x.error || 'Could not open that event.');
+      for (const k of ['title', 'venue', 'address', 'price', 'url', 'description', 'category', 'name', 'email', 'phone']) field(k).value = x[k] || '';
+      field('email').readOnly = true;
+      showsEl.innerHTML = '';
+      (x.shows?.length ? x.shows : [{}]).forEach(addShow);
+      if (x.repeat) {
+        rpOn.checked = true;
+        rp('freq').value = x.repeat.freq; rp('every').value = String(x.repeat.every); rp('by').value = x.repeat.by || 'weekday'; rp('until').value = x.repeat.until || '';
+        rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]').forEach((b) => (b.checked = (x.repeat.days || []).includes(Number(b.value))));
+        rpSkip = x.repeat.skip || [];
+      }
+      $<HTMLInputElement>('[data-annual]').checked = !!x.annual;
+      syncRepeat();
+      imageId = x.imageId || '';
+      $('[data-edit-note]').hidden = false;
+      $('[data-edit-note]').textContent = x.status === 'waiting'
+        ? "You're editing an event that's still waiting to be checked. Your changes replace what you sent."
+        : x.status === 'change-waiting' ? "You're editing a change that's still waiting to be checked. The calendar shows the earlier version until it's approved."
+        : "You're editing an event that's on the calendar. Changes are checked before they show up, usually within a day.";
+      $('[data-boost]').hidden = true;
+      (form.querySelector('.submit-form__send') as HTMLElement).textContent = 'Save changes';
+      step('form');
+    } catch (err: any) {
+      step('choose');
+      $('[data-edit-note]').hidden = false;
+      $('[data-edit-note]').textContent = err.message;
+    }
+  }
+  $('[data-copy-edit]').addEventListener('click', async (e) => {
+    const b = e.currentTarget as HTMLElement;
+    try { await navigator.clipboard.writeText(($('[data-edit-link]') as HTMLAnchorElement).href); b.textContent = 'Copied'; } catch { b.textContent = 'Press and hold the link to copy it'; }
+  });
 
   function fill(x: any) {
     for (const k of ['title', 'venue', 'address', 'price', 'url', 'description']) if (x[k] && !field(k).value) field(k).value = x[k];
@@ -506,12 +589,28 @@ const venueList = [...seen.entries()]
     };
     try {
       body.human = await humanToken();
-      const res = await fetch(`${INTAKE}/submit`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      if (editKey) (body as any).key = editKey;
+      const res = await fetch(`${INTAKE}/${editKey ? 'update' : 'submit'}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
       try {
         if ((form.elements.namedItem('remember') as HTMLInputElement).checked || loadMe()) localStorage.setItem(KEY, JSON.stringify({ name: body.name, email: body.email, phone: body.phone }));
       } catch {}
+      // The private edit link: shown now, and remembered on this device.
+      const key = editKey || data.key || '';
+      if (key) {
+        rememberEvent(key, body.title);
+        const a = $('[data-edit-link]') as HTMLAnchorElement;
+        a.href = editUrl(key); a.textContent = editUrl(key);
+        $('[data-done-edit]').hidden = false;
+      }
+      if (editKey) {
+        $('[data-done-text]').textContent = data.live
+          ? "Your changes are in. I'll check them over, usually within a day. Until then the calendar shows the earlier version."
+          : "Your changes are saved. I'll check the event over, usually within a day.";
+        $('[data-done-free]').hidden = true; $('[data-done-pay]').hidden = true;
+        status.textContent = ''; step('done'); return;
+      }
       $('[data-done-text]').textContent = shows.length > 1
         ? `All ${shows.length} dates are in. I'll check them over, usually within a day, and they'll show up on the calendar.`
         : "I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.";
@@ -544,6 +643,8 @@ const venueList = [...seen.entries()]
   });
 
   applyMe();
+  showMine();
+  if (editKey) startEdit();
   form.addEventListener('input', (e) => (e.target as HTMLElement).removeAttribute?.('data-missing'));
 </script>
 
@@ -652,4 +753,10 @@ const venueList = [...seen.entries()]
   .submit-repeat__dates { display: flex; flex-wrap: wrap; gap: 0.375rem; }
   .submit-repeat__dates :global(.submit-repeat__date) { min-block-size: 2.75rem; padding-inline: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius-circle); background: var(--bg-ultra-light); font-size: var(--text-s); cursor: pointer; }
   .submit-repeat__dates :global(.submit-repeat__date[aria-pressed="false"]) { text-decoration: line-through; color: var(--text-dark-muted); background: transparent; }
+
+  /* Edit links */
+  .submit-mine { display: flex; flex-direction: column; gap: var(--space-xs); margin-block-end: var(--space-m); padding: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--bg-ultra-light); font-size: var(--text-s); }
+  .submit-mine ul { display: flex; flex-direction: column; gap: 0.25rem; }
+  .submit-done__edit { display: flex; flex-direction: column; gap: var(--space-xs); align-items: flex-start; padding: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--bg-ultra-light); }
+  .submit-done__link { font-size: var(--text-s); overflow-wrap: anywhere; }
 </style>
