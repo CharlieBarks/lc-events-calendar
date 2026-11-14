@@ -87,30 +87,30 @@ const jsonLd = [
     </nav>
   </div>
 
-  <article class="wrap detail">
-    <div class="media">
+  <article class="wrap event-detail">
+    <div class="event-detail__media">
       {event.image
-        ? <a href={event.image} data-lightbox={event.image} data-alt={`${event.title} flyer`} class="flyer"><img src={event.image} alt={`${event.title} flyer`} /><span class="zoom">Tap to enlarge</span></a>
-        : <div class="art-wrap"><EventArt event={event} height={340} eager /></div>}
+        ? <a href={event.image} data-lightbox={event.image} data-alt={`${event.title} flyer`} class="event-detail__flyer"><img src={event.image} alt={`${event.title} flyer`} /><span class="event-detail__zoom">Tap to enlarge</span></a>
+        : <div class="event-detail__art"><EventArt event={event} height={340} eager /></div>}
     </div>
 
-    <div class="info">
-      <p class="eyebrow">{cat.name}{event.sponsored && <> <span class="sponsored-tag">Sponsored</span></>}{PREVIEW && event.sample && <> <span class="sample-tag">Sample</span></>}</p>
+    <div class="event-detail__info">
+      <p class="eyebrow">{cat.name}{event.sponsored && <> <span class="event-detail__sponsored">Sponsored</span></>}{PREVIEW && event.sample && <> <span class="sample-tag">Sample</span></>}</p>
       <h1>{event.title}</h1>
 
-      <dl class="facts">
-        <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="sub">{event.series.when} · {event.series.time}</span>}</dd></div>
-        <div><dt>Where</dt><dd>{shortVenue(event)}{event.address && event.address !== event.venue && <span class="sub">{event.address}</span>}</dd></div>
+      <dl class="event-facts">
+        <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="event-facts__sub">{event.series.when} · {event.series.time}</span>}</dd></div>
+        <div><dt>Where</dt><dd>{shortVenue(event)}{event.address && event.address !== event.venue && <span class="event-facts__sub">{event.address}</span>}</dd></div>
         {event.price && <div><dt>Cost</dt><dd>{event.price}</dd></div>}
       </dl>
 
-      <div class="actions">
+      <div class="event-actions">
         {event.ticketUrl
           ? <a class="btn--primary" href={event.ticketUrl} rel="noopener">Get tickets</a>
           : event.url && <a class="btn--primary" href={event.url} rel="noopener">{/ticket/i.test(event.url) ? 'Get tickets' : 'Event details'}</a>}
-        <details class="addcal">
+        <details class="event-actions__calendar">
           <summary class="btn--base btn--outline">Add to calendar</summary>
-          <div class="menu">
+          <div class="event-actions__menu">
             <a href={googleCalendarLink(event, { offsetIso })} rel="noopener">Google Calendar</a>
             <a href={`/event/${event.slug}.ics`} download>Apple / Outlook (.ics)</a>
           </div>
@@ -120,17 +120,17 @@ const jsonLd = [
       </div>
 
       {paragraphs.length > 0 && (
-        <div class="prose desc">{paragraphs.map((p) => <p>{p.split('\n').map((line, i) => <>{i > 0 && <br />}{line}</>)}</p>)}</div>
+        <div class="prose event-detail__description">{paragraphs.map((p) => <p>{p.split('\n').map((line, i) => <>{i > 0 && <br />}{line}</>)}</p>)}</div>
       )}
 
-      <p class="source">Listed by <a href={source.url}>{source.name}</a>{event.url && event.source !== 'lllc' && <> · <a href={event.url} rel="noopener">{event.source === 'cityspark' ? 'more from the organizer' : 'see the original listing'}</a></>}. Plans change, so double-check before you head out.</p>
+      <p class="event-detail__source">Listed by <a href={source.url}>{source.name}</a>{event.url && event.source !== 'lllc' && <> · <a href={event.url} rel="noopener">{event.source === 'cityspark' ? 'more from the organizer' : 'see the original listing'}</a></>}. Plans change, so double-check before you head out.</p>
 
       {!event.sponsored && (
-        <p class="promote">Is this your event? <a href="/submit/?spotlight=1">Spotlight it</a> to pin it to the top of the calendar and get it in the newsletter.</p>
+        <p class="event-detail__promote">Is this your event? <a href="/submit/?spotlight=1">Spotlight it</a> to pin it to the top of the calendar and get it in the newsletter.</p>
       )}
 
       {otherDates.length > 0 && (
-        <section class="also" aria-labelledby="also-h">
+        <section class="event-also" aria-labelledby="also-h">
           <h2 id="also-h">Also on</h2>
           <ul role="list">
             {otherDates.map((e) => <li><a class="chip" href={`/event/${e.slug}/`}>{shortDate(e.start)}</a></li>)}
@@ -145,7 +145,7 @@ const jsonLd = [
       <div class="wrap">
         <div class="section-head">
           <h2>You might also like</h2>
-          <div class="more">
+          <div class="event-also__more">
             {venueCount > 1 && event.venueKey && <a href={`/?venue=${event.venueKey}#calendar`}>More at {event.venue} →</a>}
             <a href={`/category/${event.category}/`}>More {cat.plural.toLowerCase()} →</a>
           </div>
@@ -172,38 +172,38 @@ const jsonLd = [
 </script>
 
 <style>
-  .detail { display: grid; gap: var(--space-l); grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); padding-block-start: var(--space-m); padding-block-end: var(--space-xl); align-items: start; }
-  @media (max-width: 860px) { .detail { grid-template-columns: 1fr; gap: 24px; } }
-  .media { position: sticky; top: 1.25rem; }
-  @media (max-width: 860px) { .media { position: static; } }
-  .art-wrap { border-radius: var(--radius); overflow: hidden; }
-  .flyer { display: block; position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--neutral-light); background: var(--bg-ultra-light); }
-  .flyer img { inline-size: 100%; max-block-size: 40rem; object-fit: contain; }
-  .zoom { position: absolute; right: 0.75rem; bottom: 0.75rem; background: rgba(28,27,26,.8); color: var(--white); font-size: var(--text-xs); padding: 0.375rem var(--space-s); border-radius: 999px; }
-  .info { display: flex; flex-direction: column; gap: var(--space-m); }
-  .info h1 { font-size: clamp(2rem, 5vw, 3.2rem); }
-  .facts { margin: 0; display: grid; gap: var(--space-s); padding: var(--space-m); background: var(--bg-ultra-light); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); }
-  .facts div { display: grid; grid-template-columns: 4.375rem 1fr; gap: var(--space-s); }
-  .facts dt { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dark-muted); padding-block-start: 0.1875rem; }
-  .facts dd { margin: 0; font-weight: 600; display: flex; flex-direction: column; }
-  .sub { font-weight: 400; color: var(--text-dark-muted); font-size: var(--text-m); }
-  .actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+  .event-detail { display: grid; gap: var(--space-l); grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); padding-block-start: var(--space-m); padding-block-end: var(--space-xl); align-items: start; }
+  @media (max-width: 860px) { .event-detail { grid-template-columns: 1fr; gap: 24px; } }
+  .event-detail__media { position: sticky; top: 1.25rem; }
+  @media (max-width: 860px) { .event-detail__media { position: static; } }
+  .event-detail__art { border-radius: var(--radius); overflow: hidden; }
+  .event-detail__flyer { display: block; position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--neutral-light); background: var(--bg-ultra-light); }
+  .event-detail__flyer img { inline-size: 100%; max-block-size: 40rem; object-fit: contain; }
+  .event-detail__zoom { position: absolute; right: 0.75rem; bottom: 0.75rem; background: rgba(28,27,26,.8); color: var(--white); font-size: var(--text-xs); padding: 0.375rem var(--space-s); border-radius: 999px; }
+  .event-detail__info { display: flex; flex-direction: column; gap: var(--space-m); }
+  .event-detail__info h1 { font-size: clamp(2rem, 5vw, 3.2rem); }
+  .event-facts { margin: 0; display: grid; gap: var(--space-s); padding: var(--space-m); background: var(--bg-ultra-light); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); }
+  .event-facts div { display: grid; grid-template-columns: 4.375rem 1fr; gap: var(--space-s); }
+  .event-facts dt { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dark-muted); padding-block-start: 0.1875rem; }
+  .event-facts dd { margin: 0; font-weight: 600; display: flex; flex-direction: column; }
+  .event-facts__sub { font-weight: 400; color: var(--text-dark-muted); font-size: var(--text-m); }
+  .event-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
   /* White fill at rest. Set through ACSS's own button variable so the hover fill still applies
      (a plain `background` here kept the button white on hover, under near-white hover text). */
-  .actions .btn--outline { --btn-background: var(--bg-ultra-light); }
-  .addcal { position: relative; }
-  .addcal summary { list-style: none; }
-  .addcal summary::-webkit-details-marker { display: none; }
-  .menu { position: absolute; z-index: 10; top: calc(100% + 0.375rem); left: 0; min-inline-size: 13.75rem; background: var(--bg-ultra-light); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); box-shadow: 0 12px 30px rgba(0,0,0,.12); padding: 0.375rem; display: flex; flex-direction: column; }
-  .menu a { padding: var(--space-s) var(--space-s); border-radius: var(--radius-xs); color: var(--text-dark); text-decoration: none; font-weight: 500; }
-  .menu a:hover { background: var(--bg-light); }
-  .desc { color: var(--neutral-dark); }
-  .source { font-size: var(--text-s); color: var(--text-dark-muted); border-block-start: 1px solid var(--neutral-ultra-light); padding-block-start: var(--space-s); }
-  .source a { color: var(--text-dark-muted); }
-  .promote { font-size: var(--text-s); color: var(--text-dark-muted); }
-  .promote a { color: var(--primary); font-weight: 600; }
-  .sponsored-tag { --_sponsored-bg: #FFF4D6; --_sponsored-text: #6B4E00; font-size: var(--text-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 0.1875rem var(--space-xs); border-radius: 999px; background: var(--_sponsored-bg); color: var(--_sponsored-text); vertical-align: 2px; }
-  .more { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); }
-  .also h2 { font-size: var(--text-xl); font-family: var(--text-font-family); font-weight: 700; letter-spacing: 0; margin-block-end: var(--space-xs); }
-  .also ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+  .event-actions .btn--outline { --btn-background: var(--bg-ultra-light); }
+  .event-actions__calendar { position: relative; }
+  .event-actions__calendar summary { list-style: none; }
+  .event-actions__calendar summary::-webkit-details-marker { display: none; }
+  .event-actions__menu { position: absolute; z-index: 10; top: calc(100% + 0.375rem); left: 0; min-inline-size: 13.75rem; background: var(--bg-ultra-light); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); box-shadow: 0 12px 30px rgba(0,0,0,.12); padding: 0.375rem; display: flex; flex-direction: column; }
+  .event-actions__menu a { padding: var(--space-s) var(--space-s); border-radius: var(--radius-xs); color: var(--text-dark); text-decoration: none; font-weight: 500; }
+  .event-actions__menu a:hover { background: var(--bg-light); }
+  .event-detail__description { color: var(--neutral-dark); }
+  .event-detail__source { font-size: var(--text-s); color: var(--text-dark-muted); border-block-start: 1px solid var(--neutral-ultra-light); padding-block-start: var(--space-s); }
+  .event-detail__source a { color: var(--text-dark-muted); }
+  .event-detail__promote { font-size: var(--text-s); color: var(--text-dark-muted); }
+  .event-detail__promote a { color: var(--primary); font-weight: 600; }
+  .event-detail__sponsored { --_sponsored-bg: #FFF4D6; --_sponsored-text: #6B4E00; font-size: var(--text-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 0.1875rem var(--space-xs); border-radius: 999px; background: var(--_sponsored-bg); color: var(--_sponsored-text); vertical-align: 2px; }
+  .event-also__more { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); }
+  .event-also h2 { font-size: var(--text-xl); font-family: var(--text-font-family); font-weight: 700; letter-spacing: 0; margin-block-end: var(--space-xs); }
+  .event-also ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-xs); }
 </style>

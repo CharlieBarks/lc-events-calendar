@@ -17,7 +17,7 @@ const jsonLd = [
 ];
 ---
 <Layout title="Things to Do in Las Cruces This Weekend" description={`What's happening in Las Cruces this weekend (${range}): live music, markets, family stuff and more, picked by a local.`} jsonLd={jsonLd}>
-  <section class="hero wrap">
+  <section class="weekend-hero wrap">
     <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">This weekend</span></nav>
     <p class="eyebrow">{range}</p>
     <h1>This weekend in Las Cruces</h1>
@@ -31,6 +31,6 @@ const jsonLd = [
   <Newsletter />
 </Layout>
 <style>
-  .hero { display: flex; flex-direction: column; gap: var(--space-s); padding-block-end: var(--space-l); }
-  .hero h1 { margin-block-start: var(--space-s); }
+  .weekend-hero { display: flex; flex-direction: column; gap: var(--space-s); padding-block-end: var(--space-l); }
+  .weekend-hero h1 { margin-block-start: var(--space-s); }
 </style>

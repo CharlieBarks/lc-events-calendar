@@ -3,14 +3,14 @@ import Heart from './Heart.astro';
 import { SITE } from '../lib/site.js';
 ---
 <section class="section" aria-labelledby="nl-title">
-  <div class="wrap two">
-    <div class="box red">
-      <span class="badge"><Heart size={22} /></span>
+  <div class="wrap signup">
+    <div class="signup__box" data-variant="newsletter">
+      <span class="signup__badge"><Heart size={22} /></span>
       <h2 id="nl-title">The good stuff, three times a week.</h2>
       <p>I hand-pick the best of this calendar for the Live Love Las Cruces newsletter: events on Tuesdays and Fridays, live music on Thursdays. Join {SITE.subscribers} locals who already get it.</p>
       <a class="btn--primary-light" href={SITE.newsletterUrl}>Get the free newsletter</a>
     </div>
-    <div class="box white">
+    <div class="signup__box" data-variant="submit">
       <h2>Throwing something? Put it on the calendar.</h2>
       <p>Listings are free for anything open to the public in Las Cruces and Mesilla. Snap a photo of your flyer and you're halfway done. I read every one. – Charlie</p>
       <a class="btn--base" href="/submit/">Add your event</a>
@@ -19,12 +19,12 @@ import { SITE } from '../lib/site.js';
 </section>
 
 <style>
-  .two { display: grid; gap: var(--space-m); grid-template-columns: repeat(auto-fit, minmax(18.75rem, 1fr)); }
-  .box { border-radius: var(--radius); padding: var(--space-l); display: flex; flex-direction: column; gap: var(--space-s); align-items: flex-start; }
-  .box h2 { font-size: clamp(1.6rem, 3vw, 2rem); }
-  .red { background: var(--primary); color: var(--white); }
-  .badge { display: inline-flex; align-items: center; justify-content: center; inline-size: 2.75rem; block-size: 2.75rem; border-radius: 999px; background: var(--white); }
-  .red p { color: var(--primary-ultra-light); }
-  .white { background: var(--bg-ultra-light); border: 1px solid var(--neutral-light); }
-  .white p { color: var(--text-dark-muted); }
+  .signup { display: grid; gap: var(--space-m); grid-template-columns: repeat(auto-fit, minmax(18.75rem, 1fr)); }
+  .signup__box { border-radius: var(--radius); padding: var(--space-l); display: flex; flex-direction: column; gap: var(--space-s); align-items: flex-start; }
+  .signup__box h2 { font-size: clamp(1.6rem, 3vw, 2rem); }
+  .signup__box[data-variant="newsletter"] { background: var(--primary); color: var(--white); }
+  .signup__badge { display: inline-flex; align-items: center; justify-content: center; inline-size: 2.75rem; block-size: 2.75rem; border-radius: 999px; background: var(--white); }
+  .signup__box[data-variant="newsletter"] p { color: var(--primary-ultra-light); }
+  .signup__box[data-variant="submit"] { background: var(--bg-ultra-light); border: 1px solid var(--neutral-light); }
+  .signup__box[data-variant="submit"] p { color: var(--text-dark-muted); }
 </style>
