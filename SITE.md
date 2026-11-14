@@ -104,7 +104,12 @@ Built Nov 14, 2026. One set of rules, `src/lib/repeat.js`, is used by the form, 
   - Changing an event that's on the calendar puts the change in the review queue, marked "Changed by the organizer". The calendar keeps the earlier version until Charlie approves. Reject keeps the earlier version.
   - An organizer can't switch on Spotlight or change the contact email through an edit.
 - **Charlie editing an approved event:** "Edit" next to it under Recently approved on the review page. It reopens in the queue with every field editable; Approve replaces the live version, Reject leaves it as it was.
-- **Not built yet:** emailing the link to the submitter (the link is only shown on screen and kept on their device), Trusted Editors whose changes go live without review, and one link per venue that lists all of its events.
+- **Emails (built Nov 14, 2026):** sent by the `lc-events-intake` Worker through Cloudflare Email Service (`EMAIL` binding in `wrangler.intake.jsonc`; livelovelascruces.com was already set up as a sending domain on Nov 7), from events@livelovelascruces.com. Replies go to `NOTIFY_TO`.
+  - To the submitter: a thank-you with their private edit link as soon as they send an event, and a note when it goes on the calendar (or when a change they made is approved). No email when Charlie reopens and fixes an event himself, and none on Reject.
+  - To Charlie (`NOTIFY_TO` in `wrangler.intake.jsonc`): every new submission and every organizer change, with a link to the review page.
+  - The wording is in `mailThanks`, `mailApproved` and `mailCharlie` in `intake.js`. A failed send is logged and never blocks a submission.
+  - Links in the emails use `LIVE_SITE` in `intake.js`: change it when the calendar moves to events.livelovelascruces.com.
+- **Not built yet:** Trusted Editors whose changes go live without review, and one link per venue that lists all of its events.
 - Feed events (CitySpark, city) can't be edited: they are copies and are overwritten nightly. To change one, enter it through the form; ours replaces the feed's copy.
 
 ## Header and navigation: match livelovelascruces.com
