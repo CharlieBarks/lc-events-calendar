@@ -9,10 +9,19 @@ import { getVenues } from '../../lib/events.js';
 
 export async function getStaticPaths() {
   const venues = await getVenues();
-  return venues.map((venue) => ({ params: { key: venue.key }, props: { venue } }));
+  const paths = venues.map((venue) => ({ params: { key: venue.key }, props: { venue } }));
+  // A renamed venue: its old address forwards to the new page.
+  const taken = new Set(venues.map((v) => v.key));
+  for (const venue of venues) {
+    for (const old of venue.oldKeys || []) {
+      if (!taken.has(old)) { taken.add(old); paths.push({ params: { key: old }, props: { venue, movedTo: `/venue/${venue.key}/` } }); }
+    }
+  }
+  return paths;
 }
 
-const { venue } = Astro.props;
+const { venue, movedTo } = Astro.props;
+if (movedTo) return Astro.redirect(movedTo, 301);
 const dated = venue.events.filter((e) => !e.ongoing);
 const onNow = venue.events.filter((e) => e.ongoing);
 const count = venue.events.length;
@@ -23,7 +32,7 @@ const description = count
   ? `${count} upcoming event${count === 1 ? '' : 's'} at ${venue.name} in Las Cruces, NM${venue.address ? ` (${venue.address})` : ''}. Dates, times and directions, updated daily.`
   : `Events at ${venue.name} in Las Cruces, NM. Nothing is listed right now; check back or add an event.`;
 const jsonLd = [
-  { '@context': 'https://schema.org', '@type': 'Place', name: venue.name, url: `${SITE.url}${path}`,
+  { '@context': 'https://schema.org', '@type': 'Place', name: venue.name, url: `${SITE.url}${path}`, ...(venue.website ? { sameAs: venue.website } : {}),
     ...(venue.address ? { address: { '@type': 'PostalAddress', streetAddress: venue.address, addressRegion: 'NM', addressCountry: 'US' } } : {}) },
   breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Venues', path: '/venues/' }, { name: venue.name, path }]),
 ];
@@ -38,9 +47,11 @@ const jsonLd = [
     <p class="eyebrow">Venue</p>
     <h1>{venue.name}</h1>
     {venue.address && <p class="lede">{venue.address}</p>}
+    {venue.about && <p class="venue-head__about">{venue.about}</p>}
     <p class="venue-head__count">{count ? `${count} event${count === 1 ? '' : 's'} coming up` : 'Nothing on the calendar here right now'}</p>
     <div class="btn-row">
       <a class="btn--primary" href={directions} rel="noopener">Directions</a>
+      {venue.website && <a class="btn--base btn--outline" href={venue.website} rel="noopener">Website</a>}
       <a class="btn--base btn--outline" href={`/submit/?venue=${encodeURIComponent(venue.name)}`}>Add an event here</a>
     </div>
   </section>
@@ -64,6 +75,7 @@ const jsonLd = [
 <style>
   .venue-head { display: flex; flex-direction: column; gap: var(--space-s); padding-block-end: var(--space-l); }
   .venue-head h1 { margin-block-start: var(--space-xs); }
+  .venue-head__about { max-inline-size: 65ch; }
   .venue-head__count { color: var(--text-dark-muted); }
   .venue-list { padding-block-end: var(--space-xl); }
   .venue-list__on-now { display: flex; flex-direction: column; gap: var(--space-s); margin-block-start: var(--space-l); }

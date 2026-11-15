@@ -10,6 +10,8 @@
 //   GET  /img/<id>.jpg   a submitted flyer, full size
 //   GET  /review/        Charlie's review queue (behind Cloudflare Access: Charlie only)
 //   /review/api/...      approve / reject / remove / flags (also behind Access)
+//   GET  /venues.json    Charlie's venue edits (the site build merges them into the master venue list)
+//   GET  /review/venues/ the Venues screen: names, addresses, other spellings (behind Access)
 //
 // Edit links: every submission gets a secret key ("<id>.<token>"). The form shows the submitter a
 // private link carrying it (/submit/?edit=<key>). Whoever has the link can change that one
@@ -37,6 +39,8 @@
 // The same hooks are called once a day on a schedule (see "scheduled" at the bottom), CitySpark or not.
 
 import { tidyRepeat, describe, expand, addDaysKey } from './src/lib/repeat.js';
+import { fold, venueKey, mergeVenues } from './src/lib/venue-merge.js';
+import venueData from './src/data/venues.json';
 
 const TZ = 'America/Denver';
 const PUBLIC_ORIGIN = 'https://lc-events-intake.cf2-99b.workers.dev';
@@ -492,8 +496,10 @@ async function reviewApi(request, env, path, ctx) {
     const approved = await getApproved(env);
     return json({ pending: pending.map(({ token, ...r }) => r), approved: approved.slice(-60).reverse() });
   }
+  if (request.method === 'GET' && path === 'venues') return venuesApi(request, env, path);
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
+  if (['venue', 'venue-undo', 'publish'].includes(path)) return venuesApi(request, env, path, body);
   if (path === 'approve') {
     const rec = await env.MEDIA.get(`sub/pending/${body.id}`, 'json');
     if (!rec) return json({ error: 'Already handled.' }, { status: 404 });
@@ -562,6 +568,156 @@ async function reviewApi(request, env, path, ctx) {
   return json({ error: 'Not found' }, { status: 404 });
 }
 
+// ---------- Venues (Charlie only, via Cloudflare Access) ----------
+// The master venue list is src/data/venues.json plus the edits saved here (KV: venues/edits.json).
+// The site build reads the edits from /venues.json and merges them with the same rules
+// (src/lib/venue-merge.js). Saving doesn't rebuild the site: changes go live with the nightly
+// rebuild, or right away with "Publish changes now" on the Venues screen.
+
+async function getVenueEdits(env) {
+  return (await env.MEDIA.get('venues/edits.json', 'json'))?.venues || [];
+}
+
+function tidyVenue(b) {
+  const lines = Array.isArray(b.aliases) ? b.aliases : String(b.aliases || '').split('\n');
+  const name = clean(b.name, 140);
+  const seen = new Set([fold(name)]);
+  const aliases = [];
+  for (const a of lines.map((x) => clean(x, 140)).filter(Boolean).slice(0, 40)) {
+    if (seen.has(fold(a))) continue;
+    seen.add(fold(a));
+    aliases.push(a);
+  }
+  return {
+    key: /^[a-z0-9-]{1,160}$/.test(b.key || '') ? b.key : venueKey(name),
+    name,
+    address: clean(b.address, 200),
+    website: /^https?:\/\//i.test(b.website || '') ? clean(b.website, 400) : '',
+    about: clean(b.about, 600),
+    aliases,
+    was: clean(b.was, 140),
+  };
+}
+
+async function venuesApi(request, env, path, body) {
+  const edits = await getVenueEdits(env);
+  if (path === 'venues') {
+    const venues = mergeVenues(venueData.venues, edits).map((v) => ({
+      key: v.key, pageKey: venueKey(v.name), name: v.name, address: v.address || '', website: v.website || '', about: v.about || '',
+      aliases: v.aliases.filter((a) => typeof a === 'string'),
+      rooms: v.aliases.filter((a) => typeof a !== 'string').length,
+      edited: !!v.edited, builtin: venueData.venues.some((x) => venueKey(x.name) === v.key),
+    }));
+    return json({ venues, site: LIVE_SITE }, { headers: { 'cache-control': 'no-store' } });
+  }
+  if (path === 'venue') {
+    const v = tidyVenue(body);
+    if (!v.name || !v.key) return json({ error: 'A venue needs a name.' }, { status: 400 });
+    const all = mergeVenues(venueData.venues, edits);
+    const others = all.filter((x) => x.key !== v.key);
+    // "Add a venue" sends no key: a name that's already on the list is a clash, not an edit.
+    const clash = others.find((x) => venueKey(x.name) === venueKey(v.name)) || (!body.key && all.find((x) => x.key === v.key));
+    if (clash) return json({ error: `There's already a venue called "${clash.name}". To join the two, open that one and add this spelling under "Also known as".` }, { status: 409 });
+    const taken = others.find((x) => x.aliases.some((a) => typeof a === 'string' && v.aliases.some((b) => fold(a) === fold(b))) || v.aliases.some((b) => fold(b) === fold(x.name)));
+    if (taken) return json({ error: `"${taken.name}" already uses one of those spellings. Remove it there first, or it won't be clear which venue it means.` }, { status: 409 });
+    const next = [...edits.filter((e) => e.key !== v.key), { ...v, savedAt: new Date().toISOString() }];
+    await env.MEDIA.put('venues/edits.json', JSON.stringify({ venues: next }));
+    return json({ ok: true, key: v.key });
+  }
+  if (path === 'venue-undo') {
+    // Takes Charlie's edit away: a venue from venues.json goes back to how it is there; one he added is gone.
+    await env.MEDIA.put('venues/edits.json', JSON.stringify({ venues: edits.filter((e) => e.key !== body.key) }));
+    return json({ ok: true });
+  }
+  if (path === 'publish') {
+    await rebuild(env);
+    return json({ ok: true });
+  }
+  return null;
+}
+
+function venuesPage() {
+  return String.raw`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Venues · Las Cruces Events</title>
+<style>
+:root{--ink:#1d1a17;--muted:#6b645c;--line:#e4ddd3;--bg:#faf7f2;--accent:#B23A2B;--ok:#2f6b3a}
+*{box-sizing:border-box}body{margin:0;font:16px/1.45 system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--bg)}
+header{padding:16px 20px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:2}
+.top{display:flex;gap:12px;align-items:center;flex-wrap:wrap;max-width:1100px;margin:0 auto}h1{margin:0;font-size:1.3rem;margin-right:auto}
+a{color:var(--accent)}main{max-width:1100px;margin:0 auto;padding:20px}
+label{display:block;font-size:.8rem;color:var(--muted);margin:10px 0 2px}input,textarea{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+button{font:inherit;font-weight:600;padding:8px 16px;border-radius:999px;border:1px solid var(--ink);background:#fff;cursor:pointer}.save{background:var(--ok);border-color:var(--ok);color:#fff}.undo{color:var(--accent);border-color:var(--accent)}
+.note{font-size:.9rem;color:var(--muted);margin:0 0 14px}.msg{font-size:.9rem;color:var(--muted)}.err{color:var(--accent)}
+#q{max-width:320px}
+.v{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px}
+.v summary{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:10px 14px;cursor:pointer;list-style:none}.v summary::-webkit-details-marker{display:none}
+.v summary strong{font-size:1rem}.v summary span{font-size:.85rem;color:var(--muted)}
+.tag{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;background:#f1ece4;color:var(--ink)!important}.tag.new{background:#fff4d6}.tag.ed{background:#e2efe4}
+.v form{padding:0 14px 14px;border-top:1px solid var(--line)}.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}h2{margin:26px 0 10px;font-size:1.1rem}
+</style></head><body>
+<header><div class="top"><h1>Venues</h1><input id="q" type="search" placeholder="Find a venue" aria-label="Find a venue"><button id="add">+ Add a venue</button><button id="publish">Publish changes now</button><a href="/review/">Submissions</a></div></header>
+<main>
+<p class="note">One name per venue. Put every other spelling under "Also known as" and all of its events show up under the one name. Saved changes go live with tonight's rebuild, or press <strong>Publish changes now</strong> (a few minutes). <span class="msg" id="status"></span></p>
+<div id="new"></div>
+<div id="list">Loading…</div>
+</main>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+let SITE='';
+function form(v){
+  return '<form data-key="'+esc(v.key||'')+'" data-was="'+esc(v.was||'')+'">'+
+  '<div class="row"><div><label>Name (how it shows on the calendar)</label><input name="name" required value="'+esc(v.name)+'"></div><div><label>Address</label><input name="address" value="'+esc(v.address)+'" placeholder="'+esc(v.listedAddress?'From listings: '+v.listedAddress:'Street, city')+'"></div></div>'+
+  '<div class="row"><div><label>Website</label><input name="website" type="url" value="'+esc(v.website)+'" placeholder="https://"></div><div><label>Short description (shown on the venue page)</label><input name="about" value="'+esc(v.about)+'"></div></div>'+
+  '<label>Also known as (other spellings, one per line)</label><textarea name="aliases" rows="'+Math.max(3,(v.aliases||[]).length+1)+'">'+esc((v.aliases||[]).join('\n'))+'</textarea>'+
+  (v.rooms?'<div class="msg">Plus '+v.rooms+' room rule'+(v.rooms===1?'':'s')+' kept from the built-in list.</div>':'')+
+  '<div class="btns"><button class="save" type="submit">Save</button>'+
+  (v.edited?'<button class="undo" type="button" data-undo>'+(v.builtin?'Undo my changes':'Remove this venue')+'</button>':'')+
+  (v.pageKey&&SITE?'<a href="'+SITE+'/venue/'+esc(v.pageKey)+'/" target="_blank" rel="noopener">View page</a>':'')+
+  '<span class="msg" data-msg></span></div></form>';
+}
+function row(v){
+  return '<details class="v" data-find="'+esc((v.name+' '+(v.aliases||[]).join(' ')+' '+(v.address||v.listedAddress||'')).toLowerCase())+'"><summary><strong>'+esc(v.name)+'</strong>'+
+  '<span>'+esc(v.address||v.listedAddress||'No address yet')+'</span>'+
+  (v.count?'<span>'+v.count+' upcoming</span>':'')+
+  (v.unlisted?'<span class="tag new">From the feeds</span>':'')+(v.edited?'<span class="tag ed">Edited</span>':'')+
+  '</summary>'+form(v)+'</details>';
+}
+async function load(keepOpen){
+  const d=await fetch('/review/api/venues').then(r=>r.json());
+  SITE=d.site;
+  let site=[];
+  try{site=(await fetch(SITE+'/venues.json').then(r=>r.json())).venues||[]}catch(e){document.getElementById('status').textContent="Couldn't read the live calendar's venue list, so only the master list is shown."}
+  const byKey=new Map(site.map(s=>[s.key,s]));
+  const known=new Set();
+  const master=d.venues.map(v=>{known.add(v.pageKey);known.add(v.key);const s=byKey.get(v.pageKey)||byKey.get(v.key)||{};return{...v,count:s.count||0,listedAddress:v.address?'':s.address||''}});
+  const loose=site.filter(s=>!known.has(s.key)&&!s.listed).map(s=>({key:s.key,was:s.name,name:s.name,address:'',listedAddress:s.address,website:'',about:'',aliases:[],count:s.count,unlisted:true,pageKey:s.key}));
+  const sort=(a,b)=>a.name.localeCompare(b.name);
+  document.getElementById('list').innerHTML=
+    (loose.length?'<h2>On the calendar, not on your list yet ('+loose.length+')</h2><p class="note">These names came in from the feeds as they are. Open one to fix its name or address, or add its name to another venue\'s "Also known as" to join them.</p>'+loose.sort((a,b)=>b.count-a.count||sort(a,b)).map(row).join(''):'')+
+    '<h2>Your venue list ('+master.length+')</h2>'+master.sort(sort).map(row).join('');
+  if(keepOpen){const el=document.querySelector('form[data-key="'+CSS.escape(keepOpen)+'"]');if(el){el.parentElement.open=true;el.querySelector('[data-msg]').textContent='Saved.'}}
+  filter();
+}
+function filter(){const q=document.getElementById('q').value.trim().toLowerCase();document.querySelectorAll('#list .v').forEach(el=>{el.hidden=!!q&&!el.dataset.find.includes(q)})}
+document.getElementById('q').addEventListener('input',filter);
+document.getElementById('add').onclick=()=>{const n=document.getElementById('new');n.innerHTML='<details class="v" open><summary><strong>New venue</strong></summary>'+form({name:'',address:'',website:'',about:'',aliases:[]})+'</details>';n.querySelector('input').focus()};
+document.getElementById('publish').onclick=async e=>{const s=document.getElementById('status');e.target.disabled=true;s.textContent='Starting the rebuild…';const r=await fetch('/review/api/publish',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}).then(r=>r.json()).catch(()=>({}));s.textContent=r.ok?'Rebuild started. The calendar updates in a few minutes.':"Couldn't start the rebuild. Try again.";e.target.disabled=false};
+document.addEventListener('submit',async e=>{
+  e.preventDefault();const f=e.target,msg=f.querySelector('[data-msg]');msg.className='msg';msg.textContent='Saving…';
+  const body={key:f.dataset.key,was:f.dataset.was,name:f.name.value,address:f.address.value,website:f.website.value,about:f.about.value,aliases:f.aliases.value.split('\n')};
+  const r=await fetch('/review/api/venue',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).catch(()=>({error:'Could not save. Try again.'}));
+  if(r.error){msg.className='msg err';msg.textContent=r.error;return}
+  document.getElementById('new').innerHTML='';await load(r.key);
+});
+document.addEventListener('click',async e=>{
+  if(!e.target.matches('[data-undo]'))return;const f=e.target.closest('form');
+  await fetch('/review/api/venue-undo',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({key:f.dataset.key})});await load();
+});
+load();
+</script></body></html>`;
+}
+
 // ---------- Review page (Charlie only, via Cloudflare Access) ----------
 
 function reviewPage() {
@@ -586,7 +742,7 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 .tag{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;background:#f1ece4}.tag.sp{background:#fff4d6}
 .checks input[type=date]{width:auto;padding:4px 8px}.apflags{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.apflags label{display:flex;gap:4px;align-items:center;margin:0;color:var(--ink);font-size:.85rem}.apflags input[type=checkbox]{width:auto}.apflags input[type=date]{width:auto;padding:2px 6px;font-size:.85rem}@media(max-width:720px){.sub{grid-template-columns:1fr}.show{grid-template-columns:1fr 1fr}}
 </style></head><body>
-<header><h1>Event submissions</h1><div class="msg" id="count">Loading…</div></header>
+<header><h1>Event submissions <a href="/review/venues/" style="font-size:.9rem;font-weight:400;margin-left:12px;color:var(--accent)">Venues</a></h1><div class="msg" id="count">Loading…</div></header>
 <main><div id="pending"></div><h2>Recently approved</h2><div id="approved"></div></main>
 <div id="lb"><img alt=""></div>
 <script>
@@ -663,6 +819,10 @@ export default {
       if (path === '/update' && request.method === 'POST') return await handleUpdate(request, env, origin, ctx);
       if (path === '/mine' && request.method === 'GET') return await handleMine(request, env, origin);
 
+      if (path === '/venues.json') {
+        return json({ venues: await getVenueEdits(env) }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+      }
+
       if (path === '/approved.json') {
         const approved = await getApproved(env);
         return json({ count: approved.length, events: approved }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
@@ -690,6 +850,7 @@ export default {
         }
       }
       if (path === '/review' || path === '/review/') return new Response(reviewPage(), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+      if (path === '/review/venues' || path === '/review/venues/') return new Response(venuesPage(), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
       if (path.startsWith('/review/api/')) return await reviewApi(request, env, path.slice('/review/api/'.length), ctx);
 
       if (path === '/') return new Response('Las Cruces Events submissions. Add an event at https://events.livelovelascruces.com/submit/', { headers: { 'content-type': 'text/plain' } });

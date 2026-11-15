@@ -13,3 +13,8 @@ https://:worker.:subdomain.workers.dev/*
 # Small copies of event pictures. The name changes whenever the picture's address does.
 /thumbs/*
   Cache-Control: public, max-age=604800
+
+# The venue list, read by the Venues screen on the review page (another address, so it needs this).
+/venues.json
+  Access-Control-Allow-Origin: *
+  X-Robots-Tag: noindex
