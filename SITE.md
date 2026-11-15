@@ -16,7 +16,7 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 |---|---|---|
 | CitySpark listings and photos | `cityspark-export` Worker into KV, daily | No |
 | City of Las Cruces events | City feed through `lc-events-proxy` | No |
-| Other organizations' calendars (library, Cruces Creatives, Convention Center, Farm & Ranch Museum, Organ Mountains-Desert Peaks, Audubon) | Read nightly by the `lc-events-intake` Worker (`feeds.js`) | No |
+| Other organizations' calendars (library, museums, Cruces Creatives, Convention Center, Farm & Ranch Museum, Organ Mountains-Desert Peaks, Audubon, Visit Las Cruces as a finder) | Read nightly by the `lc-events-intake` Worker (`feeds.js`) | No |
 | `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Spotlight; `sponsored: true` = paid Spotlight; `sample: true` = preview only) |
 | `src/data/spotlight.json` | Spotlight for events that didn't come through the form (CitySpark, city), matched by name | **Yes** |
 | `src/data/city-snapshot.json` | Offline copy of the city feed | No |
@@ -37,14 +37,15 @@ Built Nov 15, 2026. Charlie's rule: **no review step for feeds.** They publish a
 - `feeds.js` (part of the `lc-events-intake` Worker) reads each calendar at 11:40 PM, half an hour before the first nightly rebuild. Sources are listed in `FEEDS` at the top of that file, with a reader for each kind of calendar: The Events Calendar (WordPress), LibCal, iCal and Wild Apricot.
 - Each source is saved on its own. If one can't be read, last night's copy of it stays, so a calendar that's down for a day doesn't empty ours. `/feeds.json` on the Worker shows the last run (what was read, what failed) and everything saved.
 - The events reach the site inside `/approved.json` (`feeds`), in the same request as approved submissions.
-- **Which copy wins when an event arrives twice:** a submission, then the organization's own calendar, then CitySpark, then the city feed.
+- **Which copy wins when an event arrives twice:** a submission, then the organization's own calendar, then CitySpark, then the city feed, then Visit Las Cruces.
 - A source's name for the "Listed by" line on event pages is in `SOURCES` in `src/lib/site.js` (same key as in `FEEDS`).
 - To add a source: add it to `FEEDS` and to `SOURCES`. If its calendar is a new kind, it needs a new reader.
 - The schedule has two jobs: the three rebuild times are also listed in `intake.js` (`REBUILD_TIMES`); any other time on the schedule reads the feeds. Keep the two lists in step.
 - **Hidden listings (built Nov 15):** the review page has "Hidden listings". Paste an event's address to hide it; tick "Every date of it" to hide all its dates (an address without a date always means every date). Hidden stays hidden on later nights; "Show again" undoes it. Only feed listings (organizations' calendars, CitySpark, city) can be hidden; submissions are taken off with Remove. The list is in KV `hidden.json` and reaches the build inside `/approved.json` (`hidden`).
 - **Suggest an edit (built Nov 15):** every event page has "Suggest an edit", which opens `/submit/?suggest=<slug>` filled in from the page's `event-data` block. The change waits in the review queue marked "Suggested edit" (emails go out as for any submission). Approving it puts that version on the calendar and hides the original listing. It keeps the original's picture unless the person adds their own.
 - **Links out carry UTM tags** (`utm_source=livelovelascruces&utm_medium=events_calendar`, `tagged()` in `src/lib/site.js`), so organizers see our visitors in their analytics. Not on our own sites, and not on links that already have UTM tags. The newsletter uses `utm_medium=newsletter` (GrokBot adds those).
-- Planned: Visit Las Cruces (as a finder only: publish only events that link to the organizer, never link to their calendar) and Las Cruces Museums.
+- **Las Cruces Museums** (Museum of Art, Nature & Science, Branigan Cultural Center, Railroad Museum) come from their Assabet calendar's XML list. "Registration period" items are skipped.
+- **Visit Las Cruces is a finder only** (Charlie, Nov 15): read through the same search their calendar page uses (Simpleview, with a short-lived token). An event is kept only when it links to the organizer's own site, and it links there, never to Visit Las Cruces. It loses to every other source (`finder: true` in `FEEDS`), so it only adds events nobody else has. Its "Listed by" line credits the venue.
 - Source research: project doc `event-sources-feed-check-2026-11-15.md`.
 
 ## Who it's for, and the category list
