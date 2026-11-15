@@ -42,7 +42,7 @@ export const decode = (s = '') => String(s)
 
 // HTML -> plain text with paragraph breaks kept.
 export const plain = (html = '', max = 1500) => {
-  const text = decode(String(html)
+  const text = decode(String(html).replace(/\r/g, '')
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
     .replace(/<\/(p|div|li|h\d)>|<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, ''))
@@ -102,9 +102,15 @@ export function readLibcal(data, feed) {
   return (data.results || []).map((e) => {
     const allDay = !!e.all_day;
     const sameDay = String(e.startdt).slice(0, 10) === String(e.enddt).slice(0, 10);
-    // "campus" is the branch; "location" is the room inside it.
-    const branch = oneLine(e.campus?.name ?? e.campus) || feed.venue;
-    const room = oneLine(e.location?.name ?? e.location);
+    // "location" is a room at Branigan, or another branch ("Munson Branch Library", "Sage Branch
+    // Library", "Munson Room 3"). "campus" is empty in this library's calendar.
+    let branch = oneLine(e.campus?.name ?? e.campus) || feed.venue;
+    let room = oneLine(e.location?.name ?? e.location);
+    const other = room.match(/^(munson|sage)\b/i);
+    if (other) {
+      branch = `${other[1][0].toUpperCase()}${other[1].slice(1).toLowerCase()} Branch Library`;
+      room = /branch library$/i.test(room) ? '' : room.replace(/^(munson|sage)\s*/i, '');
+    } else if (/^(thomas )?branigan( memorial)? library$/i.test(room)) room = '';
     const names = (list) => (Array.isArray(list) ? list.map((x) => oneLine(x?.name ?? x)).filter(Boolean) : []);
     return {
       title: oneLine(e.title),

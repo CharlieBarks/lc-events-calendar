@@ -152,6 +152,13 @@ export const SOURCES = {
   cityspark: { name: 'Live Love Las Cruces', url: 'https://livelovelascruces.com' },
   'city-of-las-cruces': { name: 'City of Las Cruces', url: 'https://lascruces.gov/events/' },
   lllc: { name: 'Live Love Las Cruces', url: 'https://livelovelascruces.com' },
+  // Calendars the submissions Worker reads every night (FEEDS in feeds.js: same keys).
+  library: { name: 'Las Cruces Public Libraries', url: 'https://lascruceslibrary.libcal.com/calendars' },
+  'cruces-creatives': { name: 'Cruces Creatives', url: 'https://crucescreatives.org/Events' },
+  'convention-center': { name: 'Las Cruces Convention Center', url: 'https://meetinlascruces.com/events/' },
+  'farm-ranch': { name: 'New Mexico Farm & Ranch Heritage Museum', url: 'https://nmfarmandranchmuseum.org/events/' },
+  'organ-mountains': { name: 'Friends of the Organ Mountains-Desert Peaks', url: 'https://organmountainsdesertpeaks.org/events/' },
+  audubon: { name: 'Mesilla Valley Audubon Society', url: 'https://mvasaudubon.org/my-calendar/' },
 };
 
 export function breadcrumbJsonLd(items) {
@@ -162,4 +169,21 @@ export function breadcrumbJsonLd(items) {
       '@type': 'ListItem', position: i + 1, name: it.name, item: `${SITE.url}${it.path}`,
     })),
   };
+}
+
+// Links out to organizers carry UTM tags, so they see the visits we send them in their own
+// analytics as "livelovelascruces" (Charlie's call, Nov 15). The newsletter uses the same source
+// with utm_medium=newsletter. Our own sites and links that already carry UTM tags are left alone.
+const OWN_HOSTS = /(^|\.)(livelovelascruces\.com|lascrucesarttrail\.com|lascruceslive\.com|workers\.dev)$/i;
+export function tagged(url) {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol) || OWN_HOSTS.test(u.hostname) || [...u.searchParams.keys()].some((k) => k.startsWith('utm_'))) return url;
+    u.searchParams.set('utm_source', 'livelovelascruces');
+    u.searchParams.set('utm_medium', 'events_calendar');
+    return u.toString();
+  } catch {
+    return url;
+  }
 }

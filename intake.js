@@ -11,6 +11,11 @@
 //   GET  /review/        Charlie's review queue (behind Cloudflare Access: Charlie only)
 //   /review/api/...      approve / reject / remove / flags (also behind Access)
 //   GET  /feeds.json     what last night's reading of other calendars brought in (see feeds.js)
+//
+// Hidden listings: Charlie can hide any listing that came from a feed (review page, "Hidden
+// listings"). The list rides along in /approved.json ("hidden") and the site build leaves those out.
+// "Suggest an edit" on an event page opens the form filled in with that listing; the result waits in
+// the review queue marked as a suggested change, and approving it hides the original listing.
 //   GET  /venues.json    Charlie's venue edits (the site build merges them into the master venue list)
 //   GET  /review/venues/ the Venues screen: names, addresses, other spellings (behind Access)
 //
@@ -108,9 +113,10 @@ const whenLine = (rec) => (rec.repeat ? describe(rec.repeat) : rec.shows.map((s)
 
 // To the submitter, right after they send an event.
 function mailThanks(env, rec, site) {
-  return sendMail(env, rec.contact?.email, `Thank you! "${rec.title}" is in`, [
+  return sendMail(env, rec.contact?.email, rec.suggests ? `Thank you for the fix to "${rec.title}"` : `Thank you! "${rec.title}" is in`, [
     `Hi ${firstName(rec.contact?.name)},`,
-    `Thank you for adding "${rec.title}" to the Las Cruces events calendar. I mean that. This calendar only works because people like you take a few minutes to share what's happening, and every event you add helps a neighbor find something good to do in town.`,
+    ...(rec.suggests ? [`Thank you for taking the time to correct "${rec.title}" on the Las Cruces events calendar. Fixes like yours are how this calendar stays right.`] : []),
+    ...(rec.suggests ? [] : [`Thank you for adding "${rec.title}" to the Las Cruces events calendar. I mean that. This calendar only works because people like you take a few minutes to share what's happening, and every event you add helps a neighbor find something good to do in town.`]),
     `Here's what happens next: I look over every event myself, usually within a day. You'll hear from me again as soon as it's on the calendar.`,
     { text: 'Need to fix a time or swap the flyer? This is your private edit link. Keep it handy, and only share it with someone you want editing this event:', href: `${site}/submit/?edit=${rec.id}.${rec.token}` },
     `Got more coming up? Add as many as you like: ${site}/submit/`,
@@ -328,6 +334,10 @@ function tidySubmission(b) {
     act: clean(b.act, 140), // set when a musician comes from their Las Cruces Live page
     boost: b.boost === 'spotlight' ? 'spotlight' : '', // asked for the paid Spotlight package
     source: clean(b.source, 40) || 'form',
+    // "Suggest an edit": the calendar listing this replaces (its address on the site), and the
+    // picture that listing already had, so an approved suggestion doesn't lose it.
+    suggests: /^[a-z0-9-]{3,140}$/.test(b.suggests || '') ? b.suggests : '',
+    imageUrl: /^https:\/\//i.test(b.imageUrl || '') ? clean(b.imageUrl, 500) : '',
   };
 }
 
@@ -359,7 +369,7 @@ async function handleSubmit(request, env, origin, ctx) {
   const token = newToken();
   const record = { id, token, status: 'pending', submittedAt: new Date().toISOString(), ip, site: siteFor(origin), ...sub };
   await env.MEDIA.put(`sub/pending/${id}`, JSON.stringify(record));
-  ctx.waitUntil(Promise.all([mailThanks(env, record, record.site), mailCharlie(env, record, 'New event')]));
+  ctx.waitUntil(Promise.all([mailThanks(env, record, record.site), mailCharlie(env, record, record.suggests ? 'Suggested edit' : 'New event')]));
   return json({ ok: true, id, key: `${id}.${token}`, shows: sub.shows.length }, {}, origin);
 }
 
@@ -464,7 +474,7 @@ function toCalendarEvents(rec) {
       price: rec.price,
       description: rec.description || (rec.performers ? `With ${rec.performers}.` : ''),
       url: rec.url,
-      image: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : '',
+      image: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : rec.imageUrl || '',
       featured: !!rec.featured,
       sponsored: !!rec.sponsored,
       spotlightUntil: rec.spotlightUntil || '',
@@ -484,6 +494,27 @@ async function rebuild(env) {
   await Promise.all(env.DEPLOY_HOOKS.split(',').map((s) => s.trim()).filter(Boolean).map((h) => fetch(h, { method: 'POST' }).catch(() => {})));
 }
 
+// ---------- Hidden listings ----------
+// { slug, title, all, reason, at }. "all" = every date of that listing (its address without the date).
+async function getHidden(env) {
+  return (await env.MEDIA.get('hidden.json', 'json'))?.hidden || [];
+}
+// Accepts a full address ("https://…/event/toddler-story-time-2026-11-17/") or just the slug.
+function hiddenSlug(input) {
+  const m = String(input || '').trim().toLowerCase().match(/(?:\/event\/)?([a-z0-9-]{3,140})\/?(?:[?#].*)?$/);
+  return m ? m[1].replace(/\.ics$/, '') : '';
+}
+async function setHidden(env, item, on) {
+  const slug = hiddenSlug(item.slug);
+  if (!slug) return false;
+  const list = (await getHidden(env)).filter((h) => h.slug !== slug);
+  // No date at the end of the address: it already means every date.
+  const all = !!item.all || !/\d{4}-\d{2}-\d{2}(-\d+)?$/.test(slug);
+  if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), at: new Date().toISOString() });
+  await env.MEDIA.put('hidden.json', JSON.stringify({ hidden: list.slice(-500) }));
+  return true;
+}
+
 async function reviewApi(request, env, path, ctx) {
   if (request.method === 'GET' && path === 'list') {
     const list = await env.MEDIA.list({ prefix: 'sub/pending/' });
@@ -499,10 +530,16 @@ async function reviewApi(request, env, path, ctx) {
     return json({ pending: pending.map(({ token, ...r }) => r), approved: approved.slice(-60).reverse() });
   }
   if (request.method === 'GET' && path === 'venues') return venuesApi(request, env, path);
+  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
   if (['venue', 'venue-undo', 'publish'].includes(path)) return venuesApi(request, env, path, body);
   if (path === 'feeds-refresh') return json({ ok: true, feeds: await refreshFeeds(env) });
+  if (path === 'hide' || path === 'unhide') {
+    if (!(await setHidden(env, body, path === 'hide'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
+    if (body.publish) await rebuild(env);
+    return json({ ok: true });
+  }
   if (path === 'approve') {
     const rec = await env.MEDIA.get(`sub/pending/${body.id}`, 'json');
     if (!rec) return json({ error: 'Already handled.' }, { status: 404 });
@@ -517,6 +554,8 @@ async function reviewApi(request, env, path, ctx) {
     await env.MEDIA.put('sub/approved.json', JSON.stringify(approved));
     await env.MEDIA.put(`sub/done/${rec.id}`, JSON.stringify({ ...edited, change: false, status: 'approved', reviewedAt: new Date().toISOString() }));
     await env.MEDIA.delete(`sub/pending/${rec.id}`);
+    // A suggested edit replaces a listing from a feed: hide that one so the event doesn't show twice.
+    if (rec.suggests) await setHidden(env, { slug: rec.suggests, title: edited.title, reason: 'Replaced by a suggested edit' }, true);
     await rebuild(env);
     // Tell the submitter: the first time it goes live, and when a change they made is approved.
     // Not when Charlie reopened it himself to fix something.
@@ -742,14 +781,19 @@ button{font:inherit;font-weight:600;padding:10px 16px;border-radius:999px;border
 h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:.95rem}
 .ap a{color:var(--ink)}.ap button{padding:4px 12px;font-size:.85rem}#lb{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;place-items:center;z-index:9;cursor:zoom-out}#lb img{max-width:96vw;max-height:96vh}
 .msg{font-size:.9rem;color:var(--muted)}.boost{background:#fff4d6;border:1px solid #e8c766;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:.95rem}
+.hide{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.hide input[name=slug]{flex:1;min-width:260px}.hide label{display:flex;gap:6px;align-items:center;margin:0;color:var(--ink)}.hide input[type=checkbox]{width:auto}
 .tag{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;background:#f1ece4}.tag.sp{background:#fff4d6}
 .checks input[type=date]{width:auto;padding:4px 8px}.apflags{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.apflags label{display:flex;gap:4px;align-items:center;margin:0;color:var(--ink);font-size:.85rem}.apflags input[type=checkbox]{width:auto}.apflags input[type=date]{width:auto;padding:2px 6px;font-size:.85rem}@media(max-width:720px){.sub{grid-template-columns:1fr}.show{grid-template-columns:1fr 1fr}}
 </style></head><body>
 <header><h1>Event submissions <a href="/review/venues/" style="font-size:.9rem;font-weight:400;margin-left:12px;color:var(--accent)">Venues</a></h1><div class="msg" id="count">Loading…</div></header>
-<main><div id="pending"></div><h2>Recently approved</h2><div id="approved"></div></main>
+<main><div id="pending"></div><h2>Recently approved</h2><div id="approved"></div>
+<h2>Hidden listings</h2><p class="msg">Something from a feed that shouldn't be on the calendar? Paste its address from the event page. It stays hidden on later nights too.</p>
+<form id="hide" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide</button><span class="msg" data-msg></span></form>
+<div id="hidden"></div></main>
 <div id="lb"><img alt=""></div>
 <script>
 const CATS='${cats.replace(/'/g, "\\'")}';
+const SITE='${LIVE_SITE}';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 const lb=document.getElementById('lb');lb.onclick=()=>lb.style.display='none';
 function showRow(s){return '<div class="show"><div><label>Date</label><input type="date" name="date" value="'+esc(s.date)+'"></div><div><label>Starts</label><input type="time" name="start" value="'+esc(s.start)+'"></div><div><label>Ends</label><input type="time" name="end" value="'+esc(s.end)+'"></div><div><label>Different act / title (optional)</label><input name="stitle" value="'+esc(s.title)+'"></div><button type="button" data-del>✕</button></div>'}
@@ -764,12 +808,18 @@ function card(r){
   (r.change?'<div class="boost"><strong>'+(r.changedBy==='charlie'?'You reopened this to edit it.':'Changed by the organizer.')+'</strong> The calendar keeps the current version until you approve. Reject = keep the current version.</div>':'')+
   (r.repeat?'<div class="boost" data-repeat><strong>Repeats: '+esc(r.repeatText)+'.</strong> The first date above sets the start and the times. Next dates: '+esc((r.repeatDates||[]).join(', ')||'none in the next 90 days')+'<div class="row"><div><label>Stops after (empty = keeps going)</label><input type="date" name="repeatUntil" value="'+esc(r.repeat.until||'')+'"></div><div><label>Dates to leave out (YYYY-MM-DD, commas)</label><input name="repeatSkip" value="'+esc((r.repeat.skip||[]).join(', '))+'"></div></div></div>':'')+
   (r.annual?'<div class="boost"><strong>Annual event.</strong> The organizer says this happens every year.</div>':'')+
+  (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
   '<div class="checks"><label><input type="checkbox" name="featured"> Spotlight</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
   '<div class="meta">From '+esc(r.contact?.name)+' · <a href="mailto:'+esc(r.contact?.email)+'">'+esc(r.contact?.email)+'</a>'+(r.contact?.phone?' · '+esc(r.contact.phone):'')+(r.act?' · Act: '+esc(r.act):'')+' · '+new Date(r.submittedAt).toLocaleString()+'</div>'+
   '<div class="btns"><button class="approve" type="submit">Approve</button><button class="reject" type="button" data-reject>Reject</button><span class="msg" data-msg></span></div></div></form>';
 }
+async function loadHidden(){
+  const d=await fetch('/review/api/hidden').then(r=>r.json());
+  document.getElementById('hidden').innerHTML=d.hidden.map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.reason?' · <span class="msg">'+esc(h.reason)+'</span>':'')+'</span><span class="apflags"><button data-unhide="'+esc(h.slug)+'">Show again</button></span></div>').join('')||'<div class="msg">Nothing hidden.</div>';
+}
 async function load(){
+  loadHidden();
   const d=await fetch('/review/api/list').then(r=>r.json());
   document.getElementById('count').textContent=d.pending.length?d.pending.length+' waiting for you':'All caught up';
   const p=document.getElementById('pending');
@@ -785,10 +835,12 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-reject]')){const f=t.closest('form');if(!confirm('Reject this submission?'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id})});load();return}
   if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
   if(t.matches('[data-reopen]')){t.textContent='Opening…';await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.reopen})});await load();window.scrollTo({top:0,behavior:'smooth'});return}
+  if(t.matches('[data-unhide]')){await fetch('/review/api/unhide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unhide,publish:true})});loadHidden();return}
   if(t.matches('[data-remove]')){if(!confirm('Take this off the calendar?'))return;await fetch('/review/api/remove',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.remove})});load();return}
 });
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target;const msg=f.querySelector('[data-msg]');msg.textContent='Saving…';
+  if(f.id==='hide'){const r=await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,reason:'Hidden by Charlie',publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   const shows=[...f.querySelectorAll('.show')].map(s=>({date:s.querySelector('[name=date]').value,start:s.querySelector('[name=start]').value,end:s.querySelector('[name=end]').value,title:s.querySelector('[name=stitle]').value}));
   const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked,spotlightUntil:f.spotlightUntil.value};
   if(f.repeatUntil)edits.repeat={until:f.repeatUntil.value,skip:f.repeatSkip.value.split(',').map(x=>x.trim()).filter(Boolean)};
@@ -841,8 +893,8 @@ export default {
       if (path === '/approved.json') {
         // "feeds": events read from other organizations' calendars. They ride along here so the site
         // build makes one request for both (each extra request is one more chance of a failed build).
-        const [approved, feeds] = await Promise.all([getApproved(env), getFeedEvents(env)]);
-        return json({ count: approved.length, events: approved, feeds }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+        const [approved, feeds, hidden] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env)]);
+        return json({ count: approved.length, events: approved, feeds, hidden }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
       }
 
       if (path.startsWith('/img/')) {
