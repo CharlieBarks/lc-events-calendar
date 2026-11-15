@@ -7,7 +7,7 @@
 
 // When an event has no better category, its topic decides (pickleball -> Fitness & Rec).
 const TOPIC_CATEGORY = {
-  pickleball: 'fitness', tennis: 'fitness', fitness: 'fitness', yoga: 'fitness', dance: 'fitness', running: 'fitness', cycling: 'fitness', hiking: 'fitness',
+  pickleball: 'fitness', tennis: 'fitness', fitness: 'fitness', yoga: 'fitness', dance: 'fitness', running: 'fitness', cycling: 'fitness', hiking: 'outdoors',
   football: 'sports', basketball: 'sports',
   trivia: 'food-drink', wine: 'food-drink', beer: 'food-drink', cocktails: 'food-drink', food: 'food-drink',
   karaoke: 'live-music', music: 'live-music', dj: 'live-music',

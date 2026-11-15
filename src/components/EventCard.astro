@@ -13,7 +13,7 @@ const shortPrice = /^(free|\$\s?\d[\d.,]*(\s?-\s?\$?\d[\d.,]*)?)$/i.test((event.
 const rowNote = row && event.price && !shortPrice ? event.price : '';
 const showPrice = event.price && !rowNote;
 ---
-<li class="event-card" data-date={event.date} data-cat={event.category} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-card__link" data-layout={row ? 'row' : 'stack'} data-size={big ? 'big' : undefined} data-sponsored={event.sponsored ? '' : undefined} href={`/event/${event.slug}/`}>
+<li class="event-card" data-date={event.date} data-cat={event.category} data-for={event.audience?.length ? event.audience.join(' ') : undefined} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-card__link" data-layout={row ? 'row' : 'stack'} data-size={big ? 'big' : undefined} data-sponsored={event.sponsored ? '' : undefined} href={`/event/${event.slug}/`}>
   <EventArt event={event} height={big ? 230 : row ? 64 : 170} eager={eager} showDate={!row && !event.ongoing} compact={row} />
   <div class="event-card__body">
     <p class="event-card__when">{event.ongoing ? event.series.when : row ? timeRange(event.start, event.end) : `${shortDate(event.start)} · ${timeRange(event.start, event.end)}`}</p>

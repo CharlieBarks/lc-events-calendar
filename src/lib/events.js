@@ -18,7 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import lllcEvents from '../data/events.json';
-import { CATEGORIES, categoryKey, categoryFromTags, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL, REPEAT_DAYS } from './site.js';
+import { CATEGORIES, categoryKey, categoryFromTags, audienceOf, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL, REPEAT_DAYS } from './site.js';
 import { expand, describe, addDaysKey } from './repeat.js';
 import { topicFor } from './topics.js';
 import { resolveVenue, fold, venueKey, venueInfo, venueList } from './venues.js';
@@ -176,6 +176,7 @@ function normalize(e, source) {
   };
   out.topic = topicFor(out);
   if (out.category === 'community' && out.topic?.category) out.category = out.topic.category;
+  out.audience = audienceOf(out);
   return out;
 }
 

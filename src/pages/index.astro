@@ -4,7 +4,7 @@ import Agenda from '../components/Agenda.astro';
 import { HOME_DAYS } from '../lib/site.js';
 import EventCard from '../components/EventCard.astro';
 import Newsletter from '../components/Newsletter.astro';
-import { SITE, CATEGORIES, SPOTLIGHT } from '../lib/site.js';
+import { SITE, CATEGORIES, SPOTLIGHT, AUDIENCES } from '../lib/site.js';
 import { getEvents, shortVenue } from '../lib/events.js';
 import { dateKey, todayWall, addDays, shortDate, weekendRange } from '../lib/time.js';
 
@@ -21,6 +21,12 @@ const picks = [...events, ...ongoing]
   .filter((e) => e.spotlight)
   .filter((e, i, a) => a.findIndex((x) => x.title === e.title) === i)
   .slice(0, 24);
+const FOR_COLOR = { seniors: '#6B4E8B', kids: CATEGORIES.family.color, free: '#2F5D50' };
+const FOR_ICON = {
+  seniors: '<circle cx="12" cy="5" r="2"/><path d="M10 21v-6l-2-3 2-4h4l1 4M14 21v-5M17 12v9"/>',
+  kids: CATEGORIES.family.icon,
+  free: '<path d="M20 12 12 20l-9-9V3h8Z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+};
 const usedCats = Object.keys(CATEGORIES).filter((k) => all.some((e) => e.category === k));
 // Weekly regulars: the truly weekly ones first, then the rest, by next date. 12 is plenty.
 const regulars = [...series]
@@ -150,7 +156,16 @@ const jsonLd = [
         </div>
       </div>
       <ul class="grid-tight vibes" role="list">
-        {usedCats.map((k) => (
+        {/* Who it's for first (Charlie, Nov 15): seniors and families ask for these the most. */}
+        {['seniors', 'kids', 'free'].filter((k) => all.some((e) => e.audience?.includes(k))).map((k) => (
+          <li><a class="vibes__link" href={`/?for=${k}#calendar`} style={`--c:${FOR_COLOR[k]}`}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" set:html={FOR_ICON[k]} />
+            <span class="vibes__name">{k === 'free' ? 'Free things to do' : k === 'kids' ? 'Kids & family' : 'For seniors'}</span>
+            <span class="vibes__count">{all.filter((e) => e.audience?.includes(k)).length} upcoming</span>
+          </a></li>
+        ))}
+        {/* "Kids & family" above already covers the Family category, so it isn't shown twice. */}
+        {usedCats.filter((k) => k !== 'family' || !all.some((e) => e.audience?.includes('kids'))).map((k) => (
           <li><a class="vibes__link" href={`/category/${k}/`} style={`--c:${CATEGORIES[k].color}`}>
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" set:html={CATEGORIES[k].icon} />
             <span class="vibes__name">{CATEGORIES[k].plural}</span>
