@@ -13,7 +13,9 @@
   // Two repeats, 30 and 60 minutes later: now and then Cloudflare answers the build server with a
   // 403 "Just a moment" page when it reads our own feeds, and that build stops (seen twice on Nov 14).
   // A repeat that isn't needed just rebuilds the same site.
-  "triggers": { "crons": ["10 7 * * *", "40 7 * * *", "10 8 * * *"] },
+  // 06:40 UTC (11:40 PM) is not a rebuild: it reads the other organizations' calendars (feeds.js).
+  // The three rebuild times are also listed in intake.js (REBUILD_TIMES): keep the two in step.
+  "triggers": { "crons": ["40 6 * * *", "10 7 * * *", "40 7 * * *", "10 8 * * *"] },
   // "1" = turn away uploads and submissions that fail the "are you a person?" check. See isHuman in intake.js.
   // NOTIFY_TO: where "new event waiting" emails go, and where replies to our emails land.
   "vars": { "TURNSTILE_ENFORCE": "0", "NOTIFY_TO": "charlie@livelovelascruces.com" },
