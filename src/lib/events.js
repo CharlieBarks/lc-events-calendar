@@ -226,16 +226,20 @@ export async function getEvents() {
     const subIndex = index(subs);
     // Next: the organizations' own calendars (library, museums...). Their copy links straight to
     // their page, so it beats CitySpark's copy of the same event.
-    const direct = feedsRaw.flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => shown(e) && !dupOf(subIndex, e));
+    const direct = feedsRaw.filter((e) => !e.finder).flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => shown(e) && !dupOf(subIndex, e));
     const directIndex = index(direct);
     const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => shown(e) && !dupOf(subIndex, e) && !dupOf(directIndex, e));
     // Between CitySpark and the city feed, keep the CitySpark copy (it has a photo).
     const sparkIndex = index(spark);
     const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => shown(e) && !dupOf(sparkIndex, e) && !dupOf(subIndex, e) && !dupOf(directIndex, e));
+    // Last: Visit Las Cruces, used only to find events the others miss (Charlie, Nov 15).
+    const cityIndex = index(city);
+    const found = feedsRaw.filter((e) => e.finder).map((e) => normalize(e, e.feed))
+      .filter((e) => shown(e) && ![subIndex, directIndex, sparkIndex, cityIndex].some((m) => dupOf(m, e)));
     // Sample listings only show on the private preview, never on the live site.
     const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).flatMap((e) => spread(e, today)).map((e) => normalize(e, 'lllc'))];
 
-    const events = [...direct, ...spark, ...city, ...ours]
+    const events = [...direct, ...spark, ...city, ...found, ...ours]
       .filter(Boolean)
       .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today);
 

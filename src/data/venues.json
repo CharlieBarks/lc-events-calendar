@@ -37,6 +37,8 @@
     { "name": "Las Cruces Convention Center", "aliases": ["Convention Center"], "keywords": [] },
     { "name": "Meerscheidt Recreation Center", "aliases": ["Meerscheidt Rec Center"], "keywords": ["recreation"] },
     { "name": "Hotel Encanto de Las Cruces", "aliases": ["Hotel Encanto"], "keywords": ["hotel"] },
-    { "name": "Whiskey Dicks", "aliases": ["Whiskey Dicks Las Cruces", "Whiskey Dick's"], "keywords": ["bar"] }
+    { "name": "Whiskey Dicks", "aliases": ["Whiskey Dicks Las Cruces", "Whiskey Dick's"], "keywords": ["bar"] },
+    { "name": "Las Cruces Museum of Art", "aliases": ["Museum of Art"], "keywords": ["museum", "art", "downtown"] },
+    { "name": "Branigan Cultural Center", "aliases": ["Branigan Cultural Center (Museum)"], "keywords": ["museum", "downtown"] }
   ]
 }

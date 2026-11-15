@@ -176,6 +176,9 @@ export const SOURCES = {
   'convention-center': { name: 'Las Cruces Convention Center', url: 'https://meetinlascruces.com/events/' },
   'farm-ranch': { name: 'New Mexico Farm & Ranch Heritage Museum', url: 'https://nmfarmandranchmuseum.org/events/' },
   'organ-mountains': { name: 'Friends of the Organ Mountains-Desert Peaks', url: 'https://organmountainsdesertpeaks.org/events/' },
+  museums: { name: 'Las Cruces Museums', url: 'https://lascruces.assabetinteractive.com/calendar/' },
+  // Found through Visit Las Cruces; the event page links to the organizer, not to them.
+  'visit-las-cruces': { name: 'the organizer', url: '' },
   audubon: { name: 'Mesilla Valley Audubon Society', url: 'https://mvasaudubon.org/my-calendar/' },
 };
 

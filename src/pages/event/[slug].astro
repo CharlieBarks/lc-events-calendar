@@ -22,7 +22,9 @@ if (Astro.props.forwardTo) return Astro.redirect(Astro.props.forwardTo);
 const { event } = Astro.props;
 const { events } = await getEvents();
 const cat = CATEGORIES[event.category];
-const source = SOURCES[event.source] || SOURCES.lllc;
+const known = SOURCES[event.source] || SOURCES.lllc;
+// Events found through Visit Las Cruces are credited to the organizer, linked to their own page.
+const source = known.url ? known : { name: event.venue || 'the organizer', url: event.url };
 const path = `/event/${event.slug}/`;
 const when = `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
 
@@ -131,7 +133,7 @@ const jsonLd = [
         <div class="prose event-detail__description">{paragraphs.map((p) => <p>{p.split('\n').map((line, i) => <>{i > 0 && <br />}{line}</>)}</p>)}</div>
       )}
 
-      <p class="event-detail__source">Listed by <a href={tagged(source.url)}>{source.name}</a>{event.url && event.source !== 'lllc' && <> · <a href={tagged(event.url)} rel="noopener">{event.source === 'cityspark' ? 'more from the organizer' : 'see the original listing'}</a></>}. Plans change, so double-check before you head out.</p>
+      <p class="event-detail__source">Listed by <a href={tagged(source.url)}>{source.name}</a>{event.url && event.source !== 'lllc' && source.url !== event.url && <> · <a href={tagged(event.url)} rel="noopener">{event.source === 'cityspark' ? 'more from the organizer' : 'see the original listing'}</a></>}. Plans change, so double-check before you head out.</p>
 
       <p class="event-detail__suggest">Something wrong or missing? <a href={`/submit/?suggest=${event.slug}`} rel="nofollow">Suggest an edit</a></p>
       <script type="application/json" id="event-data" set:html={JSON.stringify(suggestData).replace(/</g, '\\u003c')} />

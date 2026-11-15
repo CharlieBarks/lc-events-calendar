@@ -29,6 +29,11 @@ export const FEEDS = [
     // Their titles start with the date ("Nov. 21 – HomeGrown"): the calendar already shows the date.
     title: (t) => t.replace(/^[A-Z][a-z]{2,8}\.? \d{1,2}(?:\s*(?:-|–|&|and)\s*\d{1,2})?\s*[–-]\s*/, '') },
   { id: 'organ-mountains', reader: 'tribe', url: 'https://organmountainsdesertpeaks.org', venue: '', tags: ['Hiking', 'Outdoor Recreation'] },
+  { id: 'museums', reader: 'assabet', url: 'https://lascruces.assabetinteractive.com/calendar/upcoming-events.exml', venue: '', tags: ['Museum'],
+    skip: /registration (period|opens|deadline)|^museums? closed/i },
+  // Visit Las Cruces is a finder only (Charlie, Nov 15): we take an event only when it links to the
+  // organizer, and we link there, never to their calendar. Their copy loses to any other source.
+  { id: 'visit-las-cruces', reader: 'simpleview', url: 'https://www.visitlascruces.com', venue: '', tags: [], finder: true },
   { id: 'audubon', reader: 'ical', url: 'https://mvasaudubon.org/feed/my-calendar-ics', venue: '', tags: ['Outdoor Recreation', 'Bird Walk'] },
 ];
 
@@ -211,6 +216,83 @@ export function readWildApricot(xml, feed) {
   });
 }
 
+// Assabet Interactive (Las Cruces Museums): an XML list of upcoming events, one <item> each, with
+// <date1>2026/11/17</date1>, <time>5:00 PM</time>, <library>Museum of Art, 455 N Main St, …</library>.
+export function readAssabet(xml, feed) {
+  const items = String(xml).match(/<item>[\s\S]*?<\/item>/g) || [];
+  const tag = (x, t) => decode((x.match(new RegExp(`<${t}>([\\s\\S]*?)</${t}>`)) || [])[1] || '').replace(/^<!\[CDATA\[|\]\]>$/g, '').trim();
+  const clock = (t) => {
+    const m = String(t).match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!m) return '';
+    let h = Number(m[1]) % 12;
+    if (/pm/i.test(m[3])) h += 12;
+    return `${String(h).padStart(2, '0')}:${m[2]}`;
+  };
+  return items.map((x) => {
+    const day = tag(x, 'date1').replace(/\//g, '-');
+    const endDay = tag(x, 'enddate1').replace(/\//g, '-') || day;
+    const start = clock(tag(x, 'time'));
+    const end = clock(tag(x, 'endtime'));
+    // "12:00 AM to 11:59 PM" is how it writes an all-day item.
+    const allDay = start === '00:00' && (end === '23:59' || !end);
+    const [place, ...addr] = tag(x, 'library').split(',').map((p) => p.trim());
+    const room = tag(x, 'location');
+    return {
+      title: oneLine(tag(x, 'title')),
+      start: allDay ? day : `${day}T${start}:00`,
+      end: allDay ? (endDay !== day ? endDay : '') : end ? `${endDay}T${end}:00` : '',
+      venue: room && room.toLowerCase() !== place.toLowerCase() ? `${place} > ${room}` : place || feed.venue,
+      address: addr.join(', '),
+      tags: tag(x, 'eventtypes').split(',').map((t) => t.trim()).filter((t) => t && t !== 'All'),
+      price: '',
+      description: plain(tag(x, 'description')),
+      url: http(tag(x, 'link')),
+      image: http(tag(x, 'imagepath')),
+    };
+  });
+}
+
+// Simpleview (Visit Las Cruces): the same search their calendar page uses. It needs a short-lived
+// token from the site, then returns one entry per date in the range asked for.
+export function readSimpleview(data, feed) {
+  const hm = (t) => (String(t || '').match(/^(\d{2}):(\d{2})/) || []).slice(1).join(':');
+  return (data.docs?.docs || []).map((e) => {
+    // "date" is the end of that day in Las Cruces, written in UTC (06:59:59Z the next morning).
+    const day = e.date ? dayKey(new Date(e.date)) : '';
+    const start = hm(e.startTime);
+    const end = hm(e.endTime);
+    const link = http(e.linkUrl);
+    return {
+      title: oneLine(e.title),
+      start: start ? `${day}T${start}:00` : day,
+      end: start && end && end !== start ? `${day}T${end}:00` : '',
+      venue: oneLine(e.location) || oneLine(e.hostname) || feed.venue,
+      address: [oneLine(e.address1), oneLine(e.city), [oneLine(e.state), oneLine(e.zip)].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+      tags: (e.categories || []).map((c) => oneLine(c.catName)).filter((c) => c && c !== 'Events'),
+      price: oneLine(e.admission, 80),
+      description: plain(e.description, 800),
+      // Only the organizer's own link; never a link back to Visit Las Cruces.
+      url: /visitlascruces\.com/i.test(link) ? '' : link,
+      image: http(e.media_raw?.[0]?.mediaurl),
+    };
+  });
+}
+
+async function readSimpleviewFeed(feed) {
+  const token = (await get(`${feed.url}/plugins/core/get_simple_token/`)).trim();
+  const today = dayKey(new Date());
+  const range = { start: { $date: `${today}T07:00:00.000Z` }, end: { $date: `${addDays(today, 60)}T07:00:00.000Z` } };
+  const out = [];
+  for (let skip = 0; skip < 1500; skip += 200) {
+    const q = { filter: { active: true, date_range: range }, options: { limit: 200, skip, count: true, castDocs: false, sort: { date: 1 } } };
+    const data = await get(`${feed.url}/includes/rest_v2/plugins_events_events_by_date/find/?json=${encodeURIComponent(JSON.stringify(q))}&token=${encodeURIComponent(token)}`, 'json');
+    const batch = readSimpleview(data, feed);
+    out.push(...batch);
+    if (batch.length < 200 || out.length >= (data.docs?.count || 0)) break;
+  }
+  return out;
+}
+
 // ---------- Reading one source ----------
 
 async function readFeed(feed) {
@@ -234,6 +316,8 @@ async function readFeed(feed) {
     return out;
   }
   if (feed.reader === 'ical') return readIcal(await get(feed.url), feed);
+  if (feed.reader === 'simpleview') return readSimpleviewFeed(feed);
+  if (feed.reader === 'assabet') return readAssabet(await get(feed.url), feed);
   if (feed.reader === 'wildapricot') return readWildApricot(await get(feed.url), feed);
   throw new Error(`Unknown reader ${feed.reader}`);
 }
@@ -245,6 +329,7 @@ export function tidyFeed(items, feed, today = dayKey(new Date())) {
   const out = [];
   for (const e of items) {
     const title = feed.title ? feed.title(e.title) : e.title;
+    if (feed.skip?.test(title)) continue; // not an event people go to ("Registration Period")
     if (!title || !/^\d{4}-\d{2}-\d{2}/.test(e.start) || !e.url) continue;
     const startDay = e.start.slice(0, 10);
     const endDay = e.repeat ? (e.repeat.until || last) : (e.end || e.start).slice(0, 10);
@@ -252,7 +337,7 @@ export function tidyFeed(items, feed, today = dayKey(new Date())) {
     const key = `${title.toLowerCase()}|${e.start}|${e.venue.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ ...e, title, feed: feed.id, tags: [...new Set([...(e.tags || []), ...feed.tags])] });
+    out.push({ ...e, title, feed: feed.id, tags: [...new Set([...(e.tags || []), ...feed.tags])], ...(feed.finder ? { finder: true } : {}) });
   }
   return out;
 }
