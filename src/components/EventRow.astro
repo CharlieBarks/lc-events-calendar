@@ -9,7 +9,7 @@ import { timeLabel } from '../lib/time.js';
 const { event, headingLevel = 3 } = Astro.props;
 const Heading = `h${headingLevel}`;
 ---
-<li class="event-row" data-date={event.date} data-cat={event.category} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-row__link" href={`/event/${event.slug}/`}>
+<li class="event-row" data-date={event.date} data-cat={event.category} data-for={event.audience?.length ? event.audience.join(' ') : undefined} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-row__link" href={`/event/${event.slug}/`}>
   <span class="event-row__thumb"><EventArt event={event} height={40} showDate={false} compact /></span>
   <span class="event-row__time">{timeLabel(event.start)}</span>
   <Heading class="event-row__name">{event.title}</Heading>

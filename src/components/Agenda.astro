@@ -6,7 +6,7 @@
 // loads when someone starts typing, so the page itself stays as light as before.
 import EventCard from './EventCard.astro';
 import EventRow from './EventRow.astro';
-import { CATEGORIES } from '../lib/site.js';
+import { CATEGORIES, AUDIENCES } from '../lib/site.js';
 import { dayLabel } from '../lib/time.js';
 
 // initialDays: how many days show before "Show more" (only in the unfiltered view).
@@ -33,6 +33,9 @@ const laterCount = later.reduce((n, [, list]) => n + list.length, 0);
 let eagerLeft = fragment ? 0 : 4;
 const usedCats = Object.keys(CATEGORIES).filter((k) => events.some((e) => e.category === k));
 const count = (k) => events.filter((e) => e.category === k).length;
+// "Free", "Kids & Family", "Seniors": who it's for, on top of the category (audienceOf in site.js).
+const forCount = (k) => events.filter((e) => e.audience?.includes(k)).length;
+const usedFor = Object.keys(AUDIENCES).filter((k) => forCount(k) > 0);
 const H = `h${headingLevel}`;
 const itemLevel = headingLevel + 1;
 ---
@@ -57,6 +60,13 @@ const itemLevel = headingLevel + 1;
         <button class="agenda__filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
         <button class="agenda__filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
       </div>
+      {usedFor.length > 0 && (
+        <div class="agenda__filter-row" data-group="for" role="group" aria-label="Who it's for">
+          {usedFor.map((k) => (
+            <button class="agenda__filter" type="button" data-for={k} aria-pressed="false">{AUDIENCES[k]} <span class="agenda__count">{forCount(k)}</span></button>
+          ))}
+        </div>
+      )}
       {usedCats.length > 1 && (
         <div class="agenda__filter-row" data-group="category" role="group" aria-label="Category">
           <button class="agenda__filter" type="button" data-cat="all" aria-pressed="true">Everything</button>
@@ -188,6 +198,7 @@ const itemLevel = headingLevel + 1;
     const state = {
       when: ranges[params.get('when')] ? params.get('when') : 'all',
       cat: params.get('cat') || 'all',
+      for: params.get('for') || '',
       q: (params.get('q') || '').trim(),
       venue: params.get('venue') || '',
     };
@@ -226,7 +237,7 @@ const itemLevel = headingLevel + 1;
       return restPromise;
     }
     // Needed for anything beyond the plain first view: Show more, a category, a search or venue, or a date range that reaches past the days on the page.
-    const needsRest = () => !restLoaded && (expanded || state.cat !== 'all' || searching() || !!state.q
+    const needsRest = () => !restLoaded && (expanded || state.cat !== 'all' || !!state.for || searching() || !!state.q
       || (state.when !== 'all' && ranges[state.when][1] >= restEl.dataset.restFrom));
 
     function apply(push) {
@@ -242,6 +253,7 @@ const itemLevel = headingLevel + 1;
       const [from, to] = ranges[state.when];
       let shown = 0;
       const ok = (li) => (state.cat === 'all' || li.dataset.cat === state.cat)
+        && (!state.for || (li.dataset.for || '').split(' ').includes(state.for))
         && (!matches || matches.has(li.dataset.slug))
         && (!state.venue || li.dataset.venue === state.venue);
       root.querySelectorAll('[data-day]').forEach((sec) => {
@@ -253,7 +265,7 @@ const itemLevel = headingLevel + 1;
         });
 
         // Regulars: show the first few per day, unless a category, search or venue is on, or the day was opened.
-        const limit = state.cat === 'all' && !searching() && !sec.hasAttribute('data-rows-open') ? ROWS_SHOWN : Infinity;
+        const limit = state.cat === 'all' && !state.for && !searching() && !sec.hasAttribute('data-rows-open') ? ROWS_SHOWN : Infinity;
         const visibleRows = [...sec.querySelectorAll('[data-row-list] > li')].filter((li) => !li.hidden);
         visibleRows.slice(limit).forEach((li) => { li.hidden = true; });
         const moreRows = sec.querySelector('[data-more-rows]');
@@ -263,7 +275,7 @@ const itemLevel = headingLevel + 1;
           moreRows.textContent = `Show ${extra} more regular${extra === 1 ? '' : 's'}`;
         }
         sec.querySelectorAll('ul').forEach((ul) => { ul.hidden = ![...ul.children].some((li) => !li.hidden); });
-        const collapsed = !expanded && !searching() && state.when === 'all' && state.cat === 'all' && sec.hasAttribute('data-later');
+        const collapsed = !expanded && !searching() && state.when === 'all' && state.cat === 'all' && !state.for && sec.hasAttribute('data-later');
         sec.hidden = n === 0 || collapsed;
         shown += n;
       });
@@ -277,17 +289,19 @@ const itemLevel = headingLevel + 1;
       if (!restLoaded) shown += state.when === 'all' ? restCount : 0;
       root.querySelectorAll('button[data-when]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.when === state.when)));
       root.querySelectorAll('button[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === state.cat)));
+      root.querySelectorAll('button[data-for]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.for === state.for)));
       const sel = root.querySelector('[data-cat-select]');
       if (sel) sel.value = state.cat;
       root.toggleAttribute('data-searching', searching());
       if (empty) empty.hidden = shown > 0;
-      if (moreWrap) moreWrap.hidden = expanded || searching() || state.when !== 'all' || state.cat !== 'all';
+      if (moreWrap) moreWrap.hidden = expanded || searching() || state.when !== 'all' || state.cat !== 'all' || !!state.for;
       if (chip) {
         chip.hidden = !state.venue;
         chip.querySelector('[data-venue-name]').textContent = venueName || state.venue;
       }
       if (status) {
-        const what = `${shown} event${shown === 1 ? '' : 's'}`;
+        const who = { free: 'free ', kids: 'kid-friendly ', seniors: 'senior ' }[state.for] || '';
+        const what = `${shown} ${who}event${shown === 1 ? '' : 's'}`;
         const q = matches && state.q ? ` matching “${state.q}”` : '';
         const at = state.venue ? ` at ${venueName || 'that venue'}` : '';
         status.textContent = `${what}${q}${at} ${labels[state.when]}`;
@@ -298,6 +312,7 @@ const itemLevel = headingLevel + 1;
         if (state.venue) p.set('venue', state.venue);
         if (state.when !== 'all') p.set('when', state.when);
         if (state.cat !== 'all') p.set('cat', state.cat);
+        if (state.for) p.set('for', state.for);
         history.replaceState(null, '', p.toString() ? `?${p}` : location.pathname);
       }
     }
@@ -406,10 +421,12 @@ const itemLevel = headingLevel + 1;
         return;
       }
       if (b.dataset.when) state.when = b.dataset.when;
+      // Who it's for works with everything else; pressing the one that's on turns it off.
+      else if (b.dataset.for) state.for = state.for === b.dataset.for ? '' : b.dataset.for;
       else if (b.dataset.cat) pickCategory(b.dataset.cat);
       else if (b.hasAttribute('data-more')) { expanded = true; }
       else if (b.hasAttribute('data-reset')) {
-        state.when = 'all'; state.cat = 'all'; state.q = ''; state.venue = ''; venueName = ''; matches = null;
+        state.when = 'all'; state.cat = 'all'; state.for = ''; state.q = ''; state.venue = ''; venueName = ''; matches = null;
         if (input) input.value = '';
       }
       else return;
@@ -576,6 +593,7 @@ const itemLevel = headingLevel + 1;
       scrollbar-width: none;
 
       &[data-group="category"] { display: none; flex-wrap: wrap; gap: 0 var(--space-s); overflow-x: visible; }
+      &[data-group="for"] { flex-wrap: wrap; }
     }
 
     .agenda__filter {

@@ -60,7 +60,7 @@ const ALLOWED_ORIGINS = [
 // Same keys as CATEGORIES in src/lib/site.js.
 const CATEGORY_NAMES = {
   'live-music': 'Live Music', 'arts-culture': 'Arts & Culture', 'food-drink': 'Food & Drink', markets: 'Markets',
-  family: 'Family & Kids', sports: 'Sports', fitness: 'Fitness & Rec', community: 'Community', 'city-hall': 'City Hall & Meetings',
+  family: 'Family & Kids', outdoors: 'Outdoors', classes: 'Classes & Workshops', sports: 'Sports', fitness: 'Fitness & Rec', community: 'Community', 'city-hall': 'City Hall & Meetings',
 };
 const CATEGORIES = Object.keys(CATEGORY_NAMES);
 const MAX_IMAGE = 15e6;

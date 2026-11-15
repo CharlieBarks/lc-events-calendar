@@ -47,6 +47,14 @@ Built Nov 15, 2026. Charlie's rule: **no review step for feeds.** They publish a
 - Planned: Visit Las Cruces (as a finder only: publish only events that link to the organizer, never link to their calendar) and Las Cruces Museums.
 - Source research: project doc `event-sources-feed-check-2026-11-15.md`.
 
+## Who it's for, and the category list
+
+Built Nov 15, 2026 (Charlie: Las Cruces is a retirement town; seniors and families ask the most).
+
+- **Free, Kids & Family, Seniors** buttons sit above the categories on the calendar and work together with the date, category and search. `?for=seniors` (or `kids`, `free`) is a shareable link. The homepage "Browse by vibe" starts with For seniors, Kids & family and Free things to do (the Family category tile is left out there because Kids & family already covers it).
+- Each event's audience comes from `audienceOf()` in `src/lib/site.js`: words in the title, tags, venue and price ("senior", "55+", "Munson Senior Center", "story time", "ages 6–12", "Free"...). An event can be in all three. To catch more, add words to the `SENIOR` and `KIDS` patterns there.
+- **Categories added Nov 15:** Outdoors (hikes, bird walks, star parties) and Classes & Workshops. Category list order is the order in `CATEGORIES`.
+
 ## Search
 
 - One search box at the top of the calendar's filters (homepage and category pages). It narrows the same day-by-day list and works together with the date and category filters.

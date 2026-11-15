@@ -76,6 +76,20 @@ export const CATEGORIES = {
     blurb: 'Story times, museum crafts, park days and anything a five-year-old will actually sit through.',
     icon: '<path d="M12 3c3 0 5 2.4 5 5.5S14.8 15 12 15s-5-3.4-5-6.5S9 3 12 3Z"/><path d="M12 15c0 2 1.5 2.5 0 4s0 2 0 2"/>',
   },
+  // Added Nov 15, 2026 (Charlie): hikes, bird walks and nature programs get their own button.
+  outdoors: {
+    name: 'Outdoors', plural: 'Outdoors', color: '#4F6B2A',
+    seo: 'Hikes, bird walks and outdoor events in Las Cruces',
+    blurb: 'Guided hikes in the Organ Mountains, bird walks along the river, star parties and anything that gets you outside.',
+    icon: '<path d="m3 20 6.5-11 4 6.5 2.5-4L21 20Z"/><circle cx="17" cy="6" r="2"/>',
+  },
+  // Added Nov 15, 2026 (Charlie): workshops and classes, so they're easy to find in one place.
+  classes: {
+    name: 'Classes & Workshops', plural: 'Classes & workshops', color: '#8B3A62',
+    seo: 'Classes and workshops in Las Cruces',
+    blurb: 'Makerspace workshops, library classes, painting nights and the hands-on stuff where you leave knowing something new.',
+    icon: '<path d="M3 8.5 12 4l9 4.5-9 4.5Z"/><path d="M7 10.5V15c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5v-4.5M21 8.5V14"/>',
+  },
   sports: {
     name: 'Sports', plural: 'Sports', color: '#7A2E1F',
     seo: 'Sports events in Las Cruces',
@@ -125,6 +139,8 @@ export function categoryKey(raw = '') {
   if (/market|fair|craft/.test(key)) return 'markets';
   if (/kid|family|youth|child/.test(key)) return 'family';
   if (/sport|game|race|aggie/.test(key)) return 'sports';
+  if (/outdoor|hike|hiking|nature|bird/.test(key)) return 'outdoors';
+  if (/workshop|^class(es)?$/.test(key)) return 'classes';
   if (/fitness|class|yoga|rec/.test(key)) return 'fitness';
   if (/board|council|committee|meeting|commission/.test(key)) return 'city-hall';
   return 'community';
@@ -137,7 +153,9 @@ const TAG_RULES = [
   ['markets', /market|craft fair|bazaar|flea|shopping|holiday sales|swap meet/i],
   ['family', /kid|child|family|teen|youth|toddler|story ?time/i],
   ['sports', /^sports$|football|basketball|baseball|soccer|volleyball|hockey|rodeo|racing|tournament|aggie/i],
-  ['fitness', /fitness|yoga|outdoor recreation|hiking|running|run$|cycling|pickleball|dance class/i],
+  ['outdoors', /outdoor recreation|^outdoors?$|hik(e|ing)|bird ?walk|birding|nature walk|star ?part|stargaz|camping|kayak|garden tour/i],
+  ['fitness', /fitness|yoga|running|run$|cycling|pickleball|dance class|tai chi|health\/wellness/i],
+  ['classes', /^classes$|workshop|computer class|educational|^creativity$|class$|lesson|training/i],
   ['food-drink', /food|drink|wine|beer|brew|spirits|tasting|dining|cooking|trivia|nightlife|happy hour/i],
   ['arts-culture', /arts|theater|theatre|comedy|dance|film|museum|exhibit|gallery|photography|painting|sculpture|poetry|literary|storytelling|book/i],
   ['city-hall', /government|politic|town hall|city council|public meeting/i],
@@ -187,3 +205,20 @@ export function tagged(url) {
     return url;
   }
 }
+
+// Who an event is for, on top of its category (Charlie, Nov 15): the "Free", "Kids & Family" and
+// "Seniors" buttons on the calendar. An event can be all three. Las Cruces is a retirement town, so
+// senior programs get their own way in.
+const SENIOR = /\bseniors?\b|55\+|50\+|older adults?|retirees?|medicare|\baarp\b|tai chi for health|senior (center|community)|munson senior|trails west senior/i;
+const KIDS = /\bkids?\b|child|children|family|families|teens?\b|youth|toddler|story ?time|homeschool|\bpre-?k\b|ages \d+ ?(-|–|to) ?1[0-7]\b|stay and play|baby|babies|tween/i;
+export function audienceOf(e) {
+  const tags = (e.tags || []).join(' | ');
+  const text = `${e.title} | ${tags}`;
+  const out = [];
+  if (/\bfree\b/i.test(e.price || '') || /^\$?0(\.00)?$/.test((e.price || '').trim()) || /\bfree\b/i.test(e.title) || /^free$/im.test(tags.replace(/ \| /g, '\n'))
+    || /\b(free (admission|entry|event|and open|to (the public|attend|all))|admission is free|no cost|no charge)\b/i.test(e.description || '')) out.push('free');
+  if (e.category === 'family' || KIDS.test(text)) out.push('kids');
+  if (SENIOR.test(`${text} | ${e.venue || ''} | ${(e.description || '').slice(0, 400)}`)) out.push('seniors');
+  return out;
+}
+export const AUDIENCES = { free: 'Free', kids: 'Kids & Family', seniors: 'Seniors' };
