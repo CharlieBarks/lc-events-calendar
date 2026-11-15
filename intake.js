@@ -10,6 +10,7 @@
 //   GET  /img/<id>.jpg   a submitted flyer, full size
 //   GET  /review/        Charlie's review queue (behind Cloudflare Access: Charlie only)
 //   /review/api/...      approve / reject / remove / flags (also behind Access)
+//   GET  /feeds.json     what last night's reading of other calendars brought in (see feeds.js)
 //   GET  /venues.json    Charlie's venue edits (the site build merges them into the master venue list)
 //   GET  /review/venues/ the Venues screen: names, addresses, other spellings (behind Access)
 //
@@ -41,6 +42,7 @@
 import { tidyRepeat, describe, expand, addDaysKey } from './src/lib/repeat.js';
 import { fold, venueKey, mergeVenues } from './src/lib/venue-merge.js';
 import venueData from './src/data/venues.json';
+import { refreshFeeds, getFeedEvents } from './feeds.js';
 
 const TZ = 'America/Denver';
 const PUBLIC_ORIGIN = 'https://lc-events-intake.cf2-99b.workers.dev';
@@ -500,6 +502,7 @@ async function reviewApi(request, env, path, ctx) {
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
   if (['venue', 'venue-undo', 'publish'].includes(path)) return venuesApi(request, env, path, body);
+  if (path === 'feeds-refresh') return json({ ok: true, feeds: await refreshFeeds(env) });
   if (path === 'approve') {
     const rec = await env.MEDIA.get(`sub/pending/${body.id}`, 'json');
     if (!rec) return json({ error: 'Already handled.' }, { status: 404 });
@@ -798,12 +801,19 @@ load();
 
 // ---------- Router ----------
 
+const REBUILD_TIMES = ['10 7 * * *', '40 7 * * *', '10 8 * * *'];
+
 export default {
   // Daily rebuild (schedule in wrangler.intake.jsonc). The calendar is a static site, so it needs one
   // build a day to drop finished events and pick up feed changes. This used to ride on the CitySpark
   // copy finishing; it now runs on its own, so it keeps going after CitySpark is cancelled.
+  // The schedule has two jobs. The times listed in REBUILD_TIMES rebuild the calendar. Any other
+  // time on the schedule (11:40 PM, half an hour before the first rebuild) reads the other
+  // organizations' calendars (feeds.js) so the rebuild has tonight's listings.
+  // If you change the rebuild times in wrangler.intake.jsonc, change REBUILD_TIMES to match.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(rebuild(env));
+    if (REBUILD_TIMES.includes(event.cron)) ctx.waitUntil(rebuild(env));
+    else ctx.waitUntil(refreshFeeds(env).catch((err) => console.log('Feeds not read', err.message)));
   },
 
   async fetch(request, env, ctx) {
@@ -819,13 +829,20 @@ export default {
       if (path === '/update' && request.method === 'POST') return await handleUpdate(request, env, origin, ctx);
       if (path === '/mine' && request.method === 'GET') return await handleMine(request, env, origin);
 
+      if (path === '/feeds.json') {
+        const [report, events] = await Promise.all([env.MEDIA.get('feeds/report.json', 'json'), getFeedEvents(env)]);
+        return json({ report, count: events.length, events }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+      }
+
       if (path === '/venues.json') {
         return json({ venues: await getVenueEdits(env) }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
       }
 
       if (path === '/approved.json') {
-        const approved = await getApproved(env);
-        return json({ count: approved.length, events: approved }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+        // "feeds": events read from other organizations' calendars. They ride along here so the site
+        // build makes one request for both (each extra request is one more chance of a failed build).
+        const [approved, feeds] = await Promise.all([getApproved(env), getFeedEvents(env)]);
+        return json({ count: approved.length, events: approved, feeds }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
       }
 
       if (path.startsWith('/img/')) {
