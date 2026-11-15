@@ -152,6 +152,13 @@ export const SOURCES = {
   cityspark: { name: 'Live Love Las Cruces', url: 'https://livelovelascruces.com' },
   'city-of-las-cruces': { name: 'City of Las Cruces', url: 'https://lascruces.gov/events/' },
   lllc: { name: 'Live Love Las Cruces', url: 'https://livelovelascruces.com' },
+  // Calendars the submissions Worker reads every night (FEEDS in feeds.js: same keys).
+  library: { name: 'Las Cruces Public Libraries', url: 'https://lascruceslibrary.libcal.com/calendars' },
+  'cruces-creatives': { name: 'Cruces Creatives', url: 'https://crucescreatives.org/Events' },
+  'convention-center': { name: 'Las Cruces Convention Center', url: 'https://meetinlascruces.com/events/' },
+  'farm-ranch': { name: 'New Mexico Farm & Ranch Heritage Museum', url: 'https://nmfarmandranchmuseum.org/events/' },
+  'organ-mountains': { name: 'Friends of the Organ Mountains-Desert Peaks', url: 'https://organmountainsdesertpeaks.org/events/' },
+  audubon: { name: 'Mesilla Valley Audubon Society', url: 'https://mvasaudubon.org/my-calendar/' },
 };
 
 export function breadcrumbJsonLd(items) {

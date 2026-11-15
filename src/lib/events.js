@@ -55,14 +55,16 @@ async function loadCitySpark() {
 }
 
 async function loadSubmissions() {
-  if (process.env.EVENTS_OFFLINE === '1') return [];
+  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [] };
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetch(`${INTAKE_URL}/approved.json`, { signal: AbortSignal.timeout(20000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      console.log(`Loaded ${data.events.length} approved submissions`);
-      return data.events;
+      // "feeds": events the Worker read from other organizations' calendars (feeds.js). Same request,
+      // so they can't be missing while submissions are present.
+      console.log(`Loaded ${data.events.length} approved submissions and ${(data.feeds || []).length} events from other calendars`);
+      return { events: data.events, feeds: data.feeds || [] };
     } catch (err) {
       console.warn(`Submissions attempt ${attempt} failed: ${err.message}`);
       await new Promise((r) => setTimeout(r, 2000 * attempt));
@@ -140,7 +142,8 @@ function normalize(e, source) {
   // One spelling per venue (src/data/venues.json), so search and series grouping see one place.
   const v = resolveVenue(place.venue || e.venue || '');
   const out = {
-    slug: source === 'lllc' ? e.slug : `${slugify(e.title).slice(0, 60).replace(/-$/, '')}-${dateKey(start)}`,
+    // A date from a repeat rule already has its slug (see spread).
+    slug: source === 'lllc' || e.seriesKey ? e.slug : `${slugify(e.title).slice(0, 60).replace(/-$/, '')}-${dateKey(start)}`,
     title: unescape(e.title).trim(),
     startRaw: e.start,
     start, end,
@@ -197,7 +200,7 @@ let cache;
 
 export async function getEvents() {
   cache ??= (async () => {
-    const [cityRaw, sparkRaw, subsRaw] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
+    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
     // The same event often arrives from two sources. Two listings are the same event when the name
     // and the day match AND nothing says they are in different places (see samePlace). Two different
     // "Trivia Night" listings at two breweries on one evening are both kept.
@@ -212,14 +215,18 @@ export async function getEvents() {
     const today = dateKey(todayWall());
     const subs = subsRaw.flatMap((e) => spread(e, today)).map((e) => normalize(e, 'lllc')).filter(Boolean);
     const subIndex = index(subs);
-    const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => e && !dupOf(subIndex, e));
-    // Between the two feeds, keep the CitySpark copy (it has a photo).
+    // Next: the organizations' own calendars (library, museums...). Their copy links straight to
+    // their page, so it beats CitySpark's copy of the same event.
+    const direct = feedsRaw.flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => e && !dupOf(subIndex, e));
+    const directIndex = index(direct);
+    const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => e && !dupOf(subIndex, e) && !dupOf(directIndex, e));
+    // Between CitySpark and the city feed, keep the CitySpark copy (it has a photo).
     const sparkIndex = index(spark);
-    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !dupOf(sparkIndex, e) && !dupOf(subIndex, e));
+    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !dupOf(sparkIndex, e) && !dupOf(subIndex, e) && !dupOf(directIndex, e));
     // Sample listings only show on the private preview, never on the live site.
     const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).flatMap((e) => spread(e, today)).map((e) => normalize(e, 'lllc'))];
 
-    const events = [...spark, ...city, ...ours]
+    const events = [...direct, ...spark, ...city, ...ours]
       .filter(Boolean)
       .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today);
 

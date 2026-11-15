@@ -22,7 +22,7 @@ if (Astro.props.forwardTo) return Astro.redirect(Astro.props.forwardTo);
 const { event } = Astro.props;
 const { events } = await getEvents();
 const cat = CATEGORIES[event.category];
-const source = SOURCES[event.source];
+const source = SOURCES[event.source] || SOURCES.lllc;
 const path = `/event/${event.slug}/`;
 const when = `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
 

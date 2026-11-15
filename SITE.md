@@ -16,6 +16,7 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 |---|---|---|
 | CitySpark listings and photos | `cityspark-export` Worker into KV, daily | No |
 | City of Las Cruces events | City feed through `lc-events-proxy` | No |
+| Other organizations' calendars (library, Cruces Creatives, Convention Center, Farm & Ranch Museum, Organ Mountains-Desert Peaks, Audubon) | Read nightly by the `lc-events-intake` Worker (`feeds.js`) | No |
 | `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Spotlight; `sponsored: true` = paid Spotlight; `sample: true` = preview only) |
 | `src/data/spotlight.json` | Spotlight for events that didn't come through the form (CitySpark, city), matched by name | **Yes** |
 | `src/data/city-snapshot.json` | Offline copy of the city feed | No |
@@ -28,6 +29,20 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 - Cancelling CitySpark: set `FROZEN` = `1` on the `cityspark-export` Worker **first** (see README), then `CITYSPARK_SUBSCRIBED = false`.
 - `cityspark-export` and `lc-events-proxy` are not deployed from this repo automatically. After changing `cityspark-export.js` or `worker.js`, the Worker has to be deployed by hand.
 - `CITYSPARK_SUBSCRIBED` in `src/lib/site.js` switches CitySpark placeholder images to our artwork when the subscription ends.
+
+## Feeds from other calendars
+
+Built Nov 15, 2026. Charlie's rule: **no review step for feeds.** They publish automatically, and every event links to its own page on the organization's site.
+
+- `feeds.js` (part of the `lc-events-intake` Worker) reads each calendar at 11:40 PM, half an hour before the first nightly rebuild. Sources are listed in `FEEDS` at the top of that file, with a reader for each kind of calendar: The Events Calendar (WordPress), LibCal, iCal and Wild Apricot.
+- Each source is saved on its own. If one can't be read, last night's copy of it stays, so a calendar that's down for a day doesn't empty ours. `/feeds.json` on the Worker shows the last run (what was read, what failed) and everything saved.
+- The events reach the site inside `/approved.json` (`feeds`), in the same request as approved submissions.
+- **Which copy wins when an event arrives twice:** a submission, then the organization's own calendar, then CitySpark, then the city feed.
+- A source's name for the "Listed by" line on event pages is in `SOURCES` in `src/lib/site.js` (same key as in `FEEDS`).
+- To add a source: add it to `FEEDS` and to `SOURCES`. If its calendar is a new kind, it needs a new reader.
+- The schedule has two jobs: the three rebuild times are also listed in `intake.js` (`REBUILD_TIMES`); any other time on the schedule reads the feeds. Keep the two lists in step.
+- Planned: Visit Las Cruces (as a finder only: publish only events that link to the organizer, never link to their calendar), Las Cruces Museums, a "Hide" button on the review page for a bad feed listing, and "Suggest an edit" on event pages.
+- Source research: project doc `event-sources-feed-check-2026-11-15.md`.
 
 ## Search
 
