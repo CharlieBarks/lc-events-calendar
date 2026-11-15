@@ -41,7 +41,10 @@ Built Nov 15, 2026. Charlie's rule: **no review step for feeds.** They publish a
 - A source's name for the "Listed by" line on event pages is in `SOURCES` in `src/lib/site.js` (same key as in `FEEDS`).
 - To add a source: add it to `FEEDS` and to `SOURCES`. If its calendar is a new kind, it needs a new reader.
 - The schedule has two jobs: the three rebuild times are also listed in `intake.js` (`REBUILD_TIMES`); any other time on the schedule reads the feeds. Keep the two lists in step.
-- Planned: Visit Las Cruces (as a finder only: publish only events that link to the organizer, never link to their calendar), Las Cruces Museums, a "Hide" button on the review page for a bad feed listing, and "Suggest an edit" on event pages.
+- **Hidden listings (built Nov 15):** the review page has "Hidden listings". Paste an event's address to hide it; tick "Every date of it" to hide all its dates (an address without a date always means every date). Hidden stays hidden on later nights; "Show again" undoes it. Only feed listings (organizations' calendars, CitySpark, city) can be hidden; submissions are taken off with Remove. The list is in KV `hidden.json` and reaches the build inside `/approved.json` (`hidden`).
+- **Suggest an edit (built Nov 15):** every event page has "Suggest an edit", which opens `/submit/?suggest=<slug>` filled in from the page's `event-data` block. The change waits in the review queue marked "Suggested edit" (emails go out as for any submission). Approving it puts that version on the calendar and hides the original listing. It keeps the original's picture unless the person adds their own.
+- **Links out carry UTM tags** (`utm_source=livelovelascruces&utm_medium=events_calendar`, `tagged()` in `src/lib/site.js`), so organizers see our visitors in their analytics. Not on our own sites, and not on links that already have UTM tags. The newsletter uses `utm_medium=newsletter` (GrokBot adds those).
+- Planned: Visit Las Cruces (as a finder only: publish only events that link to the organizer, never link to their calendar) and Las Cruces Museums.
 - Source research: project doc `event-sources-feed-check-2026-11-15.md`.
 
 ## Search

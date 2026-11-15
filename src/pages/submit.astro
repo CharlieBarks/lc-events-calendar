@@ -403,6 +403,9 @@ const venueList = await getVenues();
   // remembered here, so the submitter can find their links again ("Your events").
   const MINE = 'lc-events-mine';
   const editKey = new URLSearchParams(location.search).get('edit') || '';
+  // "Suggest an edit" on an event page: /submit/?suggest=<that page's address>.
+  const suggest = (new URLSearchParams(location.search).get('suggest') || '').replace(/[^a-z0-9-]/g, '');
+  let suggestImage = '';
   const editUrl = (key: string) => `${location.origin}/submit/?edit=${key}`;
   function rememberEvent(key: string, title: string) {
     try {
@@ -458,6 +461,31 @@ const venueList = await getVenues();
       step('choose');
       $('[data-edit-note]').hidden = false;
       $('[data-edit-note]').textContent = err.message;
+    }
+  }
+  // Opens the form filled in with the listing, read from its event page (the "event-data" block).
+  async function startSuggest() {
+    step('reading');
+    try {
+      const html = await fetch(`/event/${suggest}/`).then((r) => { if (!r.ok) throw new Error('gone'); return r.text(); });
+      const raw = new DOMParser().parseFromString(html, 'text/html').getElementById('event-data')?.textContent;
+      if (!raw) throw new Error('gone');
+      const x = JSON.parse(raw);
+      for (const k of ['title', 'venue', 'address', 'price', 'url', 'description', 'category']) field(k).value = x[k] || '';
+      showsEl.innerHTML = '';
+      addShow({ date: x.date, start: x.start, end: x.end });
+      suggestImage = x.image || '';
+      source = 'suggest';
+      $('[data-edit-note]').hidden = false;
+      $('[data-edit-note]').textContent = `You're suggesting a change to "${x.title}". Fix whatever is wrong or missing, add your name and email, and send it. I check every change before it goes up, usually within a day.`;
+      $('[data-boost]').hidden = true;
+      $('[data-contact]').hidden = false;
+      (form.querySelector('.submit-form__send') as HTMLElement).textContent = 'Send my changes';
+      step('form');
+    } catch {
+      step('choose');
+      $('[data-edit-note]').hidden = false;
+      $('[data-edit-note]').textContent = "That event isn't on the calendar any more. You can add it as a new event below.";
     }
   }
   $('[data-copy-edit]').addEventListener('click', async (e) => {
@@ -573,6 +601,7 @@ const venueList = await getVenues();
       boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
       repeat: repeatRule(),
       annual: $<HTMLInputElement>('[data-annual]').checked,
+      ...(suggest ? { suggests: suggest, imageUrl: imageId ? '' : suggestImage } : {}),
     };
     try {
       body.human = await humanToken();
@@ -632,6 +661,7 @@ const venueList = await getVenues();
   applyMe();
   showMine();
   if (editKey) startEdit();
+  else if (suggest) startSuggest();
   form.addEventListener('input', (e) => (e.target as HTMLElement).removeAttribute?.('data-missing'));
 </script>
 

@@ -55,7 +55,7 @@ async function loadCitySpark() {
 }
 
 async function loadSubmissions() {
-  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [] };
+  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [], hidden: [] };
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetch(`${INTAKE_URL}/approved.json`, { signal: AbortSignal.timeout(20000) });
@@ -64,7 +64,7 @@ async function loadSubmissions() {
       // "feeds": events the Worker read from other organizations' calendars (feeds.js). Same request,
       // so they can't be missing while submissions are present.
       console.log(`Loaded ${data.events.length} approved submissions and ${(data.feeds || []).length} events from other calendars`);
-      return { events: data.events, feeds: data.feeds || [] };
+      return { events: data.events, feeds: data.feeds || [], hidden: data.hidden || [] };
     } catch (err) {
       console.warn(`Submissions attempt ${attempt} failed: ${err.message}`);
       await new Promise((r) => setTimeout(r, 2000 * attempt));
@@ -137,7 +137,8 @@ function normalize(e, source) {
   const start = wall(e.start);
   if (!start) return null;
   const end = wall(e.end);
-  const place = e.address ? { venue: e.venue || e.city || '', address: e.address } : cleanVenue(e.venue);
+  // Feeds we read ourselves (feeds.js) keep venue and address apart already, even when the address is empty.
+  const place = e.address || e.feed ? { venue: e.venue || e.city || '', address: e.address || '' } : cleanVenue(e.venue);
   const category = e.tags ? categoryFromTags(e.tags, e.title) : categoryKey(e.category);
   // One spelling per venue (src/data/venues.json), so search and series grouping see one place.
   const v = resolveVenue(place.venue || e.venue || '');
@@ -200,7 +201,14 @@ let cache;
 
 export async function getEvents() {
   cache ??= (async () => {
-    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
+    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw, hidden }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
+    // Listings Charlie hid on the review page (or that a suggested edit replaced). Only feed listings:
+    // his own and organizers' submissions are taken off the calendar with "Remove" instead.
+    // A hidden address with a date hides that date; "every date" hides the listing's other dates too.
+    const DATED = /-\d{4}-\d{2}-\d{2}(-\d+)?$/;
+    const hiddenOne = new Set(hidden.filter((h) => !h.all).map((h) => h.slug.replace(/(-\d{4}-\d{2}-\d{2})-\d+$/, '$1')));
+    const hiddenAll = hidden.filter((h) => h.all).map((h) => h.slug.replace(DATED, ''));
+    const shown = (e) => e && !hiddenOne.has(e.slug) && !hiddenAll.some((b) => e.slug === b || (e.slug.startsWith(`${b}-`) && DATED.test(e.slug.slice(b.length))));
     // The same event often arrives from two sources. Two listings are the same event when the name
     // and the day match AND nothing says they are in different places (see samePlace). Two different
     // "Trivia Night" listings at two breweries on one evening are both kept.
@@ -217,12 +225,12 @@ export async function getEvents() {
     const subIndex = index(subs);
     // Next: the organizations' own calendars (library, museums...). Their copy links straight to
     // their page, so it beats CitySpark's copy of the same event.
-    const direct = feedsRaw.flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => e && !dupOf(subIndex, e));
+    const direct = feedsRaw.flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => shown(e) && !dupOf(subIndex, e));
     const directIndex = index(direct);
-    const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => e && !dupOf(subIndex, e) && !dupOf(directIndex, e));
+    const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => shown(e) && !dupOf(subIndex, e) && !dupOf(directIndex, e));
     // Between CitySpark and the city feed, keep the CitySpark copy (it has a photo).
     const sparkIndex = index(spark);
-    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => e && !dupOf(sparkIndex, e) && !dupOf(subIndex, e) && !dupOf(directIndex, e));
+    const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => shown(e) && !dupOf(sparkIndex, e) && !dupOf(subIndex, e) && !dupOf(directIndex, e));
     // Sample listings only show on the private preview, never on the live site.
     const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).flatMap((e) => spread(e, today)).map((e) => normalize(e, 'lllc'))];
 

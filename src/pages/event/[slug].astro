@@ -4,9 +4,9 @@ import EventArt from '../../components/EventArt.astro';
 import EventCard from '../../components/EventCard.astro';
 import Lightbox from '../../components/Lightbox.astro';
 import Newsletter from '../../components/Newsletter.astro';
-import { SITE, CATEGORIES, SOURCES, PREVIEW, breadcrumbJsonLd } from '../../lib/site.js';
+import { SITE, CATEGORIES, SOURCES, PREVIEW, breadcrumbJsonLd, tagged } from '../../lib/site.js';
 import { getEvents, shortVenue, mapsLink, googleCalendarLink } from '../../lib/events.js';
-import { longDate, shortDate, timeRange, offsetIso } from '../../lib/time.js';
+import { longDate, shortDate, timeRange, offsetIso, dateKey } from '../../lib/time.js';
 
 export async function getStaticPaths() {
   const { events, aliases } = await getEvents();
@@ -50,6 +50,14 @@ const isFree = /free/i.test(event.price) || /\$0\b/.test(event.description);
 const description = event.description
   ? `${shortDate(event.start)} at ${shortVenue(event)}. ${event.description}`
   : `${event.title}: ${shortDate(event.start)}, ${timeRange(event.start, event.end)} at ${shortVenue(event)} in Las Cruces, NM.`;
+
+// What the form needs to open this listing for "Suggest an edit" (read by /submit/?suggest=<slug>).
+const hhmm = (w) => (w && !w.allDay ? `${String(w.H).padStart(2, '0')}:${String(w.M).padStart(2, '0')}` : '');
+const suggestData = {
+  title: event.title, venue: [event.venue, event.room].filter(Boolean).join(' > '), address: event.address, category: event.category, price: event.price,
+  url: event.url, description: event.description, image: event.image,
+  date: event.date, start: hhmm(event.start), end: event.end && dateKey(event.end) === event.date ? hhmm(event.end) : '',
+};
 
 const jsonLd = [
   {
@@ -106,8 +114,8 @@ const jsonLd = [
 
       <div class="event-actions">
         {event.ticketUrl
-          ? <a class="btn--primary" href={event.ticketUrl} rel="noopener">Get tickets</a>
-          : event.url && <a class="btn--primary" href={event.url} rel="noopener">{/ticket/i.test(event.url) ? 'Get tickets' : 'Event details'}</a>}
+          ? <a class="btn--primary" href={tagged(event.ticketUrl)} rel="noopener">Get tickets</a>
+          : event.url && <a class="btn--primary" href={tagged(event.url)} rel="noopener">{/ticket/i.test(event.url) ? 'Get tickets' : 'Event details'}</a>}
         <details class="event-actions__calendar">
           <summary class="btn--base btn--outline">Add to calendar</summary>
           <div class="event-actions__menu">
@@ -123,7 +131,10 @@ const jsonLd = [
         <div class="prose event-detail__description">{paragraphs.map((p) => <p>{p.split('\n').map((line, i) => <>{i > 0 && <br />}{line}</>)}</p>)}</div>
       )}
 
-      <p class="event-detail__source">Listed by <a href={source.url}>{source.name}</a>{event.url && event.source !== 'lllc' && <> · <a href={event.url} rel="noopener">{event.source === 'cityspark' ? 'more from the organizer' : 'see the original listing'}</a></>}. Plans change, so double-check before you head out.</p>
+      <p class="event-detail__source">Listed by <a href={tagged(source.url)}>{source.name}</a>{event.url && event.source !== 'lllc' && <> · <a href={tagged(event.url)} rel="noopener">{event.source === 'cityspark' ? 'more from the organizer' : 'see the original listing'}</a></>}. Plans change, so double-check before you head out.</p>
+
+      <p class="event-detail__suggest">Something wrong or missing? <a href={`/submit/?suggest=${event.slug}`} rel="nofollow">Suggest an edit</a></p>
+      <script type="application/json" id="event-data" set:html={JSON.stringify(suggestData).replace(/</g, '\\u003c')} />
 
       {!event.sponsored && (
         <p class="event-detail__promote">Is this your event? <a href="/submit/?spotlight=1">Spotlight it</a> to pin it to the top of the calendar and get it in the newsletter.</p>
@@ -200,7 +211,8 @@ const jsonLd = [
   .event-detail__description { color: var(--neutral-dark); }
   .event-detail__source { font-size: var(--text-s); color: var(--text-dark-muted); border-block-start: 1px solid var(--neutral-ultra-light); padding-block-start: var(--space-s); }
   .event-detail__source a { color: var(--text-dark-muted); }
-  .event-detail__promote { font-size: var(--text-s); color: var(--text-dark-muted); }
+  .event-detail__promote, .event-detail__suggest { font-size: var(--text-s); color: var(--text-dark-muted); }
+  .event-detail__suggest a { color: var(--text-dark); }
   .event-detail__promote a { color: var(--primary); font-weight: 600; }
   .event-detail__sponsored { --_sponsored-bg: #FFF4D6; --_sponsored-text: #6B4E00; font-size: var(--text-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 0.1875rem var(--space-xs); border-radius: 999px; background: var(--_sponsored-bg); color: var(--_sponsored-text); vertical-align: 2px; }
   .event-also__more { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); }

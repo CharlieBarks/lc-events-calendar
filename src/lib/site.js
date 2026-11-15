@@ -170,3 +170,20 @@ export function breadcrumbJsonLd(items) {
     })),
   };
 }
+
+// Links out to organizers carry UTM tags, so they see the visits we send them in their own
+// analytics as "livelovelascruces" (Charlie's call, Nov 15). The newsletter uses the same source
+// with utm_medium=newsletter. Our own sites and links that already carry UTM tags are left alone.
+const OWN_HOSTS = /(^|\.)(livelovelascruces\.com|lascrucesarttrail\.com|lascruceslive\.com|workers\.dev)$/i;
+export function tagged(url) {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol) || OWN_HOSTS.test(u.hostname) || [...u.searchParams.keys()].some((k) => k.startsWith('utm_'))) return url;
+    u.searchParams.set('utm_source', 'livelovelascruces');
+    u.searchParams.set('utm_medium', 'events_calendar');
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
