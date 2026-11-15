@@ -19,7 +19,7 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 | `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Spotlight; `sponsored: true` = paid Spotlight; `sample: true` = preview only) |
 | `src/data/spotlight.json` | Spotlight for events that didn't come through the form (CitySpark, city), matched by name | **Yes** |
 | `src/data/city-snapshot.json` | Offline copy of the city feed | No |
-| `src/data/venues.json` | Master venue list: one name per venue, every other spelling as an alias | **Yes** (add a spelling whenever a new one turns up) |
+| `src/data/venues.json` | Built-in venue list: one name per venue, every other spelling as an alias. Charlie's edits from the Venues screen are merged on top at build time | Yes, but the Venues screen is the easy way |
 
 - Offline build: `EVENTS_OFFLINE=1 npm run build`.
 - The build stops on purpose if the CitySpark copy or the submissions can't be read, or if no source has any upcoming event. The city feed is optional. Keep those guards.
@@ -67,9 +67,15 @@ Built Nov 14, 2026.
 
 - `/venue/<key>/` for every venue on the master list (`src/data/venues.json`) and every venue with something on the calendar: name, address, Directions, "Add an event here" (opens the form with the venue and address filled in) and everything coming up there. `/venues/` lists them all, busiest first. Linked from the footer, from "Where" and "More at" on event pages.
 - The list comes from `getVenues()` in `src/lib/events.js`, which also feeds the venue suggestions on the form.
-- **Addresses come from current listings**, the one a venue is most often listed with. A venue with nothing upcoming has no address. Planned: store address, description and website per venue so they are permanent, with a screen for Charlie to edit them.
+- **Addresses:** the one Charlie saved on the Venues screen; otherwise the one the venue is most often listed with right now. An event that arrives with no address gets its venue's saved address.
 - "Las Cruces, NM" and other non-venues don't get a page.
-- To add a venue or a spelling today: edit `src/data/venues.json`.
+- **Venues screen (built Nov 14, 2026):** https://lc-events-intake.cf2-99b.workers.dev/review/venues/ (Charlie only, linked from the review page). Add a venue, rename one, set its address, website and a short description, and list its other spellings under "Also known as". Venues that are on the calendar but not on the list yet show at the top ("From the feeds"), busiest first.
+  - To join two spellings of one place: open the one to keep and add the other spelling under "Also known as".
+  - Saving does not rebuild the site. Changes go live with the nightly rebuild, or with **Publish changes now** on that screen.
+  - A renamed venue keeps its old name as a spelling, and its old page address forwards to the new one.
+  - How it's stored: the edits live with the submissions Worker (KV `venues/edits.json`, public copy at `/venues.json`). The build merges them over `src/data/venues.json` with `src/lib/venue-merge.js` (shared by the Worker and the site). The build stops if the edits can't be read, like approved submissions. "Undo my changes" puts a built-in venue back to how `venues.json` has it.
+  - Room rules ("Boardroom at…", "City Hall Room…") and search keywords are still edited in `src/data/venues.json`.
+  - The site publishes its venue list at `/venues.json` for that screen.
 
 ## Spotlight (paid promotion, $50)
 
