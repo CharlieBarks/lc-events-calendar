@@ -154,15 +154,24 @@ const TAG_RULES = [
   ['family', /kid|child|family|teen|youth|toddler|story ?time/i],
   ['sports', /^sports$|football|basketball|baseball|soccer|volleyball|hockey|rodeo|racing|tournament|aggie/i],
   ['outdoors', /outdoor recreation|^outdoors?$|hik(e|ing)|bird ?walk|birding|nature walk|star ?part|stargaz|camping|kayak|garden tour/i],
-  ['fitness', /fitness|yoga|running|run$|cycling|pickleball|dance class|tai chi|health\/wellness/i],
+  ['fitness', /fitness|yoga|running|run$|cycling|pickleball|dance class|tai chi/i],
   ['classes', /^classes$|workshop|computer class|educational|^creativity$|class$|lesson|training/i],
+  // Library "Movies" and "Book/Reading Club" are arts; "Games" (chess, D&D, mahjong) are community.
+  ['arts-culture', /^movies$|^book\/reading club$/i],
+  ['community', /^games$/i],
   ['food-drink', /food|drink|wine|beer|brew|spirits|tasting|dining|cooking|trivia|nightlife|happy hour/i],
   ['arts-culture', /arts|theater|theatre|comedy|dance|film|museum|exhibit|gallery|photography|painting|sculpture|poetry|literary|storytelling|book/i],
   ['city-hall', /government|politic|town hall|city council|public meeting/i],
 ];
 
+// Library audiences ("Adult", "Teens", "Children") say who it's for, not what it is: they feed the
+// Kids & Family button (audienceOf), not the category. A chess club for all ages is not a kids' event.
+const AUDIENCE_TAG = /^(adults?|teens?|children|tweens?|all ages|seniors?|library)$/i;
 export function categoryFromTags(tags = [], title = '') {
-  for (const [key, re] of TAG_RULES) if (tags.some((t) => re.test(t))) return key;
+  const what = tags.filter((t) => !AUDIENCE_TAG.test(String(t).trim()));
+  for (const [key, re] of TAG_RULES) if (what.some((t) => re.test(t))) return key;
+  // Only an audience to go on: a children's-only listing is a family event.
+  if (!what.length && tags.some((t) => /^children$/i.test(String(t).trim())) && !tags.some((t) => /^adults?$/i.test(String(t).trim()))) return 'family';
   return categoryKey(title);
 }
 
