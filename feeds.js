@@ -34,6 +34,8 @@ export const FEEDS = [
   // Visit Las Cruces is a finder only (Charlie, Nov 15): we take an event only when it links to the
   // organizer, and we link there, never to their calendar. Their copy loses to any other source.
   { id: 'visit-las-cruces', reader: 'simpleview', url: 'https://www.visitlascruces.com', venue: '', tags: [], finder: true },
+  // Town of Mesilla (The Events Calendar). Empty when checked on Nov 15, but it's their official calendar.
+  { id: 'mesilla', reader: 'tribe', url: 'https://www.mesillanm.gov', venue: 'Mesilla Plaza', tags: [] },
   { id: 'audubon', reader: 'ical', url: 'https://mvasaudubon.org/feed/my-calendar-ics', venue: '', tags: ['Outdoor Recreation', 'Bird Walk'] },
   // Events from Charlie's own newsletter issues that no other source had. Not read here: a scheduled
   // Claude task writes feeds/newsletter.json after each issue (see SITE.md, "Newsletter check").
