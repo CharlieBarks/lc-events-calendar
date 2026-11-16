@@ -135,7 +135,12 @@ const CITYSPARK_PLACEHOLDER = /\/img\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 // "Wicker \\(105 R\\)". Shown as plain text those backslashes are just clutter, so take them out.
 const unescape = (s = '') => String(s || '').replace(/\\([\\`*_{}\[\]()#+\-.!>~|&$%:;,'"?=/])/g, '$1');
 
+// Not events: closures and listings the organizer has called off ("Libraries Closed for Thanksgiving",
+// "Canceled - Computer Literacy Class"). Dropped from every source.
+const NOT_AN_EVENT = /^\s*(cancel+ed|postponed)\b|^\s*librar(y|ies) closed|\bclosed for (the )?\w+ ?(holiday|day)\b/i;
+
 function normalize(e, source) {
+  if (NOT_AN_EVENT.test(e.title || '')) return null;
   const start = wall(e.start);
   if (!start) return null;
   const end = wall(e.end);
