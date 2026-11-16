@@ -46,7 +46,8 @@ export async function addThumbs(events) {
   if (!thumbsEnabled()) return;
   const { default: sharp } = await import('sharp');
   fs.mkdirSync(dir, { recursive: true });
-  const urls = [...new Set(events.map((e) => e.image).filter((u) => /^https?:/.test(u)))];
+  // e.stock: the topic photo for an event without a picture of its own (src/data/topic-photos.json).
+  const urls = [...new Set(events.flatMap((e) => [e.image, e.stock]).filter((u) => /^https?:/.test(u || '')))];
   const done = new Map();
   const gone = new Set(); // pictures that no longer exist (404)
   let failed = 0;
@@ -63,6 +64,8 @@ export async function addThumbs(events) {
     if (done.has(e.image)) e.thumbs = done.get(e.image);
     // A picture that no longer exists would show as a broken image. Use our artwork instead.
     else if (gone.has(e.image)) e.image = '';
+    // A topic photo is only ever shown from our own small copies.
+    if (e.stock) { if (done.has(e.stock)) e.stockThumbs = done.get(e.stock); else e.stock = ''; }
   }
   console.log(`Thumbnails: ${done.size} pictures in ${Math.round((Date.now() - started) / 1000)}s${failed ? `, ${failed} skipped (${gone.size} no longer exist and now show artwork, the rest keep their original picture)` : ''}`);
 }

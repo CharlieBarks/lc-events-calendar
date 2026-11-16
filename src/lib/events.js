@@ -25,6 +25,7 @@ import { resolveVenue, fold, venueKey, venueInfo, venueList } from './venues.js'
 import { addThumbs } from './thumbs.js';
 import { addSisterLinks } from './sisters.js';
 import spotlightList from '../data/spotlight.json';
+import topicPhotos from '../data/topic-photos.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
 const EVENTS_URL = 'https://lc-events-proxy.cf2-99b.workers.dev';
@@ -177,6 +178,9 @@ function normalize(e, source) {
   };
   out.topic = topicFor(out);
   if (out.category === 'community' && out.topic?.category) out.category = out.topic.category;
+  // No picture of its own: a stock photo of the topic (pickleball, yoga...) when we have one.
+  // Shown only from our own copies (thumbs.js); without them the drawn artwork stays.
+  if (!out.image && out.topic && topicPhotos[out.topic.key]) out.stock = topicPhotos[out.topic.key].url;
   out.audience = audienceOf(out);
   return out;
 }
