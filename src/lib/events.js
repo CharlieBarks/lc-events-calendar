@@ -23,6 +23,7 @@ import { expand, describe, addDaysKey } from './repeat.js';
 import { topicFor } from './topics.js';
 import { resolveVenue, fold, venueKey, venueInfo, venueList } from './venues.js';
 import { addThumbs } from './thumbs.js';
+import { addSisterLinks } from './sisters.js';
 import spotlightList from '../data/spotlight.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
@@ -366,7 +367,8 @@ export async function getEvents() {
     }
 
     // Small copies of the pictures (src/lib/thumbs.js). Adds e.thumbs where it worked.
-    await addThumbs(kept);
+    // Links to Las Cruces Live and the Art Trail (src/lib/sisters.js): e.acts, e.liveVenueUrl...
+    await Promise.all([addThumbs(kept), addSisterLinks(kept)]);
 
     return {
       events: kept,

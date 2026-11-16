@@ -22,7 +22,8 @@ export async function GET() {
       v: [e.venue, e.room].filter(Boolean).join(' '),
       va: [...extra.aliases, ...extra.keywords].join(' '),
       c: CATEGORIES[e.category]?.name || '',
-      g: (e.tags || []).join(' '),
+      // Tags, plus the acts' names and genres from Las Cruces Live (so "americana" finds shows).
+      g: [...(e.tags || []), ...(e.acts || []).flatMap((x) => [x.name, ...x.genres])].join(' '),
       d: snippet(e.summary || e.description),
       dt: e.date,
     };

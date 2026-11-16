@@ -112,7 +112,21 @@ const jsonLd = [
         <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="event-facts__sub">{event.series.when} · {event.series.time}</span>}</dd></div>
         <div><dt>Where</dt><dd>{event.venueKey && event.venue && venueCount > 0 ? <a href={`/venue/${event.venueKey}/`}>{shortVenue(event)}</a> : shortVenue(event)}{event.address && event.address !== event.venue && <span class="event-facts__sub">{event.address}</span>}</dd></div>
         {event.price && <div><dt>Cost</dt><dd>{event.price}</dd></div>}
+        {event.acts && (
+          <div><dt>Who</dt><dd>{event.acts.map((a) => (
+            <span class="event-facts__act"><a href={a.url}>{a.name}</a>{a.genres.length > 0 && <span class="event-facts__sub">{a.genres.join(', ')}</span>}</span>
+          ))}</dd></div>
+        )}
       </dl>
+
+      {(event.liveVenueUrl || event.artVenueUrl || event.artists) && (
+        <ul class="event-sisters">
+          {event.acts?.map((a) => <li><a href={a.url}>Meet {a.name} on Las Cruces Live</a></li>)}
+          {event.liveVenueUrl && <li><a href={event.liveVenueUrl}>{shortVenue(event)} on Las Cruces Live</a></li>}
+          {event.artVenueUrl && <li><a href={event.artVenueUrl}>{shortVenue(event)} on the Las Cruces Art Trail</a></li>}
+          {event.artists?.map((a) => <li><a href={a.url}>Meet {a.name} on the Las Cruces Art Trail</a></li>)}
+        </ul>
+      )}
 
       <div class="event-actions">
         {event.ticketUrl
@@ -199,6 +213,10 @@ const jsonLd = [
   .event-facts div { display: grid; grid-template-columns: 4.375rem 1fr; gap: var(--space-s); }
   .event-facts dt { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dark-muted); padding-block-start: 0.1875rem; }
   .event-facts dd { margin: 0; font-weight: 600; display: flex; flex-direction: column; }
+  .event-facts__act { display: flex; flex-direction: column; }
+  .event-facts__act + .event-facts__act { margin-block-start: var(--space-xs); }
+  .event-sisters { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); font-size: var(--text-s); font-weight: 600; }
+  .event-sisters a { color: var(--secondary); }
   .event-facts__sub { font-weight: 400; color: var(--text-dark-muted); font-size: var(--text-m); }
   .event-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
   /* White fill at rest. Set through ACSS's own button variable so the hover fill still applies

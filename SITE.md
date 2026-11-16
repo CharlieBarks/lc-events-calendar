@@ -48,6 +48,17 @@ Built Nov 15, 2026. Charlie's rule: **no review step for feeds.** They publish a
 - **Visit Las Cruces is a finder only** (Charlie, Nov 15): read through the same search their calendar page uses (Simpleview, with a short-lived token). An event is kept only when it links to the organizer's own site, and it links there, never to Visit Las Cruces. It loses to every other source (`finder: true` in `FEEDS`), so it only adds events nobody else has. Its "Listed by" line credits the venue.
 - Source research: project doc `event-sources-feed-check-2026-11-15.md`.
 
+## Las Cruces Live and Art Trail links
+
+Built Nov 15, 2026 (Charlie: the three sites should work together; people keep asking what genre a band plays).
+
+- Each sister site publishes `/directory.json` (lascruceslive.com: acts with their page and genres, and venues; lascrucesarttrail.com: galleries, museums and published artists). The build reads both (`src/lib/sisters.js`). If one can't be read, the build goes on without those links.
+- **Live music:** when a live music listing's title names an act on Las Cruces Live, the listing shows the act's genres after the venue ("Rio Grande Winery · Americana, Country") and the event page gets a "Who" line with each act, its genres and a link to its page. Searching a genre ("americana") finds those shows.
+- **Venues:** an event at a venue listed on either site links to it ("Rio Grande Winery on Las Cruces Live"). Venue names are matched through `venues.json`, so any spelling counts.
+- **Artists:** an event whose title names a published Art Trail artist links to the artist.
+- Band names that are everyday words ("The Band", "Illusion", "Caliente") are skipped so they don't match the wrong events: `COMMON` in `sisters.js`. A band name must match whole words in the title. Acts not on Las Cruces Live show no genre: add them there.
+- Local testing: `EVENTS_DIRECTORY_LIVE=file.json` / `EVENTS_DIRECTORY_ART=file.json`.
+
 ## Who it's for, and the category list
 
 Built Nov 15, 2026 (Charlie: Las Cruces is a retirement town; seniors and families ask the most).
