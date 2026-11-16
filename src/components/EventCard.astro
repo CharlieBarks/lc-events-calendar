@@ -1,6 +1,7 @@
 ---
 import EventArt from './EventArt.astro';
 import { shortVenue } from '../lib/events.js';
+import { genreLine } from '../lib/sisters.js';
 import { shortDate, timeRange } from '../lib/time.js';
 import { PREVIEW } from '../lib/site.js';
 // headingLevel: 2 right under the page h1, 3 under an h2.
@@ -8,6 +9,8 @@ import { PREVIEW } from '../lib/site.js';
 const { event, headingLevel = 3, big = false, eager = false, layout = 'stack' } = Astro.props;
 const row = layout === 'row';
 const Heading = `h${headingLevel}`;
+// The band's genres from Las Cruces Live, when the act is listed there.
+const genre = genreLine(event);
 // In a row only a short price fits its column. A longer note ("VIP includes...") joins the venue line.
 const shortPrice = /^(free|\$\s?\d[\d.,]*(\s?-\s?\$?\d[\d.,]*)?)$/i.test((event.price || '').trim());
 const rowNote = row && event.price && !shortPrice ? event.price : '';
@@ -18,7 +21,7 @@ const showPrice = event.price && !rowNote;
   <div class="event-card__body">
     <p class="event-card__when">{event.ongoing ? event.series.when : row ? timeRange(event.start, event.end) : `${shortDate(event.start)} · ${timeRange(event.start, event.end)}`}</p>
     <Heading class="event-card__name">{event.title}</Heading>
-    <p class="event-card__where">{shortVenue(event)}{rowNote && ` · ${rowNote}`}</p>
+    <p class="event-card__where">{shortVenue(event)}{genre && ` · ${genre}`}{rowNote && ` · ${rowNote}`}</p>
     {(showPrice || event.sponsored || (PREVIEW && event.sample)) && (
       <p class="event-card__foot">
         {event.sponsored && <span class="event-card__sponsored">Sponsored</span>}
