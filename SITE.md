@@ -48,6 +48,15 @@ Built Nov 15, 2026. Charlie's rule: **no review step for feeds.** They publish a
 - **Visit Las Cruces is a finder only** (Charlie, Nov 15): read through the same search their calendar page uses (Simpleview, with a short-lived token). An event is kept only when it links to the organizer's own site, and it links there, never to Visit Las Cruces. It loses to every other source (`finder: true` in `FEEDS`), so it only adds events nobody else has. Its "Listed by" line credits the venue.
 - Source research: project doc `event-sources-feed-check-2026-11-15.md`.
 
+## Newsletter check
+
+Built Nov 15, 2026. Charlie wants the calendar to be the best local source, so events he finds for the newsletter (often through GrokBot) should end up here too.
+
+- A scheduled Claude task, "Newsletter check for the events calendar", runs Tuesday, Thursday and Friday evenings. It reads that day's Beehiiv issue, finds the events that aren't on the calendar yet, and writes them to KV `feeds/newsletter.json` (Cloudflare API). It also tells Charlie which organizations keep showing up in the newsletter without feeding the calendar, so they can be added as feeds.
+- `feeds/newsletter.json` is the `newsletter` source in `feeds.js` (`reader: 'manual'`: the nightly feed run doesn't touch it). It is published like any other feed at the next nightly rebuild, with no review, and every event links to the organizer's own page.
+- Same shape as other feed events: `{ feed: 'newsletter', title, start, end, venue, address, tags, price, description, url, image, issue }`. The task drops past events when it writes.
+- To stop it: pause the scheduled task in Claude. To remove what it added: empty `feeds/newsletter.json` (`{"events":[]}`).
+
 ## Las Cruces Live and Art Trail links
 
 Built Nov 15, 2026 (Charlie: the three sites should work together; people keep asking what genre a band plays).
