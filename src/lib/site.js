@@ -189,6 +189,7 @@ export const SOURCES = {
   // Found through Visit Las Cruces; the event page links to the organizer, not to them.
   'visit-las-cruces': { name: 'the organizer', url: '' },
   audubon: { name: 'Mesilla Valley Audubon Society', url: 'https://mvasaudubon.org/my-calendar/' },
+  mesilla: { name: 'Town of Mesilla', url: 'https://www.mesillanm.gov/events/' },
   newsletter: { name: 'Live Love Las Cruces', url: 'https://livelovelascruces.com/local-events' },
 };
 
