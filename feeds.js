@@ -35,6 +35,10 @@ export const FEEDS = [
   // organizer, and we link there, never to their calendar. Their copy loses to any other source.
   { id: 'visit-las-cruces', reader: 'simpleview', url: 'https://www.visitlascruces.com', venue: '', tags: [], finder: true },
   { id: 'audubon', reader: 'ical', url: 'https://mvasaudubon.org/feed/my-calendar-ics', venue: '', tags: ['Outdoor Recreation', 'Bird Walk'] },
+  // Events from Charlie's own newsletter issues that no other source had. Not read here: a scheduled
+  // Claude task writes feeds/newsletter.json after each issue (see SITE.md, "Newsletter check").
+  // Each event links to the organizer's page, like every other feed.
+  { id: 'newsletter', reader: 'manual', tags: [] },
 ];
 
 // ---------- Small helpers ----------
@@ -346,7 +350,7 @@ export function tidyFeed(items, feed, today = dayKey(new Date())) {
 
 export async function refreshFeeds(env) {
   const report = {};
-  await Promise.all(FEEDS.map(async (feed) => {
+  await Promise.all(FEEDS.filter((feed) => feed.reader !== 'manual').map(async (feed) => {
     try {
       const events = tidyFeed(await readFeed(feed), feed);
       await env.MEDIA.put(`feeds/${feed.id}.json`, JSON.stringify({ at: new Date().toISOString(), events }));
