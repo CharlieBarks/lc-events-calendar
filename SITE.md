@@ -52,8 +52,9 @@ Built Nov 15, 2026. Charlie's rule: **no review step for feeds.** They publish a
 
 Built Nov 15, 2026. Charlie wants the calendar to be the best local source, so events he finds for the newsletter (often through GrokBot) should end up here too.
 
-- A scheduled Claude task, "Newsletter check for the events calendar", runs Tuesday, Thursday and Friday evenings. It reads that day's Beehiiv issue, finds the events that aren't on the calendar yet, and writes them to KV `feeds/newsletter.json` (Cloudflare API). It also tells Charlie which organizations keep showing up in the newsletter without feeding the calendar, so they can be added as feeds.
-- `feeds/newsletter.json` is the `newsletter` source in `feeds.js` (`reader: 'manual'`: the nightly feed run doesn't touch it). It is published like any other feed at the next nightly rebuild, with no review, and every event links to the organizer's own page.
+- Two scheduled Claude tasks read the published Beehiiv issue (Beehiiv, not the inbox: it's the issue itself and already connected): "Newsletter check for the events calendar (Tue/Fri)" at 6:30 AM Las Cruces time, right after the Local Events issue goes out (it waits up to 90 minutes if the issue isn't out yet), and "(Thu live music)" at 1:30 PM Thursday. Each finds the events that aren't on the calendar yet, writes them to KV `feeds/newsletter.json` (Cloudflare API), then starts a rebuild of the live site so they appear within minutes. It also tells Charlie which organizations keep showing up in the newsletter without feeding the calendar, so they can be added as feeds.
+- Events GrokBot already linked to the calendar are already on it, so they're skipped. Added events link to the organizer's own page, never to the calendar or visitlascruces.com.
+- `feeds/newsletter.json` is the `newsletter` source in `feeds.js` (`reader: 'manual'`: the nightly feed run doesn't touch it). It is published like any other feed, with no review.
 - Same shape as other feed events: `{ feed: 'newsletter', title, start, end, venue, address, tags, price, description, url, image, issue }`. The task drops past events when it writes.
 - To stop it: pause the scheduled task in Claude. To remove what it added: empty `feeds/newsletter.json` (`{"events":[]}`).
 
