@@ -133,6 +133,9 @@ const CITYSPARK_PLACEHOLDER = /\/img\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 // Some feeds (CitySpark) send text written in Markdown, with backslashes in front of punctuation:
 // "Wicker \\(105 R\\)". Shown as plain text those backslashes are just clutter, so take them out.
 const unescape = (s = '') => String(s || '').replace(/\\([\\`*_{}\[\]()#+\-.!>~|&$%:;,'"?=/])/g, '$1');
+// HTML entities some feeds leave in their text ("&iexcl;Amigues!", "&amp;", "&#8217;").
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', iexcl: '¡', iquest: '¿', ndash: '–', mdash: '—', hellip: '…', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', eacute: 'é', aacute: 'á', iacute: 'í', oacute: 'ó', uacute: 'ú', ntilde: 'ñ', Ntilde: 'Ñ', uuml: 'ü', copy: '©', reg: '®', trade: '™', deg: '°', bull: '•' };
+const decode = (s = '') => String(s || '').replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, c) => c[0] === '#' ? String.fromCodePoint(c[1].toLowerCase() === 'x' ? parseInt(c.slice(2), 16) : Number(c.slice(1))) : ENTITIES[c] ?? m);
 
 // Not events: closures and listings the organizer has called off ("Libraries Closed for Thanksgiving",
 // "Canceled - Computer Literacy Class"). Dropped from every source.
@@ -151,7 +154,7 @@ function normalize(e, source) {
   const out = {
     // A date from a repeat rule already has its slug (see spread).
     slug: source === 'lllc' || e.seriesKey ? e.slug : `${slugify(e.title).slice(0, 60).replace(/-$/, '')}-${dateKey(start)}`,
-    title: unescape(e.title).trim(),
+    title: decode(unescape(e.title)).trim(),
     startRaw: e.start,
     start, end,
     date: dateKey(start),
@@ -161,8 +164,8 @@ function normalize(e, source) {
     // No address on the listing: use the one kept for the venue (review page > Venues), if any.
     address: place.address || venueInfo(v.venue).address,
     category,
-    description: unescape(e.description).trim(),
-    summary: unescape(e.summary).trim(),
+    description: decode(unescape(e.description)).trim(),
+    summary: decode(unescape(e.summary)).trim(),
     url: e.url || '',
     ticketUrl: e.ticketUrl || '',
     image: source === 'cityspark' && !CITYSPARK_SUBSCRIBED && CITYSPARK_PLACEHOLDER.test(e.image || '') ? '' : e.image || '',
