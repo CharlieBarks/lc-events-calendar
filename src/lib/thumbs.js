@@ -28,7 +28,11 @@ async function makeOne(sharp, url) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const input = Buffer.from(await res.arrayBuffer());
   const id = crypto.createHash('sha1').update(url).digest('hex').slice(0, 12);
-  const out = {};
+  // The picture's shape (width / height), so pages can tell a tall flyer from a wide photo.
+  const meta = await sharp(input).metadata();
+  const turned = (meta.orientation || 1) >= 5;
+  const w = turned ? meta.height : meta.width, h = turned ? meta.width : meta.height;
+  const out = w && h ? { r: Math.round((w / h) * 100) / 100 } : {};
   for (const [size, width] of Object.entries(THUMB_WIDTHS)) {
     // rotate(): respect the phone's orientation tag. Never enlarge a small picture.
     const buf = await sharp(input).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 74 }).toBuffer();
@@ -47,7 +51,8 @@ export async function addThumbs(events) {
   const { default: sharp } = await import('sharp');
   fs.mkdirSync(dir, { recursive: true });
   // e.stock: the topic photo for an event without a picture of its own (src/data/topic-photos.json).
-  const urls = [...new Set(events.flatMap((e) => [e.image, e.stock]).filter((u) => /^https?:/.test(u || '')))];
+  // e.flyer: an organizer's flyer when they also sent a photo (the photo is e.image then).
+  const urls = [...new Set(events.flatMap((e) => [e.image, e.stock, e.flyer]).filter((u) => /^https?:/.test(u || '')))];
   const done = new Map();
   const gone = new Set(); // pictures that no longer exist (404)
   let failed = 0;
@@ -64,6 +69,7 @@ export async function addThumbs(events) {
     if (done.has(e.image)) e.thumbs = done.get(e.image);
     // A picture that no longer exists would show as a broken image. Use our artwork instead.
     else if (gone.has(e.image)) e.image = '';
+    if (e.flyer) { if (done.has(e.flyer)) e.flyerThumbs = done.get(e.flyer); else if (gone.has(e.flyer)) e.flyer = ''; }
     // A topic photo is only ever shown from our own small copies.
     if (e.stock) { if (done.has(e.stock)) e.stockThumbs = done.get(e.stock); else e.stock = ''; }
   }

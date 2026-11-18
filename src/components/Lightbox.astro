@@ -1,5 +1,7 @@
 ---
 // Click a flyer to see it full size. Uses the native <dialog>, so Esc and focus work for free.
+// The picture is shown as large as the screen allows (keeping its shape), centered. The site's
+// reset takes away the dialog's own centering (margin: 0), so it is put back here.
 ---
 <dialog class="lightbox" aria-label="Full-size image">
   <form method="dialog"><button class="lightbox__close" aria-label="Close">×</button></form>
@@ -16,11 +18,12 @@
       dlg.showModal();
     });
   });
-  dlg?.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  // A click anywhere (the dark area or the picture) closes it, like most photo viewers.
+  dlg?.addEventListener('click', (e) => { if (e.target === dlg || e.target === img) dlg.close(); });
 </script>
 <style>
-  .lightbox { border: 0; padding: 0; background: transparent; max-inline-size: 94vw; max-block-size: 94vh; }
+  .lightbox { border: 0; padding: 0; margin: auto; background: transparent; inline-size: 94vw; block-size: 90vh; max-inline-size: 94vw; max-block-size: 90vh; overflow: visible; }
   .lightbox::backdrop { background: rgba(20,18,16,.86); }
-  .lightbox img { max-inline-size: 94vw; max-block-size: 90vh; border-radius: var(--radius-s); display: block; }
+  .lightbox img { inline-size: 100%; block-size: 100%; object-fit: contain; display: block; cursor: zoom-out; }
   .lightbox__close { position: fixed; top: 0.875rem; right: 1.125rem; inline-size: 3rem; block-size: 3rem; border-radius: 999px; border: 0; background: var(--white); font-size: 1.8rem; line-height: 1; cursor: pointer; }
 </style>

@@ -181,6 +181,9 @@ function normalize(e, source) {
     annual: !!e.annual,
     source,
   };
+  // An organizer who sent a flyer and a photo: the photo is the picture on the calendar and in
+  // shared links, the flyer shows in full on the event page.
+  if (e.photo && /^https:/.test(e.photo)) { out.flyer = out.image; out.image = e.photo; }
   out.topic = topicFor(out);
   if (out.category === 'community' && out.topic?.category) out.category = out.topic.category;
   // No picture of its own: a stock photo of the topic (pickleball, yoga...) when we have one.

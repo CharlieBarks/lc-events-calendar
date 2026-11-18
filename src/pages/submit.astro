@@ -114,7 +114,7 @@ const venueList = await getVenues();
         <div class="submit-form__field" data-photo-field hidden>
           <label class="submit-form__photo" for="photo">
             <input type="file" id="photo" accept="image/*" class="sr-only" data-photo />
-            <strong>+ Add a photo</strong> <span class="submit-form__optional">(optional, but events with a picture get way more clicks)</span>
+            <strong>+ Add a photo</strong> <span class="submit-form__optional" data-photo-hint>(optional, but events with a picture get way more clicks)</span>
           </label>
         </div>
       </fieldset>
@@ -235,7 +235,8 @@ const venueList = await getVenues();
   const tpl = document.getElementById('show-row') as HTMLTemplateElement;
   const status = app.querySelector('[data-status]') as HTMLElement;
   const KEY = 'lc-events-submitter';
-  let imageId = '';
+  let imageId = ''; // the flyer, or the only picture
+  let photoId = ''; // a photo sent along with a flyer: shown on the calendar instead of the flyer
   let source = 'form';
 
   const $ = <T extends Element = HTMLElement>(s: string) => app.querySelector(s) as T;
@@ -499,7 +500,9 @@ const venueList = await getVenues();
       }
       $<HTMLInputElement>('[data-annual]').checked = !!x.annual;
       syncRepeat();
-      imageId = x.imageId || '';
+      imageId = x.imageId || ''; photoId = x.photoId || '';
+      if (imageId) source = 'flyer'; // a new photo then goes alongside the existing picture instead of replacing it
+      photoLabel(!!imageId, !!photoId);
       $('[data-edit-note]').hidden = false;
       $('[data-edit-note]').textContent = x.status === 'waiting'
         ? "You're editing an event that's still waiting to be checked. Your changes replace what you sent."
@@ -566,6 +569,16 @@ const venueList = await getVenues();
     return empty;
   }
 
+  // "+ Add a photo": offered on both paths. With a flyer it's a second picture for the calendar.
+  function photoLabel(withFlyer: boolean, added: boolean) {
+    $('[data-photo-field]').hidden = false;
+    $('label.submit-form__photo strong').textContent = added ? '✓ Photo added (tap to change)' : withFlyer ? '+ Add a photo too' : '+ Add a photo';
+    $('[data-photo-hint]').textContent = withFlyer
+      ? '(optional: a photo of the act or place looks better on the calendar than a flyer; your flyer still shows in full on the event page)'
+      : '(optional, but events with a picture get way more clicks)';
+    $('[data-photo-hint]').hidden = added;
+  }
+
   async function startFlyer(file: File) {
     const url = URL.createObjectURL(file);
     $<HTMLImageElement>('[data-reading-img]').src = url;
@@ -587,7 +600,7 @@ const venueList = await getVenues();
       $('[data-read-note]').innerHTML = `<strong>${err.message === 'Upload failed' ? "That upload didn't go through." : err.message}</strong> You can still fill it in below, or try the flyer again.`;
     }
     $('[data-flyer-box]').hidden = false;
-    $('[data-photo-field]').hidden = true;
+    photoLabel(true, !!photoId);
     step('form');
   }
 
@@ -597,10 +610,10 @@ const venueList = await getVenues();
   });
   $('[data-change]').addEventListener('click', () => ($('[data-flyer]') as HTMLInputElement).click());
   $('[data-manual]').addEventListener('click', () => {
-    source = 'form'; imageId = '';
+    source = 'form'; imageId = ''; photoId = '';
     form.reset(); applyMe(); fill(prefill());
     $('[data-flyer-box]').hidden = true;
-    $('[data-photo-field]').hidden = false;
+    photoLabel(false, false);
     step('form');
     field('title').focus();
   });
@@ -609,6 +622,7 @@ const venueList = await getVenues();
     if (!f) return;
     const label = $('label.submit-form__photo strong');
     label.textContent = 'Uploading…';
+    $('[data-photo-hint]').hidden = true;
     try {
       const fd = new FormData();
       fd.append('image', await prepare(f), 'photo.jpg');
@@ -616,7 +630,8 @@ const venueList = await getVenues();
       const res = await fetch(`${INTAKE}/extract?read=0`, { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      imageId = data.imageId;
+      // With a flyer, the photo goes alongside it. Without one, it's the event's picture.
+      if (source === 'flyer' && imageId) photoId = data.imageId; else imageId = data.imageId;
       label.textContent = '✓ Photo added (tap to change)';
     } catch { label.textContent = "Couldn't upload that one. Try another?"; }
   });
@@ -650,7 +665,7 @@ const venueList = await getVenues();
     btn.disabled = true; status.textContent = 'Sending…';
     const body = {
       title: field('title').value, venue: field('venue').value, address: field('address').value, category: field('category').value,
-      price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId,
+      price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId, photoId,
       name: field('name').value, email: field('email').value, phone: field('phone').value, website: field('website').value,
       act: new URLSearchParams(location.search).get('act') || '', source,
       boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
@@ -708,8 +723,8 @@ const venueList = await getVenues();
   });
 
   $('[data-again]').addEventListener('click', () => {
-    imageId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
-    $('label.submit-form__photo strong').textContent = '+ Add a photo';
+    imageId = ''; photoId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
+    photoLabel(false, false);
     applyMe(); step('choose');
   });
 
