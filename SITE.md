@@ -232,6 +232,20 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 
 **Turned off in ACSS for this site:** the accent color and its buttons (no accent role in the design), transparency shades for accent, tertiary, danger, info, success and warning, the light/dark color scheme switcher, basic overlays, text-shadow variables, forms plus automatic form styling (so loading ACSS can't restyle `/submit/`), default section styles (they turn every top-level `<section>` into a flex column and break the existing `.wrap` layout; revisit in step 5) and automatic image rounding.
 
+## Design process (Charlie, Nov 18, 2026)
+
+- Charlie isn't using Paper. Show design ideas as a quick mockup in the chat, then build on the preview (`redesign` branch) for him to look at. Nothing goes to `main` until he approves it on the preview.
+- When Charlie asks for ideas or "how would that work", lay out the plan and wait for his go-ahead before building.
+
+## Event list and pictures (preview, Nov 18, 2026)
+
+- **List rows lead with the event** (modeled on SFV Local): picture, name, then time and venue, one line about it (its summary or the first sentence of the description), category and genre, badges (Sponsored, Kids & family, Seniors) and the price on the right ("See details" when there's none). No time column.
+- **Weekly regulars** are the same size as one-off events, set apart by a light tint and their "Every Thursday" tag. Still folded under "Show N more regulars" on each day.
+- **No picture:** a name card (event name, venue, topic icon, date) on the category color. Stock topic photos are off: one photo per topic was often wrong for the event. Row thumbnails keep the icon artwork.
+- **Tall or square pictures** (most flyers) show whole on a blurred copy of themselves; wide ones fill the box. Event pages keep every picture beside the details (wide ones too); "Tap to enlarge" opens it centered, as large as the screen allows.
+- **Flyer plus photo:** an organizer can send both. The photo is the calendar and share picture; the flyer shows in full on the event page.
+- **Hidden pictures:** review page box. A listing's picture that doesn't fit is replaced by its name card (one date or every date).
+
 ## Design status
 
 - Homepage: **approved by Charlie, Nov 8, 2026.** Paper file "Las Cruces Events", artboards `home / desktop`, `home / mobile` and `home / mobile, menu open`. The mobile artboard is a shortened sample: the built page keeps every day and section shown on desktop.

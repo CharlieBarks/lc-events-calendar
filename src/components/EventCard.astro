@@ -168,6 +168,8 @@ const when = event.ongoing ? event.series.when : timeRange(event.start, event.en
       }
 
       & .event-card__body { display: flex; flex-direction: column; gap: 0.125rem; padding: 0; min-inline-size: 0; }
+      & .event-card__body > *, & .event-card__name { margin: 0; }
+      & .event-card__about { margin-block: 0.25rem 0.125rem; }
 
       & .event-card__name { font-size: var(--h4, 1.15rem); font-weight: 700; line-height: 1.2; letter-spacing: 0; }
 
