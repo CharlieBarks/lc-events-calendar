@@ -39,7 +39,7 @@ const when = event.ongoing ? event.series.when : timeRange(event.start, event.en
     <Heading class="event-card__name">{event.title}</Heading>
     <p class="event-card__when"><span class="event-card__time">{when}</span> · {shortVenue(event)}{regular && event.series && !event.ongoing && <span class="event-card__tag event-card__tag--regular">{event.series.when}</span>}{event.sponsored && <span class="event-card__sponsored">Sponsored</span>}{audience.includes('kids') && <span class="event-card__tag">Kids &amp; family</span>}{audience.includes('seniors') && <span class="event-card__tag">Seniors</span>}</p>
     {aboutLine && <p class="event-card__about">{aboutLine}</p>}
-    <p class="event-card__where">{catName}{genre && ` · ${genre}`}{rowNote && ` · ${rowNote}`}</p>
+    <p class="event-card__where">{catName}{genre && ` · ${genre}`}{event.area && ` · ${event.area}`}{rowNote && ` · ${rowNote}`}</p>
     <p class="event-card__price-col">{showPrice ? <span class="event-card__price">{event.price}</span> : isFree ? <span class="event-card__price">Free</span> : <span class="event-card__see">See details</span>}{PREVIEW && event.sample && <span class="sample-tag">Sample</span>}</p>
   </div>
   ) : (
@@ -171,7 +171,7 @@ const when = event.ongoing ? event.series.when : timeRange(event.start, event.en
       & .event-card__body > *, & .event-card__name { margin: 0; }
       & .event-card__about { margin-block: 0.25rem 0.125rem; }
 
-      & .event-card__name { font-size: var(--h4, 1.15rem); font-weight: 700; line-height: 1.2; letter-spacing: 0; }
+      & .event-card__name { font-size: 1.1rem; font-weight: 700; line-height: 1.2; letter-spacing: 0; }
 
       & .event-card__when {
         display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.375rem;
@@ -183,7 +183,7 @@ const when = event.ongoing ? event.series.when : timeRange(event.start, event.en
       }
       & .event-card__time { color: var(--secondary); font-weight: 700; }
 
-      & .event-card__about { color: var(--text-dark); font-size: var(--text-s); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      & .event-card__about { color: var(--text-dark); font-size: var(--text-s); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
       & .event-card__where { color: var(--text-dark-muted); font-size: var(--text-xs); }
 
       & .event-card__tag {
@@ -215,11 +215,11 @@ const when = event.ongoing ? event.series.when : timeRange(event.start, event.en
 
     @media (min-width: 48rem) {
       .event-card__link[data-layout="row"] {
-        grid-template-columns: 5.5rem minmax(0, 1fr) auto;
-        gap: var(--space-m);
-        padding-block: var(--space-m);
+        grid-template-columns: 4.75rem minmax(0, 1fr) auto;
+        gap: 0 var(--space-s);
+        padding-block: var(--space-s);
 
-        & > :global(.art) { inline-size: 5.5rem; block-size: 5.5rem !important; grid-row: 1 / span 4; }
+        & > :global(.art) { inline-size: 4.75rem; block-size: 4.75rem !important; grid-row: 1 / span 4; }
         & .event-card__body { display: contents; }
         & .event-card__name, & .event-card__when, & .event-card__about, & .event-card__where { grid-column: 2; }
         & .event-card__price-col { grid-column: 3; grid-row: 1 / span 4; align-self: start; text-align: right; padding-block-start: 0.125rem; }

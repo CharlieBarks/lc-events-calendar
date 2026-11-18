@@ -23,6 +23,7 @@ import { expand, describe, addDaysKey } from './repeat.js';
 import { topicFor } from './topics.js';
 import { resolveVenue, fold, venueKey, venueInfo, venueList } from './venues.js';
 import { addThumbs } from './thumbs.js';
+import { areaOf } from './areas.js';
 import { addSisterLinks } from './sisters.js';
 import spotlightList from '../data/spotlight.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
@@ -193,6 +194,7 @@ function normalize(e, source) {
   // Stock topic photos were turned off on Nov 18 (Charlie): one photo per topic was often wrong for
   // the event (a rock crowd for a jazz concert). Events without a picture show their name card.
   out.audience = audienceOf(out);
+  out.area = areaOf(out);
   return out;
 }
 

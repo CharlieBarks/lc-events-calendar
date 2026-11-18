@@ -672,9 +672,11 @@ const itemLevel = headingLevel + 1;
       letter-spacing: 0;
     }
 
+    /* Kept to a readable width (Charlie, Nov 18: more compact, not the whole screen). */
     .agenda__day-list {
       min-inline-size: 0;
       flex: 1;
+      max-inline-size: 46rem;
     }
 
     .agenda__cards,
@@ -720,7 +722,7 @@ const itemLevel = headingLevel + 1;
     }
 
     @media (min-width: 48rem) {
-      .agenda__more-rows { margin-inline-start: calc(5.5rem + var(--space-m)); }
+      .agenda__more-rows { margin-inline-start: calc(4.75rem + var(--space-s)); }
     }
 
     @media (min-width: 60rem) {
@@ -732,7 +734,7 @@ const itemLevel = headingLevel + 1;
       .agenda__day { flex-direction: row; gap: var(--space-l); }
 
       .agenda__day-head {
-        flex: 0 0 14rem;
+        flex: 0 0 11rem;
         flex-direction: column;
         justify-content: flex-start;
         gap: var(--space-xs);
