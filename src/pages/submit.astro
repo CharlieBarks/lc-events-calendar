@@ -180,8 +180,8 @@ const venueList = await getVenues();
 <template id="show-row">
   <div class="submit-form__show">
     <div class="submit-form__show-field"><label>Date</label><input type="date" data-k="date" required /></div>
-    <div class="submit-form__show-field"><label>Starts</label><input type="time" data-k="start" /></div>
-    <div class="submit-form__show-field"><label>Ends <span class="submit-form__optional">(opt.)</span></label><input type="time" data-k="end" /></div>
+    <div class="submit-form__show-field"><label>Starts</label><select data-k="start" data-time></select></div>
+    <div class="submit-form__show-field"><label>Ends <span class="submit-form__optional">(opt.)</span></label><select data-k="end" data-time></select></div>
     <div class="submit-form__show-field submit-form__act" hidden><label>Different act? <span class="submit-form__optional">(opt.)</span></label><input data-k="title" autocomplete="off" /></div>
     <button type="button" class="submit-form__remove" aria-label="Remove this date" data-del>✕</button>
   </div>
@@ -247,9 +247,37 @@ const venueList = await getVenues();
   }
 
   // ---- Dates ----
+  // Times are a short list in 15-minute steps (most events start on the hour or half hour),
+  // starting at 6 AM, with late-night times after 11:45 PM. "Other time…" swaps the list for a
+  // regular time box, so 7:10 still works. Both keep data-k, so the rest of the form reads them alike.
+  const TIMES: string[] = [];
+  for (let i = 0; i < 96; i++) { const m = ((i + 24) % 96) * 15; TIMES.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`); }
+  const timeLabel = (v: string) => { const [h, m] = v.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
+  const TIME_OPTIONS = '<option value="">Choose…</option>' + TIMES.map((v) => `<option value="${v}">${timeLabel(v)}</option>`).join('') + '<option value="other">Other time…</option>';
+  function toTimeBox(sel: HTMLElement) {
+    const box = document.createElement('input');
+    box.type = 'time'; box.dataset.k = sel.dataset.k!;
+    sel.replaceWith(box);
+    return box;
+  }
+  function setTime(row: HTMLElement, k: 'start' | 'end', v: string) {
+    let el = row.querySelector(`[data-k="${k}"]`) as HTMLInputElement | HTMLSelectElement;
+    if (el instanceof HTMLSelectElement && el.options.length < 2) el.innerHTML = TIME_OPTIONS;
+    if (v && el instanceof HTMLSelectElement && !TIMES.includes(v)) el = toTimeBox(el);
+    el.value = v || '';
+  }
+  showsEl.addEventListener('change', (e) => {
+    const sel = e.target as HTMLSelectElement;
+    if (sel.matches('select[data-time]') && sel.value === 'other') {
+      const box = toTimeBox(sel);
+      box.focus();
+      try { box.showPicker(); } catch {}
+    }
+  });
   function addShow(s: { date?: string; start?: string; end?: string; title?: string } = {}) {
     const row = tpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
-    for (const k of ['date', 'start', 'end', 'title'] as const) (row.querySelector(`[data-k="${k}"]`) as HTMLInputElement).value = s[k] || '';
+    for (const k of ['date', 'title'] as const) (row.querySelector(`[data-k="${k}"]`) as HTMLInputElement).value = s[k] || '';
+    setTime(row, 'start', s.start || ''); setTime(row, 'end', s.end || '');
     showsEl.append(row);
     syncShows();
   }
