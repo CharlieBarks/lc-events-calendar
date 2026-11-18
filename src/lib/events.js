@@ -25,7 +25,6 @@ import { resolveVenue, fold, venueKey, venueInfo, venueList } from './venues.js'
 import { addThumbs } from './thumbs.js';
 import { addSisterLinks } from './sisters.js';
 import spotlightList from '../data/spotlight.json';
-import topicPhotos from '../data/topic-photos.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
 const EVENTS_URL = 'https://lc-events-proxy.cf2-99b.workers.dev';
@@ -57,7 +56,7 @@ async function loadCitySpark() {
 }
 
 async function loadSubmissions() {
-  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [], hidden: [] };
+  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [], hidden: [], nopic: [] };
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetch(`${INTAKE_URL}/approved.json`, { signal: AbortSignal.timeout(20000) });
@@ -66,7 +65,7 @@ async function loadSubmissions() {
       // "feeds": events the Worker read from other organizations' calendars (feeds.js). Same request,
       // so they can't be missing while submissions are present.
       console.log(`Loaded ${data.events.length} approved submissions and ${(data.feeds || []).length} events from other calendars`);
-      return { events: data.events, feeds: data.feeds || [], hidden: data.hidden || [] };
+      return { events: data.events, feeds: data.feeds || [], hidden: data.hidden || [], nopic: data.nopic || [] };
     } catch (err) {
       console.warn(`Submissions attempt ${attempt} failed: ${err.message}`);
       await new Promise((r) => setTimeout(r, 2000 * attempt));
@@ -188,7 +187,8 @@ function normalize(e, source) {
   if (out.category === 'community' && out.topic?.category) out.category = out.topic.category;
   // No picture of its own: a stock photo of the topic (pickleball, yoga...) when we have one.
   // Shown only from our own copies (thumbs.js); without them the drawn artwork stays.
-  if (!out.image && out.topic && topicPhotos[out.topic.key]) out.stock = topicPhotos[out.topic.key].url;
+  // Stock topic photos were turned off on Nov 18 (Charlie): one photo per topic was often wrong for
+  // the event (a rock crowd for a jazz concert). Events without a picture show their name card.
   out.audience = audienceOf(out);
   return out;
 }
@@ -215,14 +215,21 @@ let cache;
 
 export async function getEvents() {
   cache ??= (async () => {
-    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw, hidden }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
+    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw, hidden, nopic }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
     // Listings Charlie hid on the review page (or that a suggested edit replaced). Only feed listings:
     // his own and organizers' submissions are taken off the calendar with "Remove" instead.
     // A hidden address with a date hides that date; "every date" hides the listing's other dates too.
     const DATED = /-\d{4}-\d{2}-\d{2}(-\d+)?$/;
     const hiddenOne = new Set(hidden.filter((h) => !h.all).map((h) => h.slug.replace(/(-\d{4}-\d{2}-\d{2})-\d+$/, '$1')));
     const hiddenAll = hidden.filter((h) => h.all).map((h) => h.slug.replace(DATED, ''));
+    const matcher = (list) => {
+      const one = new Set(list.filter((h) => !h.all).map((h) => h.slug.replace(/(-\d{4}-\d{2}-\d{2})-\d+$/, '$1')));
+      const all = list.filter((h) => h.all).map((h) => h.slug.replace(DATED, ''));
+      return (e) => one.has(e.slug) || all.some((b) => e.slug === b || (e.slug.startsWith(`${b}-`) && DATED.test(e.slug.slice(b.length))));
+    };
     const shown = (e) => e && !hiddenOne.has(e.slug) && !hiddenAll.some((b) => e.slug === b || (e.slug.startsWith(`${b}-`) && DATED.test(e.slug.slice(b.length))));
+    // Pictures Charlie hid on the review page ("Hidden pictures"): the listing stays, with its name card.
+    const noPicture = matcher(nopic);
     // The same event often arrives from two sources. Two listings are the same event when the name
     // and the day match AND nothing says they are in different places (see samePlace). Two different
     // "Trivia Night" listings at two breweries on one evening are both kept.
@@ -255,6 +262,7 @@ export async function getEvents() {
     const events = [...direct, ...spark, ...city, ...found, ...ours]
       .filter(Boolean)
       .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today);
+    for (const e of events) if (noPicture(e)) { e.image = ''; e.flyer = ''; }
 
     // Last line of defense: never publish an empty calendar. Every source counts (CitySpark copy, city,
     // submissions, events.json), so this keeps working after CitySpark is cancelled and its copy runs dry.

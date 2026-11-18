@@ -520,15 +520,22 @@ function hiddenSlug(input) {
   const m = String(input || '').trim().toLowerCase().match(/(?:\/event\/)?([a-z0-9-]{3,140})\/?(?:[?#].*)?$/);
   return m ? m[1].replace(/\.ics$/, '') : '';
 }
-async function setHidden(env, item, on) {
+async function setHidden(env, item, on, key = 'hidden') {
   const slug = hiddenSlug(item.slug);
   if (!slug) return false;
-  const list = (await getHidden(env)).filter((h) => h.slug !== slug);
+  const list = ((await env.MEDIA.get(`${key}.json`, 'json'))?.[key] || []).filter((h) => h.slug !== slug);
   // No date at the end of the address: it already means every date.
   const all = !!item.all || !/\d{4}-\d{2}-\d{2}(-\d+)?$/.test(slug);
   if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), at: new Date().toISOString() });
-  await env.MEDIA.put('hidden.json', JSON.stringify({ hidden: list.slice(-500) }));
+  await env.MEDIA.put(`${key}.json`, JSON.stringify({ [key]: list.slice(-500) }));
   return true;
+}
+
+// ---------- Hidden pictures ----------
+// A listing's own picture that doesn't fit (a feed's flyer for the wrong event, a stock photo
+// from somewhere else). Same shape and matching as hidden listings; the site shows its text card instead.
+async function getNoPic(env) {
+  return (await env.MEDIA.get('nopic.json', 'json'))?.nopic || [];
 }
 
 async function reviewApi(request, env, path, ctx) {
@@ -546,11 +553,16 @@ async function reviewApi(request, env, path, ctx) {
     return json({ pending: pending.map(({ token, ...r }) => r), approved: approved.slice(-60).reverse() });
   }
   if (request.method === 'GET' && path === 'venues') return venuesApi(request, env, path);
-  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
+  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
   if (['venue', 'venue-undo', 'publish'].includes(path)) return venuesApi(request, env, path, body);
   if (path === 'feeds-refresh') return json({ ok: true, feeds: await refreshFeeds(env) });
+  if (path === 'nopic' || path === 'pic') {
+    if (!(await setHidden(env, body, path === 'nopic', 'nopic'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
+    if (body.publish) await rebuild(env);
+    return json({ ok: true });
+  }
   if (path === 'hide' || path === 'unhide') {
     if (!(await setHidden(env, body, path === 'hide'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
     if (body.publish) await rebuild(env);
@@ -805,7 +817,10 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 <main><div id="pending"></div><h2>Recently approved</h2><div id="approved"></div>
 <h2>Hidden listings</h2><p class="msg">Something from a feed that shouldn't be on the calendar? Paste its address from the event page. It stays hidden on later nights too.</p>
 <form id="hide" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide</button><span class="msg" data-msg></span></form>
-<div id="hidden"></div></main>
+<div id="hidden"></div>
+<h2>Hidden pictures</h2><p class="msg">A listing whose picture doesn't fit (wrong event, a random stock photo)? Paste its address. It keeps its listing but shows its name card instead of the picture.</p>
+<form id="nopic" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide picture</button><span class="msg" data-msg></span></form>
+<div id="nopiclist"></div></main>
 <div id="lb"><img alt=""></div>
 <script>
 const CATS='${cats.replace(/'/g, "\\'")}';
@@ -832,6 +847,7 @@ function card(r){
 }
 async function loadHidden(){
   const d=await fetch('/review/api/hidden').then(r=>r.json());
+  document.getElementById('nopiclist').innerHTML=(d.nopic||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+'</span><span class="apflags"><button data-showpic="'+esc(h.slug)+'">Show picture again</button></span></div>').join('')||'<div class="msg">No pictures hidden.</div>';
   document.getElementById('hidden').innerHTML=d.hidden.map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.reason?' · <span class="msg">'+esc(h.reason)+'</span>':'')+'</span><span class="apflags"><button data-unhide="'+esc(h.slug)+'">Show again</button></span></div>').join('')||'<div class="msg">Nothing hidden.</div>';
 }
 async function load(){
@@ -851,11 +867,13 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-reject]')){const f=t.closest('form');if(!confirm('Reject this submission?'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id})});load();return}
   if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
   if(t.matches('[data-reopen]')){t.textContent='Opening…';await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.reopen})});await load();window.scrollTo({top:0,behavior:'smooth'});return}
+  if(t.matches('[data-showpic]')){await fetch('/review/api/pic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.showpic,publish:true})});loadHidden();return}
   if(t.matches('[data-unhide]')){await fetch('/review/api/unhide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unhide,publish:true})});loadHidden();return}
   if(t.matches('[data-remove]')){if(!confirm('Take this off the calendar?'))return;await fetch('/review/api/remove',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.remove})});load();return}
 });
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target;const msg=f.querySelector('[data-msg]');msg.textContent='Saving…';
+  if(f.id==='nopic'){const r=await fetch('/review/api/nopic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Picture hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   if(f.id==='hide'){const r=await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,reason:'Hidden by Charlie',publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   const shows=[...f.querySelectorAll('.show')].map(s=>({date:s.querySelector('[name=date]').value,start:s.querySelector('[name=start]').value,end:s.querySelector('[name=end]').value,title:s.querySelector('[name=stitle]').value}));
   const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked,spotlightUntil:f.spotlightUntil.value};
@@ -909,8 +927,8 @@ export default {
       if (path === '/approved.json') {
         // "feeds": events read from other organizations' calendars. They ride along here so the site
         // build makes one request for both (each extra request is one more chance of a failed build).
-        const [approved, feeds, hidden] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env)]);
-        return json({ count: approved.length, events: approved, feeds, hidden }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+        const [approved, feeds, hidden, nopic] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env), getNoPic(env)]);
+        return json({ count: approved.length, events: approved, feeds, hidden, nopic }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
       }
 
       if (path.startsWith('/img/')) {
