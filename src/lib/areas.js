@@ -35,3 +35,27 @@ export function areaOf(e) {
   if (zip === '88001') return DOWNTOWN_STREET.test(e.address || '') ? 'Downtown' : 'Central';
   return BY_ZIP[zip] || '';
 }
+
+// Nearby towns outside the Las Cruces area (Charlie, Nov 18). Their special events are kept off the
+// main calendar and listed by town on /nearby/, where people pick the towns that matter to them.
+// Only events Charlie approves or adds (form, events.json, newsletter) are kept; feed listings from
+// these towns are left out so the page stays special events only.
+export const TOWNS = ['Alamogordo', 'Cloudcroft', 'Deming', 'Elephant Butte', 'Hatch', 'Ruidoso', 'Silver City', 'Truth or Consequences', 'Tularosa'];
+const TOWN_ZIP = {
+  '88310': 'Alamogordo', '88311': 'Alamogordo', '88317': 'Cloudcroft', '88030': 'Deming', '88031': 'Deming',
+  '87935': 'Elephant Butte', '87937': 'Hatch', '88345': 'Ruidoso', '88346': 'Ruidoso', '88355': 'Ruidoso',
+  '88061': 'Silver City', '88062': 'Silver City', '87901': 'Truth or Consequences', '88352': 'Tularosa',
+};
+const TOWN_NAME = /,\s*(alamogordo|cloudcroft|deming|elephant butte|hatch|ruidoso(?: downs)?|silver city|truth or consequences|t or c|tularosa)\b/i;
+
+export function townOf(e) {
+  const text = `${e.address || ''}`;
+  const zip = (text.match(/\b(8[78]\d{3})\b/) || [])[1];
+  if (TOWN_ZIP[zip]) return TOWN_ZIP[zip];
+  const m = text.match(TOWN_NAME);
+  if (!m) return '';
+  const n = m[1].toLowerCase();
+  if (n === 't or c') return 'Truth or Consequences';
+  if (n.startsWith('ruidoso')) return 'Ruidoso';
+  return TOWNS.find((t) => t.toLowerCase() === n) || '';
+}

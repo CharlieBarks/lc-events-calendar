@@ -32,7 +32,7 @@ const isFree = audience.includes('free');
 const catName = CATEGORIES[event.category]?.name || '';
 const when = event.ongoing ? event.series.when : timeRange(event.start, event.end);
 ---
-<li class="event-card" data-date={event.date} data-cat={event.category} data-for={event.audience?.length ? event.audience.join(' ') : undefined} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-card__link" data-layout={row ? 'row' : 'stack'} data-size={big ? 'big' : undefined} data-sponsored={event.sponsored ? '' : undefined} data-regular={regular ? '' : undefined} href={`/event/${event.slug}/`}>
+<li class="event-card" data-town={event.town || undefined} data-date={event.date} data-cat={event.category} data-for={event.audience?.length ? event.audience.join(' ') : undefined} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-card__link" data-layout={row ? 'row' : 'stack'} data-size={big ? 'big' : undefined} data-sponsored={event.sponsored ? '' : undefined} data-regular={regular ? '' : undefined} href={`/event/${event.slug}/`}>
   <EventArt event={event} height={big ? 230 : row ? 88 : 170} eager={eager} showDate={!row && !event.ongoing} compact={row} />
   {row ? (
   <div class="event-card__body">

@@ -23,7 +23,7 @@ import { expand, describe, addDaysKey } from './repeat.js';
 import { topicFor } from './topics.js';
 import { resolveVenue, fold, venueKey, venueInfo, venueList } from './venues.js';
 import { addThumbs } from './thumbs.js';
-import { areaOf } from './areas.js';
+import { areaOf, townOf } from './areas.js';
 import { addSisterLinks } from './sisters.js';
 import spotlightList from '../data/spotlight.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
@@ -194,7 +194,8 @@ function normalize(e, source) {
   // Stock topic photos were turned off on Nov 18 (Charlie): one photo per topic was often wrong for
   // the event (a rock crowd for a jazz concert). Events without a picture show their name card.
   out.audience = audienceOf(out);
-  out.area = areaOf(out);
+  out.town = townOf(out);
+  out.area = out.town || areaOf(out);
   return out;
 }
 
@@ -268,6 +269,9 @@ export async function getEvents() {
       .filter(Boolean)
       .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today);
     for (const e of events) if (noPicture(e)) { e.image = ''; e.flyer = ''; }
+    // Nearby towns: only special events Charlie approved or added (his own listings and the
+    // newsletter). A feed's listing from Ruidoso or Deming is left out.
+    for (let i = events.length - 1; i >= 0; i--) if (events[i].town && !['lllc', 'newsletter'].includes(events[i].source)) events.splice(i, 1);
 
     // Last line of defense: never publish an empty calendar. Every source counts (CitySpark copy, city,
     // submissions, events.json), so this keeps working after CitySpark is cancelled and its copy runs dry.
@@ -395,12 +399,17 @@ export async function getEvents() {
     // Links to Las Cruces Live and the Art Trail (src/lib/sisters.js): e.acts, e.liveVenueUrl...
     await Promise.all([addThumbs(kept), addSisterLinks(kept)]);
 
+    // The main calendar is the Las Cruces area. Nearby towns' events are listed on /nearby/ and
+    // still get their own event pages (allEvents).
+    const local = kept.filter((e) => !e.town);
     return {
-      events: kept,
+      events: local,
+      allEvents: kept,
+      nearby: kept.filter((e) => e.town && !e.ongoing),
       // Day-by-day listings (everything except ongoing exhibits)
-      dated: kept.filter((e) => !e.ongoing),
-      ongoing: ongoing.map((x) => x.next),
-      series: series.filter((x) => !x.ongoing),
+      dated: local.filter((e) => !e.ongoing),
+      ongoing: ongoing.map((x) => x.next).filter((e) => !e.town),
+      series: series.filter((x) => !x.ongoing && !x.next.town),
       // Dateless addresses that forward to an event page: [{ slug, to }]
       aliases,
     };

@@ -1,0 +1,62 @@
+---
+// Special events in nearby towns (Charlie, Nov 18). Kept off the main Las Cruces calendar and listed
+// here by town, so people pick the towns that matter to them. Only events Charlie approves or adds.
+import Layout from '../layouts/Layout.astro';
+import Agenda from '../components/Agenda.astro';
+import Newsletter from '../components/Newsletter.astro';
+import { SITE, breadcrumbJsonLd } from '../lib/site.js';
+import { getEvents } from '../lib/events.js';
+import { TOWNS } from '../lib/areas.js';
+
+const { nearby } = await getEvents();
+const towns = TOWNS.map((t) => ({ name: t, key: t.toLowerCase().replace(/\s+/g, '-'), count: nearby.filter((e) => e.town === t).length }));
+const jsonLd = [
+  { '@context': 'https://schema.org', '@type': 'ItemList', name: 'Special events near Las Cruces',
+    itemListElement: nearby.map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })) },
+  breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Nearby towns', path: '/nearby/' }]),
+];
+---
+<Layout title="Special Events Near Las Cruces: Ruidoso, Alamogordo, Silver City and More" description="Festivals and special events worth the drive from Las Cruces: Ruidoso, Cloudcroft, Alamogordo, Tularosa, Deming, Hatch, Silver City, T or C and Elephant Butte." jsonLd={jsonLd}>
+  <section class="nearby-hero wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">Nearby towns</span></nav>
+    <p class="eyebrow">Worth the drive</p>
+    <h1>Special events in nearby towns</h1>
+    <p class="lede">The big ones within a couple of hours of Las Cruces. Pick the towns you'd drive to.</p>
+    <div class="nearby-towns" role="group" aria-label="Towns">
+      <button type="button" class="nearby-town" data-town="" aria-pressed="true">All towns <span>{nearby.length}</span></button>
+      {towns.map((t) => <button type="button" class="nearby-town" data-town={t.name} aria-pressed="false" disabled={!t.count}>{t.name} <span>{t.count}</span></button>)}
+    </div>
+  </section>
+  <section class="wrap" style="padding-bottom:48px" data-nearby-list>
+    {nearby.length
+      ? <Agenda events={nearby} filters={false} headingLevel={2} />
+      : <div class="notice">No special events in nearby towns right now. Know of one? <a href="/submit/">Add it</a>.</div>}
+  </section>
+  <Newsletter />
+</Layout>
+<script>
+  // Town buttons: pick one or more towns; "All towns" clears the choice. Days with nothing left are hidden.
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>('.nearby-town')];
+  const list = document.querySelector('[data-nearby-list]')!;
+  function apply() {
+    const picked = buttons.filter((b) => b.dataset.town && b.getAttribute('aria-pressed') === 'true').map((b) => b.dataset.town);
+    buttons[0].setAttribute('aria-pressed', String(!picked.length));
+    list.querySelectorAll<HTMLElement>('li[data-town]').forEach((li) => (li.hidden = !!picked.length && !picked.includes(li.dataset.town!)));
+    list.querySelectorAll<HTMLElement>('.agenda__day').forEach((d) => (d.hidden = ![...d.querySelectorAll('li[data-town]')].some((li) => !(li as HTMLElement).hidden)));
+  }
+  buttons.forEach((b) => b.addEventListener('click', () => {
+    if (!b.dataset.town) buttons.forEach((x) => x.dataset.town && x.setAttribute('aria-pressed', 'false'));
+    else b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+    apply();
+  }));
+</script>
+<style>
+  .nearby-hero { display: flex; flex-direction: column; gap: var(--space-s); padding-block-end: var(--space-l); }
+  .nearby-hero h1 { margin-block-start: var(--space-s); }
+  .nearby-towns { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-block-start: var(--space-s); }
+  .nearby-town { min-block-size: 2.75rem; padding-inline: var(--space-s); border: 1.5px solid var(--neutral-light); border-radius: var(--radius-circle); background: var(--bg-ultra-light); font: inherit; font-weight: 600; cursor: pointer; }
+  .nearby-town span { color: var(--text-dark-muted); font-weight: 500; margin-inline-start: 0.25rem; }
+  .nearby-town[aria-pressed="true"] { background: var(--text-dark); border-color: var(--text-dark); color: var(--text-light); }
+  .nearby-town[aria-pressed="true"] span { color: inherit; opacity: .8; }
+  .nearby-town:disabled { opacity: .45; cursor: default; }
+</style>
