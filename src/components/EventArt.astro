@@ -22,7 +22,7 @@ const whole = event.image && height > 80 && event.thumbs?.r && event.thumbs.r < 
 // No picture: a name card. The event's own name and venue on the category color, with its topic
 // icon and the mountains, so it's never the wrong picture (Charlie, Nov 18). Row thumbnails are too
 // small for words and keep the icon artwork. Long names get a smaller size so they fit.
-const nameCard = !event.image && height > 80;
+const nameCard = !event.image && height > 80 && !compact;
 const len = event.title.length;
 const nameSize = height >= 300 ? (len > 60 ? 1.9 : len > 34 ? 2.3 : 2.8) : len > 60 ? 1.05 : len > 34 ? 1.25 : 1.5;
 const where = event.venue && !/^(las cruces|mesilla)(,? nm)?$/i.test(event.venue) ? event.venue : '';
