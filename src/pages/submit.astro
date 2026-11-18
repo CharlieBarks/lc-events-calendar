@@ -767,7 +767,10 @@ const venueList = await getVenues();
   .submit-form__show { display: grid; grid-template-columns: 1.2fr 1.4fr 1.4fr auto; gap: var(--space-xs); align-items: end; }
   .submit-form__show:has(.submit-form__act:not([hidden])) { grid-template-columns: 1.2fr 1.4fr 1.4fr 1.3fr auto; }
   .submit-time { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 0.25rem; }
-  .submit-time :global(select), .submit-time :global(input) { padding-inline: 0.4rem; min-inline-size: 0; }
+  /* The three lists are added by script, so they need :global to pick up the form's field look. */
+  .submit-time :global(select), .submit-time :global(input) { font: inherit; font-size: var(--text-m); min-block-size: 3rem; padding: var(--space-xs) 0.4rem; min-inline-size: 0; inline-size: 100%; border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); color: var(--text-dark); }
+  .submit-time :global(select:focus), .submit-time :global(input:focus) { outline: none; border-color: var(--text-dark); box-shadow: 0 0 0 3px var(--primary-ultra-light); }
+  .submit-time :global([data-missing]) { border-color: var(--primary); background: var(--primary-ultra-light); }
   .submit-form__show-field { display: flex; flex-direction: column; gap: 0.25rem; }
   .submit-form__show-field[hidden] { display: none; }
   .submit-form__show-field label { font-size: var(--text-xs); font-weight: 600; }
