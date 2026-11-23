@@ -13,6 +13,15 @@ const venueList = await getVenues();
     <p class="eyebrow">Free, always</p>
     <h1>Put it on the calendar.</h1>
     <p class="lede">If it's open to the public in Las Cruces or Mesilla, it belongs here. I check every listing, usually within a day. – Charlie</p>
+
+    <!-- Welcome note for the new calendar (Charlie, Nov 23, 2026). "Got it" hides it on this device. -->
+    <aside class="submit-welcome" data-welcome aria-labelledby="welcome-title">
+      <h2 id="welcome-title">Welcome to the brand-new Las Cruces Events calendar!</h2>
+      <p>I built this to make sharing your event easier than ever. Snap a photo of your flyer and the details fill themselves in. Add up to 4 photos. See exactly how your listing will look before you hit send. And fix anything later with your own private edit link.</p>
+      <p>It's a big step forward for our local calendar, and I hope you find it simpler and more useful. Since it's new, you might spot a hiccup or two. If anything's confusing, not working right, or you have an idea to make it better, I'd love to hear from you: <a href="mailto:events@livelovelascruces.com?subject=New%20events%20calendar">events@livelovelascruces.com</a></p>
+      <p class="submit-welcome__sign">Thanks for helping keep Las Cruces in the know. – Charlie</p>
+      <button type="button" class="btn--base btn--outline btn--s" data-welcome-close>Got it</button>
+    </aside>
   </section>
 
   <section class="wrap-narrow submit-body" data-app data-intake={INTAKE_URL} data-pay={SPOTLIGHT.payUrl} data-sitekey={TURNSTILE_SITEKEY} data-cats={JSON.stringify(Object.fromEntries(Object.entries(CATEGORIES).map(([k, c]) => [k, c.name])))}>
@@ -878,6 +887,14 @@ const venueList = await getVenues();
   form.addEventListener('input', renderPreview);
   form.addEventListener('change', renderPreview);
 
+  // Welcome note: once someone taps "Got it", it stays hidden on this device.
+  const WELCOME = 'lc-events-welcome-seen';
+  try { if (localStorage.getItem(WELCOME)) document.querySelector<HTMLElement>('[data-welcome]')!.hidden = true; } catch {}
+  document.querySelector('[data-welcome-close]')?.addEventListener('click', () => {
+    document.querySelector<HTMLElement>('[data-welcome]')!.hidden = true;
+    try { localStorage.setItem(WELCOME, '1'); } catch {}
+  });
+
   applyMe();
   showMine();
   if (editKey) startEdit();
@@ -886,6 +903,13 @@ const venueList = await getVenues();
 </script>
 
 <style>
+  .submit-welcome { display: flex; flex-direction: column; gap: var(--space-xs); align-items: flex-start; margin-block-start: var(--space-s); padding: var(--space-m); border: 1.5px solid color-mix(in oklch, var(--secondary) 45%, var(--white)); border-radius: var(--radius); background: color-mix(in oklch, var(--secondary) 7%, var(--white)); font-size: var(--text-m); }
+  .submit-welcome[hidden] { display: none; }
+  .submit-welcome h2 { font-size: var(--h4); margin: 0; }
+  .submit-welcome p { margin: 0; }
+  .submit-welcome a { font-weight: 700; color: var(--secondary); }
+  .submit-welcome__sign { font-style: italic; }
+  .submit-welcome button { margin-block-start: var(--space-xs); }
   /* Pictures box: optional flyer + up to 4 photos, one marked as the main picture. */
   .submit-pics__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--space-s); margin: var(--space-xs) 0; padding: 0; list-style: none; }
   .submit-pics__list:empty { display: none; }
