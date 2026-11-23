@@ -162,8 +162,9 @@ const featured = event.featured && !event.sponsored;
       & svg { inline-size: 1.6rem; block-size: 1.6rem; fill: var(--_star); stroke: var(--_star-edge); stroke-width: 1; stroke-linejoin: round; }
     }
     .event-card__star-icon { display: inline-block; flex: none; inline-size: 1.1em; block-size: 1.1em; fill: var(--_star); }
-    /* Homepage cards: the date sits top left, so the star goes top right. */
-    .event-card__link[data-layout="stack"] .event-card__star { inset-inline-start: auto; inset-inline-end: 0.625rem; inset-block-start: 0.625rem; }
+    /* Homepage cards: the date sits top left and the category top right, so the star sits just
+       right of the date (Charlie, Nov 23: it covered the category). */
+    .event-card__link[data-layout="stack"] .event-card__star { inset-inline-start: calc(var(--space-s) + 3.25rem + 0.5rem); inset-block-start: calc(var(--space-s) + 0.55rem); }
 
     .event-card__featured {
       display: inline-flex;
