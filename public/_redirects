@@ -64,19 +64,13 @@
 /las-cruces-business-spotlights/  https://livelovelascruces.com/t/business-spotlight  301
 /whats-happening-in-las-cruces-this-weekend  /this-weekend/  301
 /whats-happening-in-las-cruces-this-weekend/  /this-weekend/  301
-/live-music-venues  /category/live-music/  301
-/live-music-venues/  /category/live-music/  301
-/las-cruces-musician-genres  /category/live-music/  301
-/las-cruces-musician-genres/  /category/live-music/  301
+/live-music-venues  https://lascruceslive.com/venues/  301
+/live-music-venues/  https://lascruceslive.com/venues/  301
+/las-cruces-musician-genres  https://lascruceslive.com/genres/  301
+/las-cruces-musician-genres/  https://lascruceslive.com/genres/  301
 /las-cruces-multi-use-trails  https://explore.livelovelascruces.com/  301
 /las-cruces-multi-use-trails/  https://explore.livelovelascruces.com/  301
 
 # Other pages of the old WordPress calendar (added on the domain move, Nov 23, 2026)
-/whats-happening-in-las-cruces-this-weekend   /this-weekend/   301
-/whats-happening-in-las-cruces-this-weekend/  /this-weekend/   301
-/live-music-venues    https://lascruceslive.com/venues/   301
-/live-music-venues/   https://lascruceslive.com/venues/   301
-/las-cruces-musician-genres    https://lascruceslive.com/genres/   301
-/las-cruces-musician-genres/   https://lascruceslive.com/genres/   301
 /contact    https://livelovelascruces.com/contact   301
 /contact/   https://livelovelascruces.com/contact   301
