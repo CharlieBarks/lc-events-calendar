@@ -6,8 +6,10 @@
 // The full-size original is still what opens when someone taps a flyer on its event page.
 //
 // Nothing here can stop a build or lose a picture: if one can't be fetched or read, that event
-// simply keeps using its original picture address. The one exception: a picture that no longer
-// exists (404) is dropped, so the event shows our artwork instead of a broken image.
+// simply keeps using its original picture address. Two exceptions: a picture that no longer
+// exists (404) is dropped, so the event shows our artwork instead of a broken image, and so is a
+// picture too small to look sharp anywhere (CitySpark kept some at 49×28 or 147×109 pixels):
+// stretched across a card it's a blur, so the event shows its name card instead.
 //
 // Skipped in offline builds (EVENTS_OFFLINE=1), in `astro dev`, and with EVENTS_THUMBS=0.
 import fs from 'node:fs';
@@ -17,6 +19,8 @@ import crypto from 'node:crypto';
 
 // s: rows and small cards. m: cards. l: the flyer on an event page.
 export const THUMB_WIDTHS = { s: 320, m: 800, l: 1200 };
+// Longest side, in pixels, below which a picture is too small to use (see above).
+const MIN_SIDE = 300;
 const dir = path.join(os.tmpdir(), 'lc-events-thumbs');
 const files = new Map(); // "ab12cd34ef56-320" -> file on disk
 
@@ -32,6 +36,7 @@ async function makeOne(sharp, url) {
   const meta = await sharp(input).metadata();
   const turned = (meta.orientation || 1) >= 5;
   const w = turned ? meta.height : meta.width, h = turned ? meta.width : meta.height;
+  if (w && h && Math.max(w, h) < MIN_SIDE) throw Object.assign(new Error(`too small, ${w}×${h}`), { gone: true, small: true });
   const out = w && h ? { r: Math.round((w / h) * 100) / 100 } : {};
   for (const [size, width] of Object.entries(THUMB_WIDTHS)) {
     // rotate(): respect the phone's orientation tag. Never enlarge a small picture.
@@ -55,20 +60,23 @@ export async function addThumbs(events) {
   // e.photos: an organizer's extra photos (event page gallery).
   const urls = [...new Set(events.flatMap((e) => [e.image, e.stock, e.flyer, ...(e.photos || [])]).filter((u) => /^https?:/.test(u || '')))];
   const done = new Map();
-  const gone = new Set(); // pictures that no longer exist (404)
-  let failed = 0;
+  const gone = new Set(); // pictures that no longer exist (404) or are too small to use
+  let failed = 0, small = 0;
   const queue = [...urls];
   const worker = async () => {
     for (let url = queue.shift(); url; url = queue.shift()) {
       try { done.set(url, await makeOne(sharp, url)); }
-      catch (err) { failed++; if (err.gone) gone.add(url); if (failed <= 5) console.warn(`Thumbnail skipped (${err.message}): ${url}`); }
+      catch (err) {
+        if (err.small) { small++; gone.add(url); continue; }
+        failed++; if (err.gone) gone.add(url); if (failed <= 5) console.warn(`Thumbnail skipped (${err.message}): ${url}`);
+      }
     }
   };
   const started = Date.now();
   await Promise.all(Array.from({ length: 6 }, worker));
   for (const e of events) {
     if (done.has(e.image)) e.thumbs = done.get(e.image);
-    // A picture that no longer exists would show as a broken image. Use our artwork instead.
+    // A picture that no longer exists would show as a broken image, a tiny one as a blur. Use our artwork instead.
     else if (gone.has(e.image)) e.image = '';
     if (e.flyer) { if (done.has(e.flyer)) e.flyerThumbs = done.get(e.flyer); else if (gone.has(e.flyer)) e.flyer = ''; }
     if (e.photos?.length) {
@@ -78,7 +86,7 @@ export async function addThumbs(events) {
     // A topic photo is only ever shown from our own small copies.
     if (e.stock) { if (done.has(e.stock)) e.stockThumbs = done.get(e.stock); else e.stock = ''; }
   }
-  console.log(`Thumbnails: ${done.size} pictures in ${Math.round((Date.now() - started) / 1000)}s${failed ? `, ${failed} skipped (${gone.size} no longer exist and now show artwork, the rest keep their original picture)` : ''}`);
+  console.log(`Thumbnails: ${done.size} pictures in ${Math.round((Date.now() - started) / 1000)}s${small ? `, ${small} too small to use (name card instead)` : ''}${failed ? `, ${failed} skipped (${gone.size - small} no longer exist and now show artwork, the rest keep their original picture)` : ''}`);
 }
 
 // For src/pages/thumbs/[name].webp.js
