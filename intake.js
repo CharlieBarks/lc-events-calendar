@@ -88,7 +88,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 // breaks a submission: it runs after the answer has gone out, and a failure is only written to the log.
 // No EMAIL binding (local testing) = nothing is sent.
 const MAIL_FROM = { email: 'events@livelovelascruces.com', name: 'Live Love Las Cruces' };
-const LIVE_SITE = 'https://lc-events-calendar.cf2-99b.workers.dev'; // becomes events.livelovelascruces.com when the domain moves
+const LIVE_SITE = 'https://events.livelovelascruces.com'; // moved from lc-events-calendar.cf2-99b.workers.dev on Nov 23, 2026
 const siteFor = (origin) => (origin && ALLOWED_ORIGINS.includes(origin) && !origin.includes('localhost') ? origin : LIVE_SITE);
 const firstName = (name) => clean(name, 100).split(' ')[0] || 'there';
 
