@@ -526,7 +526,7 @@ async function setHidden(env, item, on, key = 'hidden') {
   const list = ((await env.MEDIA.get(`${key}.json`, 'json'))?.[key] || []).filter((h) => h.slug !== slug);
   // No date at the end of the address: it already means every date.
   const all = !!item.all || !/\d{4}-\d{2}-\d{2}(-\d+)?$/.test(slug);
-  if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), at: new Date().toISOString() });
+  if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), ...(isDate(item.until) ? { until: item.until } : {}), at: new Date().toISOString() });
   await env.MEDIA.put(`${key}.json`, JSON.stringify({ [key]: list.slice(-500) }));
   return true;
 }
@@ -536,6 +536,14 @@ async function setHidden(env, item, on, key = 'hidden') {
 // from somewhere else). Same shape and matching as hidden listings; the site shows its text card instead.
 async function getNoPic(env) {
   return (await env.MEDIA.get('nopic.json', 'json'))?.nopic || [];
+}
+
+// ---------- Featured events ----------
+// Charlie's own picks from any source (feeds, CitySpark, newsletter, submissions): pinned to the top
+// of their day with a Featured label and their own background, and in the homepage Spotlight.
+// Same shape and matching as hidden listings, plus "until" (last day; empty = the event's last date).
+async function getFeatured(env) {
+  return (await env.MEDIA.get('featured.json', 'json'))?.featured || [];
 }
 
 async function reviewApi(request, env, path, ctx) {
@@ -553,13 +561,18 @@ async function reviewApi(request, env, path, ctx) {
     return json({ pending: pending.map(({ token, ...r }) => r), approved: approved.slice(-60).reverse() });
   }
   if (request.method === 'GET' && path === 'venues') return venuesApi(request, env, path);
-  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
+  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse(), featured: (await getFeatured(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
   if (['venue', 'venue-undo', 'publish'].includes(path)) return venuesApi(request, env, path, body);
   if (path === 'feeds-refresh') return json({ ok: true, feeds: await refreshFeeds(env) });
   if (path === 'nopic' || path === 'pic') {
     if (!(await setHidden(env, body, path === 'nopic', 'nopic'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
+    if (body.publish) await rebuild(env);
+    return json({ ok: true });
+  }
+  if (path === 'feature' || path === 'unfeature') {
+    if (!(await setHidden(env, body, path === 'feature', 'featured'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
     if (body.publish) await rebuild(env);
     return json({ ok: true });
   }
@@ -814,7 +827,11 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 .checks input[type=date]{width:auto;padding:4px 8px}.apflags{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.apflags label{display:flex;gap:4px;align-items:center;margin:0;color:var(--ink);font-size:.85rem}.apflags input[type=checkbox]{width:auto}.apflags input[type=date]{width:auto;padding:2px 6px;font-size:.85rem}@media(max-width:720px){.sub{grid-template-columns:1fr}.show{grid-template-columns:1fr 1fr}}
 </style></head><body>
 <header><h1>Event submissions <a href="/review/venues/" style="font-size:.9rem;font-weight:400;margin-left:12px;color:var(--accent)">Venues</a></h1><div class="msg" id="count">Loading…</div></header>
-<main><div id="pending"></div><h2>Recently approved</h2><div id="approved"></div>
+<main><div id="pending"></div>
+<h2>Featured events</h2><p class="msg">Want an event to stand out? Paste its address from the event page. It's pinned to the top of its day with a Featured label and its own background, and goes into the homepage Spotlight. Works for any event, from any source.</p>
+<form id="feature" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><label>until <input type="date" name="until" title="Leave empty to feature it until the event is over"></label><button>Feature</button><span class="msg" data-msg></span></form>
+<div id="featuredlist"></div>
+<h2>Recently approved</h2><div id="approved"></div>
 <h2>Hidden listings</h2><p class="msg">Something from a feed that shouldn't be on the calendar? Paste its address from the event page. It stays hidden on later nights too.</p>
 <form id="hide" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide</button><span class="msg" data-msg></span></form>
 <div id="hidden"></div>
@@ -841,12 +858,13 @@ function card(r){
   (r.annual?'<div class="boost"><strong>Annual event.</strong> The organizer says this happens every year.</div>':'')+
   (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
-  '<div class="checks"><label><input type="checkbox" name="featured"> Spotlight</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
+  '<div class="checks"><label><input type="checkbox" name="featured"> Featured</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
   '<div class="meta">From '+esc(r.contact?.name)+' · <a href="mailto:'+esc(r.contact?.email)+'">'+esc(r.contact?.email)+'</a>'+(r.contact?.phone?' · '+esc(r.contact.phone):'')+(r.act?' · Act: '+esc(r.act):'')+' · '+new Date(r.submittedAt).toLocaleString()+'</div>'+
   '<div class="btns"><button class="approve" type="submit">Approve</button><button class="reject" type="button" data-reject>Reject</button><span class="msg" data-msg></span></div></div></form>';
 }
 async function loadHidden(){
   const d=await fetch('/review/api/hidden').then(r=>r.json());
+  document.getElementById('featuredlist').innerHTML=(d.featured||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.until?'<span class="tag">until '+esc(h.until)+'</span>':'')+'</span><span class="apflags"><a href="'+esc(SITE)+'/event/'+esc(h.slug)+'/" target="_blank" rel="noopener">View</a><button data-unfeature="'+esc(h.slug)+'">Stop featuring</button></span></div>').join('')||'<div class="msg">Nothing featured right now.</div>';
   document.getElementById('nopiclist').innerHTML=(d.nopic||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+'</span><span class="apflags"><button data-showpic="'+esc(h.slug)+'">Show picture again</button></span></div>').join('')||'<div class="msg">No pictures hidden.</div>';
   document.getElementById('hidden').innerHTML=d.hidden.map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.reason?' · <span class="msg">'+esc(h.reason)+'</span>':'')+'</span><span class="apflags"><button data-unhide="'+esc(h.slug)+'">Show again</button></span></div>').join('')||'<div class="msg">Nothing hidden.</div>';
 }
@@ -857,7 +875,7 @@ async function load(){
   const p=document.getElementById('pending');
   p.innerHTML=d.pending.length?d.pending.map(card).join(''):'<div class="empty">Nothing waiting. New submissions show up here.</div>';
   d.pending.forEach(r=>{const f=p.querySelector('[data-id="'+r.id+'"]');f.category.value=r.category});
-  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Spotlight</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Spotlight</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
+  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Featured</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Featured</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
 }
 document.addEventListener('click',async e=>{
   const t=e.target;
@@ -868,11 +886,13 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
   if(t.matches('[data-reopen]')){t.textContent='Opening…';await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.reopen})});await load();window.scrollTo({top:0,behavior:'smooth'});return}
   if(t.matches('[data-showpic]')){await fetch('/review/api/pic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.showpic,publish:true})});loadHidden();return}
+  if(t.matches('[data-unfeature]')){await fetch('/review/api/unfeature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unfeature,publish:true})});loadHidden();return}
   if(t.matches('[data-unhide]')){await fetch('/review/api/unhide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unhide,publish:true})});loadHidden();return}
   if(t.matches('[data-remove]')){if(!confirm('Take this off the calendar?'))return;await fetch('/review/api/remove',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.remove})});load();return}
 });
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target;const msg=f.querySelector('[data-msg]');msg.textContent='Saving…';
+  if(f.id==='feature'){const r=await fetch('/review/api/feature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,until:f.until.value,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Featured. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   if(f.id==='nopic'){const r=await fetch('/review/api/nopic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Picture hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   if(f.id==='hide'){const r=await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,reason:'Hidden by Charlie',publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   const shows=[...f.querySelectorAll('.show')].map(s=>({date:s.querySelector('[name=date]').value,start:s.querySelector('[name=start]').value,end:s.querySelector('[name=end]').value,title:s.querySelector('[name=stitle]').value}));
@@ -927,8 +947,8 @@ export default {
       if (path === '/approved.json') {
         // "feeds": events read from other organizations' calendars. They ride along here so the site
         // build makes one request for both (each extra request is one more chance of a failed build).
-        const [approved, feeds, hidden, nopic] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env), getNoPic(env)]);
-        return json({ count: approved.length, events: approved, feeds, hidden, nopic }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+        const [approved, feeds, hidden, nopic, featured] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env), getNoPic(env), getFeatured(env)]);
+        return json({ count: approved.length, events: approved, feeds, hidden, nopic, featured }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
       }
 
       if (path.startsWith('/img/')) {

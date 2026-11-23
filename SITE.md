@@ -17,7 +17,7 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 | CitySpark listings and photos | `cityspark-export` Worker into KV, daily | No |
 | City of Las Cruces events | City feed through `lc-events-proxy` | No |
 | Other organizations' calendars (library, museums, Cruces Creatives, Convention Center, Farm & Ranch Museum, Organ Mountains-Desert Peaks, Audubon, Visit Las Cruces as a finder) | Read nightly by the `lc-events-intake` Worker (`feeds.js`) | No |
-| `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Spotlight; `sponsored: true` = paid Spotlight; `sample: true` = preview only) |
+| `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Featured; `sponsored: true` = paid Spotlight; `sample: true` = preview only) |
 | `src/data/spotlight.json` | Spotlight for events that didn't come through the form (CitySpark, city), matched by name | **Yes** |
 | `src/data/city-snapshot.json` | Offline copy of the city feed | No |
 | `src/data/venues.json` | Built-in venue list: one name per venue, every other spelling as an alias. Charlie's edits from the Venues screen are merged on top at build time | Yes, but the Venues screen is the easy way |
@@ -139,6 +139,20 @@ Decided by Charlie, Nov 10, 2026. Modeled on SFV Local's "Boosted Event". "Charl
 - **Homepage section:** only events marked Spotlight or Sponsored, never filled automatically and never CitySpark's old picks. Three at random on each visit, Sponsored first. Nothing marked: a "Your event could be right here" box selling Spotlight.
 - Sponsored events always get a full card (even if they repeat) and are first in their day.
 - Later (Charlie): longer-running packages.
+
+## Featured events
+
+Built Nov 23, 2026. Charlie's own picks, free for now; he plans to sell Featured as an upgrade later.
+
+- **Review page, "Featured events":** paste any event's address (any source: feeds, CitySpark, the newsletter check, submissions), tick "Every date of it" if wanted, and an optional **until** date (empty = until the event is over). "Stop featuring" undoes it. Saving starts a rebuild. Stored in KV `featured.json` (same matching as Hidden listings, plus `until`), sent to the build inside `/approved.json` (`featured`).
+- Submissions can still be featured with the **Featured** checkbox when approving (it was called Spotlight before Nov 23; same `featured` flag).
+- **What a Featured event gets:** a full card (even a weekly regular), pinned to the top of its day after any Sponsored ones, a red **FEATURED** label, its own soft red background (`--_featured-bg` in `EventCard.astro`, a tint of LLLC red so it reads differently from paid gold and from the green regulars), the label on its event page, and a place in the homepage Spotlight rotation.
+- An event both Featured and Sponsored shows as Sponsored only.
+- Preview-only samples "Featured example: …" in `src/data/events.json` show the look on the preview.
+
+## Bigger list for older readers
+
+Nov 23, 2026 (Charlie: most subscribers are seniors). Row pictures 8rem on desktop and 6rem on phones (were 4.75rem and 4.5rem), event names 1.3rem, time and venue line, summary and price at `--text-m`, summary up to two lines, tags at `--text-s`. The list is up to 52rem wide. On phones the time sits on its own line above the venue.
 
 ## Recurring events
 

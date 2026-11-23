@@ -57,7 +57,7 @@ async function loadCitySpark() {
 }
 
 async function loadSubmissions() {
-  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [], hidden: [], nopic: [] };
+  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [], hidden: [], nopic: [], featured: [] };
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetch(`${INTAKE_URL}/approved.json`, { signal: AbortSignal.timeout(20000) });
@@ -66,7 +66,7 @@ async function loadSubmissions() {
       // "feeds": events the Worker read from other organizations' calendars (feeds.js). Same request,
       // so they can't be missing while submissions are present.
       console.log(`Loaded ${data.events.length} approved submissions and ${(data.feeds || []).length} events from other calendars`);
-      return { events: data.events, feeds: data.feeds || [], hidden: data.hidden || [], nopic: data.nopic || [] };
+      return { events: data.events, feeds: data.feeds || [], hidden: data.hidden || [], nopic: data.nopic || [], featured: data.featured || [] };
     } catch (err) {
       console.warn(`Submissions attempt ${attempt} failed: ${err.message}`);
       await new Promise((r) => setTimeout(r, 2000 * attempt));
@@ -221,7 +221,7 @@ let cache;
 
 export async function getEvents() {
   cache ??= (async () => {
-    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw, hidden, nopic }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
+    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw, hidden, nopic, featured: featuredList }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
     // Listings Charlie hid on the review page (or that a suggested edit replaced). Only feed listings:
     // his own and organizers' submissions are taken off the calendar with "Remove" instead.
     // A hidden address with a date hides that date; "every date" hides the listing's other dates too.
@@ -387,12 +387,26 @@ export async function getEvents() {
         e.spotlightUntil = m.until || e.spotlightUntil;
       }
     }
+    // Featured events Charlie picked on the review page ("Featured events"), from any source.
+    // Same address matching as hidden listings; each pick can carry its own "until" date.
+    const pickFor = (e) => featuredList.find((h) => {
+      const b = h.slug.replace(/(-\d{4}-\d{2}-\d{2})-\d+$/, '$1');
+      if (!h.all) return e.slug === b || e.slug.replace(/(-\d{4}-\d{2}-\d{2})-\d+$/, '$1') === b;
+      const base = b.replace(DATED, '');
+      return e.slug === base || (e.slug.startsWith(`${base}-`) && DATED.test(e.slug.slice(base.length)));
+    });
+    for (const e of kept) {
+      const pick = featuredList.length ? pickFor(e) : null;
+      if (!pick) continue;
+      e.featured = true;
+      if (pick.until) e.spotlightUntil = pick.until;
+    }
     for (const e of kept) {
       // A Spotlight ends on its "until" date (or with the event itself).
       if (e.spotlightUntil && e.date > e.spotlightUntil) { e.featured = false; e.sponsored = false; }
       e.spotlight = e.featured || e.sponsored;
-      // Paid events always get a full card, even when they repeat.
-      e.compact = !e.sponsored && (!!e.series || e.category === 'city-hall');
+      // Paid and Featured events always get a full card, even when they repeat.
+      e.compact = !e.spotlight && (!!e.series || e.category === 'city-hall');
     }
 
     // Small copies of the pictures (src/lib/thumbs.js). Adds e.thumbs where it worked.

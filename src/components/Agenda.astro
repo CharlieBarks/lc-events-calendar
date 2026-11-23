@@ -93,8 +93,9 @@ const itemLevel = headingLevel + 1;
   )}
 
   {days.map(([date, list], i) => {
-    // Sponsored (paid Spotlight) events are pinned to the top of their day.
-    const cards = list.filter((e) => !e.compact).sort((a, b) => b.sponsored - a.sponsored);
+    // Sponsored (paid) events are pinned to the top of their day, then Featured ones.
+    const rank = (e) => (e.sponsored ? 2 : e.featured ? 1 : 0);
+    const cards = list.filter((e) => !e.compact).sort((a, b) => rank(b) - rank(a));
     const rows = list.filter((e) => e.compact);
     const [weekday, monthDay] = dayLabel(list[0].start).split(', ');
     return (
@@ -677,7 +678,7 @@ const itemLevel = headingLevel + 1;
     .agenda__day-list {
       min-inline-size: 0;
       flex: 1;
-      max-inline-size: 46rem;
+      max-inline-size: 52rem;
     }
 
     .agenda__cards,

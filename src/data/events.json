@@ -97,5 +97,31 @@
   "price": "Free",
   "description": "A sample listing to show how special events in nearby towns appear. Only on the preview.",
   "sample": true
+ },
+ {
+  "slug": "featured-example-holiday-lights-stroll-sample-11-24",
+  "title": "Featured example: Holiday Lights Stroll (sample)",
+  "start": "2026-11-24T17:30:00",
+  "end": "2026-11-24T20:00:00",
+  "venue": "Mesilla Plaza",
+  "address": "2231 Calle de Guadalupe, Mesilla, NM 88046",
+  "category": "community",
+  "price": "Free",
+  "description": "Preview-only sample showing how a Featured event looks. Luminarias, carolers and hot cider around the plaza.",
+  "featured": true,
+  "sample": true
+ },
+ {
+  "slug": "featured-example-small-business-saturday-sample-11-28",
+  "title": "Featured example: Small Business Saturday (sample)",
+  "start": "2026-11-28T17:30:00",
+  "end": "2026-11-28T20:00:00",
+  "venue": "Downtown Main Street",
+  "address": "N Main St, Las Cruces, NM 88001",
+  "category": "markets",
+  "price": "Free",
+  "description": "Preview-only sample showing how a Featured event looks. Shop local up and down Main Street.",
+  "featured": true,
+  "sample": true
  }
 ]

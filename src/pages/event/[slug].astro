@@ -110,7 +110,7 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
     </div>
 
     <div class="event-detail__info">
-      <p class="eyebrow">{cat.name}{event.sponsored && <> <span class="event-detail__sponsored">Sponsored</span></>}{PREVIEW && event.sample && <> <span class="sample-tag">Sample</span></>}</p>
+      <p class="eyebrow">{cat.name}{event.sponsored && <> <span class="event-detail__sponsored">Sponsored</span></>}{event.featured && !event.sponsored && <> <span class="event-detail__featured">Featured</span></>}{PREVIEW && event.sample && <> <span class="sample-tag">Sample</span></>}</p>
       <h1>{event.title}</h1>
 
       <dl class="event-facts">
@@ -241,6 +241,7 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
   .event-detail__promote, .event-detail__suggest { font-size: var(--text-s); color: var(--text-dark-muted); }
   .event-detail__suggest a { color: var(--text-dark); }
   .event-detail__promote a { color: var(--primary); font-weight: 600; }
+  .event-detail__featured { font-size: var(--text-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 0.1875rem var(--space-xs); border-radius: 999px; background: var(--primary); color: var(--white); vertical-align: 2px; }
   .event-detail__sponsored { --_sponsored-bg: #FFF4D6; --_sponsored-text: #6B4E00; font-size: var(--text-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 0.1875rem var(--space-xs); border-radius: 999px; background: var(--_sponsored-bg); color: var(--_sponsored-text); vertical-align: 2px; }
   .event-also__more { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); }
   .event-also h2 { font-size: var(--text-xl); font-family: var(--text-font-family); font-weight: 700; letter-spacing: 0; margin-block-end: var(--space-xs); }
