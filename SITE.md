@@ -87,6 +87,7 @@ Built Nov 15, 2026 (Charlie: Las Cruces is a retirement town; seniors and famili
 - Index: `/search.json`, built with the site (title, venue, venue aliases and keywords, category, tags, short description). The browser only downloads it, plus the MiniSearch library, when someone starts typing.
 - Typing suggests **venues** (picking one filters to that venue: `?venue=rio-grande-winery`) and **events** (opens the event page).
 - Searches are shareable links: `/?q=trivia&when=week`.
+- **Filters bring the list back to its top** (Nov 23, 2026): the filter bar sticks to the top of the screen while scrolling, so any date, category, Free / Kids & Family / Seniors button, the category dropdown or a venue pick scrolls back to the first day of the results (`toTop()` in `Agenda.astro`). The stuck filters sit just under the slim header when it shows (3.5rem, the slim bar's height in `Header.astro`; change both together).
 - **Picking a category clears the search and venue** and shows the whole category (Charlie's call, Nov 10). Date buttons still combine with a search.
 - Categories wrap onto extra lines on desktop (no sideways scrolling). On phones (560px and narrower) a "All categories" dropdown replaces the category buttons.
 - **While searching** (a search or a venue filter is on), regulars and city meetings open up into full cards like one-off events. The normal view keeps them as slim rows, each with a small picture (flyer, photo or topic art). Approved by Charlie, Nov 10.

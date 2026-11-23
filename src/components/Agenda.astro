@@ -242,6 +242,13 @@ const itemLevel = headingLevel + 1;
     const needsRest = () => !restLoaded && (expanded || state.cat !== 'all' || !!state.for || searching() || !!state.q
       || (state.when !== 'all' && ranges[state.when][1] >= restEl.dataset.restFrom));
 
+    // After a filter changes, a visitor scrolled down the list would stay mid-list and not see
+    // the new results start. Bring the top of the list back, just under the (sticky) filters.
+    function toTop() {
+      if (root.getBoundingClientRect().top >= 0) return;
+      root.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+
     function apply(push) {
       if (needsRest()) {
         if (status) status.textContent = 'Loading the rest of the calendar…';
@@ -344,7 +351,7 @@ const itemLevel = headingLevel + 1;
       if (!o) return;
       if (o.type === 'venue') {
         state.venue = o.v.k; venueName = o.v.n; state.q = ''; matches = null; input.value = '';
-        closeSuggest(); apply(true);
+        closeSuggest(); apply(true); toTop();
       } else {
         location.href = `/event/${o.t.id}/`;
       }
@@ -407,7 +414,7 @@ const itemLevel = headingLevel + 1;
       closeSuggest();
     }
     const catSelect = root.querySelector('[data-cat-select]');
-    catSelect?.addEventListener('change', () => { pickCategory(catSelect.value); apply(true); });
+    catSelect?.addEventListener('change', () => { pickCategory(catSelect.value); apply(true); toTop(); });
 
     root.querySelector('[data-venue-clear]')?.addEventListener('click', () => { state.venue = ''; venueName = ''; apply(true); input?.focus(); });
 
@@ -433,6 +440,7 @@ const itemLevel = headingLevel + 1;
       }
       else return;
       apply(true);
+      if (!b.hasAttribute('data-more')) toTop();
     });
 
     // Start fetching as soon as someone reaches for the filters, so it's there by the time they click.
@@ -450,10 +458,16 @@ const itemLevel = headingLevel + 1;
 </script>
 
 <style>
+  /* The slim header (Header.astro) is fixed to the top once the full header scrolls away. Keep the
+     stuck filters, and the list top they scroll back to, below it instead of underneath it. */
+  :global(:root:has([data-sticky-bar][data-show])) .agenda { scroll-margin-block-start: 3.5rem; }
+  :global(:root:has([data-sticky-bar][data-show])) .agenda__filters { inset-block-start: 3.5rem; }
+
   .agenda {
     .agenda__filters {
       position: sticky;
       inset-block-start: 0;
+      transition: inset-block-start .2s ease;
       z-index: 5;
       display: flex;
       flex-direction: column;
