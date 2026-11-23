@@ -147,7 +147,7 @@ Built Nov 23, 2026. Charlie's own picks, free for now; he plans to sell Featured
 
 - **Review page, "Featured events":** paste any event's address (any source: feeds, CitySpark, the newsletter check, submissions), tick "Every date of it" if wanted, and an optional **until** date (empty = until the event is over). "Stop featuring" undoes it. Saving starts a rebuild. Stored in KV `featured.json` (same matching as Hidden listings, plus `until`), sent to the build inside `/approved.json` (`featured`).
 - Submissions can still be featured with the **Featured** checkbox when approving (it was called Spotlight before Nov 23; same `featured` flag).
-- **What a Featured event gets:** a full card (even a weekly regular), pinned to the top of its day after any Sponsored ones, a gold star on the corner of its picture (top right on homepage cards, where the date is top left), a navy **★ FEATURED** label and its own soft navy background (`--_featured-bg` in `EventCard.astro`; Charlie turned down red on Nov 23). Reads differently from paid gold and the green regulars, the label on its event page, and a place in the homepage Spotlight rotation.
+- **What a Featured event gets:** a full card (even a weekly regular), pinned to the top of its day after any Sponsored ones, a gold star on the corner of its picture (on homepage cards, just right of the date, so it doesn't cover the category label), a navy **★ FEATURED** label and its own soft navy background (`--_featured-bg` in `EventCard.astro`; Charlie turned down red on Nov 23). Reads differently from paid gold and the green regulars, the label on its event page, and a place in the homepage Spotlight rotation.
 - An event both Featured and Sponsored shows as Sponsored only.
 
 ## Bigger list for older readers
