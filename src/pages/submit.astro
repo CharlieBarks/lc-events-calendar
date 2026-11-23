@@ -445,7 +445,7 @@ const venueList = await getVenues();
   }
   function applyMe() {
     // Coming from a "Spotlight my event" link (?spotlight=1): Spotlight is pre-selected.
-    if (new URLSearchParams(location.search).get('spotlight')) {
+    if (['1', 'true', 'yes'].includes(new URLSearchParams(location.search).get('spotlight') || '')) {
       (form.querySelector('input[name="boost"][value="spotlight"]') as HTMLInputElement).checked = true;
     }
     const me = loadMe();
@@ -900,6 +900,14 @@ const venueList = await getVenues();
     p.textContent = `${text} It shows up within a few minutes. `;
     if (page) { const a = document.createElement('a'); a.href = page; a.textContent = 'See your event'; p.append(a); }
     $('[data-done-title]').textContent = 'Thanks!';
+  }
+
+  // Back from Stripe after paying for a Spotlight (the Payment Link sends buyers to ?spotlight=paid).
+  if (new URLSearchParams(location.search).get('spotlight') === 'paid') {
+    const n = $('[data-edit-note]');
+    n.hidden = false;
+    n.textContent = "Thank you! Your Spotlight payment went through. I'll put your event at the top of the calendar as soon as I've checked it over, usually within a day, and you'll get an email when it's live. Stripe is emailing your receipt.";
+    document.querySelector<HTMLElement>('[data-welcome]')!.hidden = true;
   }
 
   // Welcome note: once someone taps "Got it", it stays hidden on this device.
