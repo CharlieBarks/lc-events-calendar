@@ -36,10 +36,11 @@ const featured = event.featured && !event.sponsored;
 ---
 <li class="event-card" data-town={event.town || undefined} data-date={event.date} data-cat={event.category} data-for={event.audience?.length ? event.audience.join(' ') : undefined} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-card__link" data-layout={row ? 'row' : 'stack'} data-size={big ? 'big' : undefined} data-sponsored={event.sponsored ? '' : undefined} data-featured={featured ? '' : undefined} data-regular={regular ? '' : undefined} href={`/event/${event.slug}/`}>
   <EventArt event={event} height={big ? 230 : row ? 128 : 170} eager={eager} showDate={!row && !event.ongoing} compact={row} />
+  {featured && <span class="event-card__star" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg></span>}
   {row ? (
   <div class="event-card__body">
     <Heading class="event-card__name">{event.title}</Heading>
-    <p class="event-card__when"><span class="event-card__time">{when}</span><span class="event-card__venue">{shortVenue(event)}</span>{regular && event.series && !event.ongoing && <span class="event-card__tag event-card__tag--regular">{event.series.when}</span>}{event.sponsored && <span class="event-card__sponsored">Sponsored</span>}{featured && <span class="event-card__featured">Featured</span>}{audience.includes('kids') && <span class="event-card__tag">Kids &amp; family</span>}{audience.includes('seniors') && <span class="event-card__tag">Seniors</span>}</p>
+    <p class="event-card__when"><span class="event-card__time">{when}</span><span class="event-card__venue">{shortVenue(event)}</span>{regular && event.series && !event.ongoing && <span class="event-card__tag event-card__tag--regular">{event.series.when}</span>}{event.sponsored && <span class="event-card__sponsored">Sponsored</span>}{featured && <span class="event-card__featured"><svg class="event-card__star-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>Featured</span>}{audience.includes('kids') && <span class="event-card__tag">Kids &amp; family</span>}{audience.includes('seniors') && <span class="event-card__tag">Seniors</span>}</p>
     {aboutLine && <p class="event-card__about">{aboutLine}</p>}
     <p class="event-card__where">{catName}{genre && ` · ${genre}`}{event.area && ` · ${event.area}`}{rowNote && ` · ${rowNote}`}</p>
     <p class="event-card__price-col">{showPrice ? <span class="event-card__price">{event.price}</span> : isFree ? <span class="event-card__price">Free</span> : <span class="event-card__see">See details</span>}{PREVIEW && event.sample && <span class="sample-tag">Sample</span>}</p>
@@ -52,7 +53,7 @@ const featured = event.featured && !event.sponsored;
     {(showPrice || event.sponsored || featured || (PREVIEW && event.sample)) && (
       <p class="event-card__foot">
         {event.sponsored && <span class="event-card__sponsored">Sponsored</span>}
-        {featured && <span class="event-card__featured">Featured</span>}
+        {featured && <span class="event-card__featured"><svg class="event-card__star-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>Featured</span>}
         {showPrice && <span class="event-card__price">{event.price}</span>}
         {PREVIEW && event.sample && <span class="sample-tag">Sample</span>}
       </p>
@@ -67,10 +68,13 @@ const featured = event.featured && !event.sponsored;
     --_sponsored-bg: #FFF4D6;
     --_sponsored-text: #6B4E00;
     --_sponsored-line: #D9B44A;
-    /* Featured (Charlie's picks, sold later as an upgrade): a soft tint of LLLC red, so it reads
-       differently from paid gold and from the green tint of weekly regulars. */
-    --_featured-bg: color-mix(in oklch, var(--primary) 8%, var(--white));
-    --_featured-line: color-mix(in oklch, var(--primary) 45%, var(--white));
+    /* Featured (Charlie's picks, sold later as an upgrade): a soft tint of LLLC navy with a gold
+       star (Charlie, Nov 23: not red). Reads differently from paid gold and the green regulars. */
+    --_featured-bg: color-mix(in oklch, var(--base) 10%, var(--white));
+    --_featured-line: color-mix(in oklch, var(--base) 55%, var(--white));
+    --_featured-ink: var(--base);
+    --_star: #F2B705;
+    --_star-edge: #B7860B;
 
     display: flex;
 
@@ -142,9 +146,31 @@ const featured = event.featured && !event.sponsored;
       white-space: nowrap;
     }
 
+    .event-card__link { position: relative; }
+    .event-card__star {
+      position: absolute;
+      z-index: 2;
+      inset-block-start: 0.375rem;
+      inset-inline-start: 0.375rem;
+      display: grid;
+      place-items: center;
+      inline-size: 2.25rem;
+      block-size: 2.25rem;
+      border-radius: 50%;
+      background: var(--white);
+      box-shadow: 0 2px 6px color-mix(in oklch, var(--neutral) 30%, transparent);
+      & svg { inline-size: 1.6rem; block-size: 1.6rem; fill: var(--_star); stroke: var(--_star-edge); stroke-width: 1; stroke-linejoin: round; }
+    }
+    .event-card__star-icon { display: inline-block; flex: none; inline-size: 1.1em; block-size: 1.1em; fill: var(--_star); }
+    /* Homepage cards: the date sits top left, so the star goes top right. */
+    .event-card__link[data-layout="stack"] .event-card__star { inset-inline-start: auto; inset-inline-end: 0.625rem; inset-block-start: 0.625rem; }
+
     .event-card__featured {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3em;
       padding: 0.1875rem 0.5rem;
-      background: var(--primary);
+      background: var(--_featured-ink);
       border-radius: var(--radius-circle);
       color: var(--white);
       font-size: var(--text-xs);
