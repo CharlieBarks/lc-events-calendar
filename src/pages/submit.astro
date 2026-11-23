@@ -108,7 +108,7 @@ const venueList = await getVenues();
           </div>
           <div class="submit-form__field"><label for="price">Cost</label><input id="price" name="price" placeholder="Free, No cover, $10…" /></div>
         </div>
-        <div class="submit-form__field"><label for="description">Tell people why they should come <span class="submit-form__optional">(optional)</span></label><textarea id="description" name="description" rows="3"></textarea></div>
+        <div class="submit-form__field"><label for="description">Tell people why they should come <span class="submit-form__optional">(optional)</span></label><textarea id="description" name="description" rows="6"></textarea></div>
         <div class="submit-form__field"><label for="url">Tickets or more info <span class="submit-form__optional">(optional)</span></label><input type="url" id="url" name="url" placeholder="https://" inputmode="url" /></div>
 
         <div class="submit-form__field" data-photo-field hidden>
@@ -746,6 +746,47 @@ const venueList = await getVenues();
     applyMe(); step('choose');
   });
 
+
+  // ---- Pasting into "Tell people why they should come" ----
+  // Text copied from Grok, ChatGPT, Google Docs or a web page often reaches a plain text box
+  // without its line breaks (Charlie, Nov 23). The copied web version still has the paragraphs, so
+  // rebuild them from it: paragraphs and headings become blank lines, list items "• ", and Markdown
+  // marks (**bold**, # headings) are dropped. Plain text that already has line breaks is left alone.
+  function pastedText(html: string) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('script, style').forEach((n) => n.remove());
+    const out: string[] = [];
+    const walk = (n: Node) => {
+      if (n.nodeType === 3) { out.push((n.textContent || '').replace(/\s+/g, ' ')); return; }
+      if (n.nodeType !== 1) return;
+      const tag = (n as Element).tagName;
+      if (tag === 'BR') { out.push('\n'); return; }
+      const block = /^(P|DIV|H[1-6]|LI|UL|OL|BLOCKQUOTE|PRE|TR|SECTION|ARTICLE|HEADER|FOOTER|TABLE)$/.test(tag);
+      if (tag === 'LI') out.push('\n• ');
+      else if (block) out.push('\n\n');
+      n.childNodes.forEach(walk);
+      if (block && tag !== 'LI') out.push('\n\n');
+    };
+    walk(doc.body);
+    return out.join('').replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/\n\n(• )/g, '\n$1').trim();
+  }
+  const tidyMarkdown = (t: string) => t
+    .replace(/\r/g, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1')
+    .replace(/^\s*[-*]\s+/gm, '• ');
+  field('description').addEventListener('paste', (e: ClipboardEvent) => {
+    const html = e.clipboardData?.getData('text/html') || '';
+    const plain = e.clipboardData?.getData('text/plain') || '';
+    let text = '';
+    if (html && !/\n/.test(plain.trim())) text = pastedText(html);
+    else if (/\*\*|^#{1,6}\s|^\s*[-*]\s/m.test(plain)) text = tidyMarkdown(plain);
+    if (!text) return; // let the browser paste it as it is
+    e.preventDefault();
+    const box = field('description') as unknown as HTMLTextAreaElement;
+    box.setRangeText(text, box.selectionStart, box.selectionEnd, 'end');
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 
   // ---- "Here's how it'll look": a live copy of the listing's row on the calendar ----
   const CAT_NAMES: Record<string, string> = JSON.parse(app.dataset.cats || '{}');

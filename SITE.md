@@ -183,6 +183,7 @@ Built Nov 14, 2026. One set of rules, `src/lib/repeat.js`, is used by the form, 
   - Links in the emails and on the review page use `LIVE_SITE` in `intake.js` (events.livelovelascruces.com since Nov 23).
 - **"Here's how it'll look" (Nov 23, 2026):** a live preview of the listing's calendar row just above Submit on `/submit/`, same sizes as the real row. It updates as the organizer types and shows their photo (or flyer). `renderPreview()` in `submit.astro`.
 - The thank-you screen no longer says the best listings make the newsletter (Charlie, Nov 23).
+- **Pasting a description keeps its paragraphs (Nov 23, 2026):** text copied from Grok, ChatGPT, Google Docs or a web page often lost its line breaks in the plain text box. On paste, the form rebuilds paragraphs from the copied web version, turns list items into "• " lines and drops Markdown marks (`**bold**`, `#` headings). Plain text that already has line breaks is pasted as is. `pastedText()` in `submit.astro`. The box is 6 rows tall.
 - **Not built yet:** Trusted Editors whose changes go live without review, and one link per venue that lists all of its events.
 - Feed events (CitySpark, city) can't be edited: they are copies and are overwritten nightly. To change one, enter it through the form; ours replaces the feed's copy.
 
