@@ -6,7 +6,8 @@ Site-specific rules. The shared rules are in [AGENTS.md](AGENTS.md). Read the `R
 
 The Live Love Las Cruces events calendar, replacing CitySpark at events.livelovelascruces.com. The place locals and visitors check for what's happening today, this weekend and this week.
 
-- Live site (main branch): https://lc-events-calendar.cf2-99b.workers.dev (Worker `lc-events-calendar`)
+- Live site (main branch): **https://events.livelovelascruces.com** since Nov 23, 2026 (Worker `lc-events-calendar`, Cloudflare custom domain). Also still answers at https://lc-events-calendar.cf2-99b.workers.dev (noindex).
+- **Undo the domain move:** Workers & Pages > `lc-events-calendar` > Settings > Domains: remove events.livelovelascruces.com, then in DNS for livelovelascruces.com add back `A events 155.138.241.30`, proxied (the old WordPress calendar host).
 - Design preview (redesign branch, noindex): https://lc-events-preview.cf2-99b.workers.dev (Worker `lc-events-preview`)
 - Other Workers: `cityspark-export` (daily CitySpark copy, then rebuild), `lc-events-proxy` (City of Las Cruces feed)
 
@@ -180,7 +181,7 @@ Built Nov 14, 2026. One set of rules, `src/lib/repeat.js`, is used by the form, 
   - To the submitter: a thank-you with their private edit link as soon as they send an event, and a note when it goes on the calendar (or when a change they made is approved). No email when Charlie reopens and fixes an event himself, and none on Reject.
   - To Charlie (`NOTIFY_TO` in `wrangler.intake.jsonc`): every new submission and every organizer change, with a link to the review page.
   - The wording is in `mailThanks`, `mailApproved` and `mailCharlie` in `intake.js`. A failed send is logged and never blocks a submission.
-  - Links in the emails use `LIVE_SITE` in `intake.js`: change it when the calendar moves to events.livelovelascruces.com.
+  - Links in the emails and on the review page use `LIVE_SITE` in `intake.js` (events.livelovelascruces.com since Nov 23).
 - **Not built yet:** Trusted Editors whose changes go live without review, and one link per venue that lists all of its events.
 - Feed events (CitySpark, city) can't be edited: they are copies and are overwritten nightly. To change one, enter it through the form; ours replaces the feed's copy.
 
