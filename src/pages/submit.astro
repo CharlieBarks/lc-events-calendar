@@ -542,7 +542,9 @@ const venueList = await getVenues();
       imageId = x.imageId || ''; photoIds = (x.photoIds || []).slice(0, MAX_PHOTOS); mainId = x.main || '';
       renderPics();
       $('[data-edit-note]').hidden = false;
-      $('[data-edit-note]').textContent = x.status === 'waiting'
+      $('[data-edit-note]').textContent = x.trusted
+        ? "You're a trusted submitter, so your changes go live on the calendar as soon as you save."
+        : x.status === 'waiting'
         ? "You're editing an event that's still waiting to be checked. Your changes replace what you sent."
         : x.status === 'change-waiting' ? "You're editing a change that's still waiting to be checked. The calendar shows the earlier version until it's approved."
         : "You're editing an event that's on the calendar. Changes are checked before they show up, usually within a day.";

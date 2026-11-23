@@ -521,6 +521,8 @@ async function handleMine(request, env, origin) {
     description: rec.description, shows: rec.shows, repeat: rec.repeat || null, annual: !!rec.annual,
     imageId: rec.imageId || '', imageUrl: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : '',
     photoIds: photosOf(rec), main: mainOf(rec), imgBase: `${PUBLIC_ORIGIN}/img/`,
+    // Trusted submitters' changes go live as soon as they save (paid Spotlight events still wait).
+    trusted: !rec.boost && (await isTrusted(env, rec.contact?.email)),
     name: rec.contact?.name || '', email: rec.contact?.email || '', phone: rec.contact?.phone || '',
   }, { headers: { 'cache-control': 'no-store' } }, origin);
 }
