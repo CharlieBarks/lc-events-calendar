@@ -19,7 +19,7 @@ export const CITYSPARK_SUBSCRIBED = true;
 //   (?client_reference_id=…) so the payment can be matched in Stripe. Empty = "I'll email you a payment link".
 export const SPOTLIGHT = {
   price: 50,
-  payUrl: '',
+  payUrl: 'https://buy.stripe.com/4gMbJ1dSdbYk4Rw0Y1dEs00', // "Calendar Spotlight" $50, made Nov 23, 2026; after paying, buyers land on /submit/?spotlight=paid
 };
 
 // Repeating events (src/lib/repeat.js) are listed this many days ahead. Each nightly build moves the window on.
