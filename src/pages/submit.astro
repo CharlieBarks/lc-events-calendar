@@ -13,9 +13,18 @@ const venueList = await getVenues();
     <p class="eyebrow">Free, always</p>
     <h1>Put it on the calendar.</h1>
     <p class="lede">If it's open to the public in Las Cruces or Mesilla, it belongs here. I check every listing, usually within a day. – Charlie</p>
+
+    <!-- Welcome note for the new calendar (Charlie, Nov 23, 2026). "Got it" hides it on this device. -->
+    <aside class="submit-welcome" data-welcome aria-labelledby="welcome-title">
+      <h2 id="welcome-title">Welcome to the brand-new Las Cruces Events calendar!</h2>
+      <p>I built this to make sharing your event easier than ever. Snap a photo of your flyer and the details fill themselves in. Add up to 4 photos. See exactly how your listing will look before you hit send. And fix anything later with your own private edit link.</p>
+      <p>It's a big step forward for our local calendar, and I hope you find it simpler and more useful. Since it's new, you might spot a hiccup or two. If anything's confusing, not working right, or you have an idea to make it better, I'd love to hear from you: <a href="mailto:events@livelovelascruces.com?subject=New%20events%20calendar">events@livelovelascruces.com</a></p>
+      <p class="submit-welcome__sign">Thanks for helping keep Las Cruces in the know. – Charlie</p>
+      <button type="button" class="btn--base btn--outline btn--s" data-welcome-close>Got it</button>
+    </aside>
   </section>
 
-  <section class="wrap-narrow submit-body" data-app data-intake={INTAKE_URL} data-pay={SPOTLIGHT.payUrl} data-sitekey={TURNSTILE_SITEKEY}>
+  <section class="wrap-narrow submit-body" data-app data-intake={INTAKE_URL} data-pay={SPOTLIGHT.payUrl} data-sitekey={TURNSTILE_SITEKEY} data-cats={JSON.stringify(Object.fromEntries(Object.entries(CATEGORIES).map(([k, c]) => [k, c.name])))}>
     <!-- The "are you a person?" check. Invisible unless Cloudflare needs the visitor to tick a box. -->
     <div data-human></div>
     <p class="submit-body__who" data-who hidden>Submitting as <strong data-who-name></strong> · <button type="button" class="submit-body__link" data-forget>not you?</button></p>
@@ -108,14 +117,25 @@ const venueList = await getVenues();
           </div>
           <div class="submit-form__field"><label for="price">Cost</label><input id="price" name="price" placeholder="Free, No cover, $10…" /></div>
         </div>
-        <div class="submit-form__field"><label for="description">Tell people why they should come <span class="submit-form__optional">(optional)</span></label><textarea id="description" name="description" rows="3"></textarea></div>
+        <div class="submit-form__field"><label for="description">Tell people why they should come <span class="submit-form__optional">(optional)</span></label><textarea id="description" name="description" rows="6"></textarea></div>
         <div class="submit-form__field"><label for="url">Tickets or more info <span class="submit-form__optional">(optional)</span></label><input type="url" id="url" name="url" placeholder="https://" inputmode="url" /></div>
 
-        <div class="submit-form__field" data-photo-field hidden>
-          <label class="submit-form__photo" for="photo">
-            <input type="file" id="photo" accept="image/*" class="sr-only" data-photo />
-            <strong>+ Add a photo</strong> <span class="submit-form__optional" data-photo-hint>(optional, but events with a picture get way more clicks)</span>
-          </label>
+        <!-- Pictures (Nov 23): an optional flyer plus up to 4 photos. The main picture shows on the calendar. -->
+        <div class="submit-form__field submit-pics" data-pics>
+          <span class="submit-form__label">Pictures <span class="submit-form__optional">(optional, but events with a picture get way more clicks)</span></span>
+          <ul class="submit-pics__list" role="list" data-pics-list></ul>
+          <div class="submit-pics__add">
+            <label class="submit-form__photo" for="add-flyer" data-add-flyer>
+              <input type="file" id="add-flyer" accept="image/*" class="sr-only" data-flyer-extra />
+              <strong>+ Add a flyer</strong>
+            </label>
+            <label class="submit-form__photo" for="photo" data-add-photos>
+              <input type="file" id="photo" accept="image/*" multiple class="sr-only" data-photo />
+              <strong data-photos-label>+ Add photos</strong> <span class="submit-form__optional" data-photos-left>(up to 4)</span>
+            </label>
+          </div>
+          <p class="submit-form__hint" data-pics-hint hidden>Pick the <strong>main picture</strong>: it's the one people see on the calendar. Your event page shows all of them.</p>
+          <p class="submit-form__status" data-pics-status role="status"></p>
         </div>
       </fieldset>
 
@@ -153,6 +173,22 @@ const venueList = await getVenues();
         <label class="submit-form__check"><input type="checkbox" name="remember" checked /> Remember me on this device</label>
       </fieldset>
 
+      <fieldset class="submit-preview" data-preview>
+        <legend>Here's how it'll look</legend>
+        <p class="submit-form__hint">Your listing on the calendar, as people will see it. It updates as you type.</p>
+        <div class="submit-preview__card">
+          <div class="submit-preview__pic" data-pv-pic><span data-pv-initial></span></div>
+          <div class="submit-preview__body">
+            <p class="submit-preview__name" data-pv-name>Your event name</p>
+            <p class="submit-preview__when"><span class="submit-preview__time" data-pv-time>Date and time</span> <span data-pv-venue></span></p>
+            <p class="submit-preview__about" data-pv-about></p>
+            <p class="submit-preview__where" data-pv-where></p>
+          </div>
+          <p class="submit-preview__price" data-pv-price></p>
+        </div>
+        <p class="submit-form__hint">Your event's own page also shows the full description, your link and every picture you sent.</p>
+      </fieldset>
+
       <div class="submit-form__trap" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" name="website" tabindex="-1" autocomplete="off" /></div>
       <button class="btn--primary submit-form__send" type="submit">Submit Your Event</button>
       <p class="submit-form__status" data-status role="status"></p>
@@ -160,14 +196,13 @@ const venueList = await getVenues();
 
     <!-- Done -->
     <div class="submit-done" data-step="done" hidden>
-      <h2>Got it, thanks!</h2>
+      <h2 data-done-title>Got it, thanks!</h2>
       <p data-done-text>I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.</p>
       <div class="submit-done__edit" data-done-edit hidden>
         <p><strong>Need to change it later?</strong> This private link opens your event so you can fix a date, a time or anything else. Keep it somewhere safe: anyone with the link can edit this event.</p>
         <p class="submit-done__link"><a data-edit-link href="#"></a></p>
         <button class="btn--base btn--outline btn--s" type="button" data-copy-edit>Copy the link</button>
       </div>
-      <p data-done-free>The best-looking listings make the Live Love Las Cruces newsletter (10,000+ locals).</p>
       <div class="submit-done__pay" data-done-pay hidden>
         <p><strong>One more step for your Spotlight:</strong> <span data-pay-text>pay the ${SPOTLIGHT.price} below. As soon as it comes through and I've checked your listing, it goes to the top.</span></p>
         <a class="btn--primary" data-pay-link href="#" target="_blank" rel="noopener">Pay ${SPOTLIGHT.price} for Spotlight</a>
@@ -235,8 +270,10 @@ const venueList = await getVenues();
   const tpl = document.getElementById('show-row') as HTMLTemplateElement;
   const status = app.querySelector('[data-status]') as HTMLElement;
   const KEY = 'lc-events-submitter';
-  let imageId = ''; // the flyer, or the only picture
-  let photoId = ''; // a photo sent along with a flyer: shown on the calendar instead of the flyer
+  let imageId = ''; // the flyer (optional)
+  let photoIds: string[] = []; // up to 4 photos
+  let mainId = ''; // the picture shown on the calendar; '' = automatic (first photo, else the flyer)
+  const MAX_PHOTOS = 4;
   let source = 'form';
 
   const $ = <T extends Element = HTMLElement>(s: string) => app.querySelector(s) as T;
@@ -245,6 +282,7 @@ const venueList = await getVenues();
   function step(name: string) {
     app.querySelectorAll<HTMLElement>('[data-step]').forEach((el) => (el.hidden = el.dataset.step !== name));
     if (name !== 'choose') window.scrollTo({ top: app.offsetTop - 20, behavior: 'smooth' });
+    if (name === 'form') setTimeout(renderPreview); // after the form is filled (flyer, edit link, suggest an edit)
   }
 
   // ---- Dates ----
@@ -500,9 +538,9 @@ const venueList = await getVenues();
       }
       $<HTMLInputElement>('[data-annual]').checked = !!x.annual;
       syncRepeat();
-      imageId = x.imageId || ''; photoId = x.photoId || '';
-      if (imageId) source = 'flyer'; // a new photo then goes alongside the existing picture instead of replacing it
-      photoLabel(!!imageId, !!photoId);
+      // The pictures it already has, ready to keep, remove or change (Charlie, Nov 23).
+      imageId = x.imageId || ''; photoIds = (x.photoIds || []).slice(0, MAX_PHOTOS); mainId = x.main || '';
+      renderPics();
       $('[data-edit-note]').hidden = false;
       $('[data-edit-note]').textContent = x.status === 'waiting'
         ? "You're editing an event that's still waiting to be checked. Your changes replace what you sent."
@@ -569,15 +607,73 @@ const venueList = await getVenues();
     return empty;
   }
 
-  // "+ Add a photo": offered on both paths. With a flyer it's a second picture for the calendar.
-  function photoLabel(withFlyer: boolean, added: boolean) {
-    $('[data-photo-field]').hidden = false;
-    $('label.submit-form__photo strong').textContent = added ? '✓ Photo added (tap to change)' : withFlyer ? '+ Add a photo too' : '+ Add a photo';
-    $('[data-photo-hint]').textContent = withFlyer
-      ? '(optional: a photo of the act or place looks better on the calendar than a flyer; your flyer still shows in full on the event page)'
-      : '(optional, but events with a picture get way more clicks)';
-    $('[data-photo-hint]').hidden = added;
+  // ---- Pictures: optional flyer + up to 4 photos, one of them the main picture ----
+  const picUrl = (id: string) => `${INTAKE}/img/${id}`;
+  const currentMain = () => [imageId, ...photoIds].includes(mainId) ? mainId : (photoIds[0] || imageId || '');
+  function renderPics() {
+    const list = $('[data-pics-list]');
+    const pics = [...(imageId ? [{ id: imageId, kind: 'Flyer' }] : []), ...photoIds.map((id, i) => ({ id, kind: `Photo ${i + 1}` }))];
+    const main = currentMain();
+    list.innerHTML = pics.map((p) => `<li class="submit-pics__item"${p.id === main ? ' data-main' : ''}>
+      <img src="${picUrl(p.id)}" alt="${p.kind}">
+      <span class="submit-pics__kind">${p.kind}</span>
+      <label class="submit-pics__main"><input type="radio" name="mainpic" value="${p.id}"${p.id === main ? ' checked' : ''}> Main picture</label>
+      <button type="button" class="submit-pics__remove" data-remove-pic="${p.id}" aria-label="Remove ${p.kind.toLowerCase()}">Remove</button>
+    </li>`).join('');
+    ($('[data-add-flyer]') as HTMLElement).hidden = !!imageId;
+    const left = MAX_PHOTOS - photoIds.length;
+    ($('[data-add-photos]') as HTMLElement).hidden = left <= 0;
+    $('[data-photos-label]').textContent = photoIds.length ? '+ Add more photos' : '+ Add photos';
+    $('[data-photos-left]').textContent = `(up to ${left} more)`;
+    $('[data-pics-hint]').hidden = pics.length < 2;
+    renderPreview();
   }
+  async function uploadPicture(f: File) {
+    const fd = new FormData();
+    fd.append('image', await prepare(f), 'photo.jpg');
+    fd.append('human', await humanToken());
+    const res = await fetch(`${INTAKE}/extract?read=0`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data.imageId as string;
+  }
+  ($('[data-pics-list]') as HTMLElement).addEventListener('change', (e) => {
+    const r = e.target as HTMLInputElement;
+    if (r.name === 'mainpic') { mainId = r.value; renderPics(); }
+  });
+  ($('[data-pics-list]') as HTMLElement).addEventListener('click', (e) => {
+    const id = (e.target as HTMLElement).closest<HTMLElement>('[data-remove-pic]')?.dataset.removePic;
+    if (!id) return;
+    if (id === imageId) imageId = ''; else photoIds = photoIds.filter((x) => x !== id);
+    if (mainId === id) mainId = '';
+    renderPics();
+  });
+  ($('[data-photo]') as HTMLInputElement).addEventListener('change', async (e) => {
+    const input = e.target as HTMLInputElement;
+    const files = [...(input.files || [])];
+    input.value = '';
+    if (!files.length) return;
+    const room = MAX_PHOTOS - photoIds.length;
+    const st = $('[data-pics-status]');
+    if (files.length > room) st.textContent = `Only ${room} more photo${room === 1 ? '' : 's'} fit, so I added the first ${room}.`;
+    else st.textContent = 'Uploading…';
+    for (const f of files.slice(0, room)) {
+      try { photoIds.push(await uploadPicture(f)); renderPics(); }
+      catch { st.textContent = "Couldn't upload one of those. Try another?"; }
+    }
+    if (st.textContent === 'Uploading…') st.textContent = '';
+  });
+  // A flyer added later (typed-in path, or after removing one): kept as the flyer, details not re-read.
+  ($('[data-flyer-extra]') as HTMLInputElement).addEventListener('change', async (e) => {
+    const input = e.target as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    const st = $('[data-pics-status]');
+    st.textContent = 'Uploading…';
+    try { imageId = await uploadPicture(f); st.textContent = ''; renderPics(); }
+    catch { st.textContent = "Couldn't upload that one. Try another?"; }
+  });
 
   async function startFlyer(file: File) {
     const url = URL.createObjectURL(file);
@@ -600,8 +696,9 @@ const venueList = await getVenues();
       $('[data-read-note]').innerHTML = `<strong>${err.message === 'Upload failed' ? "That upload didn't go through." : err.message}</strong> You can still fill it in below, or try the flyer again.`;
     }
     $('[data-flyer-box]').hidden = false;
-    photoLabel(true, !!photoId);
     step('form');
+    renderPics();
+    renderPreview();
   }
 
   ($('[data-flyer]') as HTMLInputElement).addEventListener('change', (e) => {
@@ -610,32 +707,14 @@ const venueList = await getVenues();
   });
   $('[data-change]').addEventListener('click', () => ($('[data-flyer]') as HTMLInputElement).click());
   $('[data-manual]').addEventListener('click', () => {
-    source = 'form'; imageId = ''; photoId = '';
+    source = 'form'; imageId = ''; photoIds = []; mainId = '';
     form.reset(); applyMe(); fill(prefill());
     $('[data-flyer-box]').hidden = true;
-    photoLabel(false, false);
     step('form');
+    renderPics();
+    renderPreview();
     field('title').focus();
   });
-  ($('[data-photo]') as HTMLInputElement).addEventListener('change', async (e) => {
-    const f = (e.target as HTMLInputElement).files?.[0];
-    if (!f) return;
-    const label = $('label.submit-form__photo strong');
-    label.textContent = 'Uploading…';
-    $('[data-photo-hint]').hidden = true;
-    try {
-      const fd = new FormData();
-      fd.append('image', await prepare(f), 'photo.jpg');
-      fd.append('human', await humanToken());
-      const res = await fetch(`${INTAKE}/extract?read=0`, { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      // With a flyer, the photo goes alongside it. Without one, it's the event's picture.
-      if (source === 'flyer' && imageId) photoId = data.imageId; else imageId = data.imageId;
-      label.textContent = '✓ Photo added (tap to change)';
-    } catch { label.textContent = "Couldn't upload that one. Try another?"; }
-  });
-
   // Musicians arriving from their Las Cruces Live page: ?act=Desert%20Rose%20Trio
   function prefill() {
     const p = new URLSearchParams(location.search);
@@ -665,7 +744,7 @@ const venueList = await getVenues();
     btn.disabled = true; status.textContent = 'Sending…';
     const body = {
       title: field('title').value, venue: field('venue').value, address: field('address').value, category: field('category').value,
-      price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId, photoId,
+      price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId, photoIds, main: currentMain(),
       name: field('name').value, email: field('email').value, phone: field('phone').value, website: field('website').value,
       act: new URLSearchParams(location.search).get('act') || '', source,
       boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
@@ -691,18 +770,21 @@ const venueList = await getVenues();
         $('[data-done-edit]').hidden = false;
       }
       if (editKey) {
-        $('[data-done-text]').textContent = data.live
-          ? "Your changes are in. I'll check them over, usually within a day. Until then the calendar shows the earlier version."
-          : "Your changes are saved. I'll check the event over, usually within a day.";
-        $('[data-done-free]').hidden = true; $('[data-done-pay]').hidden = true;
+        // Trusted submitters' changes go live right away (data.published).
+        if (data.published) doneLive("Your changes are live!", data.page);
+        else $('[data-done-text]').textContent = data.live
+          ? "Your changes are saved, but they're not on the calendar yet. I check every change, usually within a day, and you'll get an email when they're live. Until then the calendar shows the earlier version."
+          : "Your changes are saved. Your event isn't on the calendar yet: I check every listing, usually within a day, and you'll get an email when it's live.";
+        $('[data-done-pay]').hidden = true;
         status.textContent = ''; step('done'); return;
       }
-      $('[data-done-text]').textContent = shows.length > 1
-        ? `All ${shows.length} dates are in. I'll check them over, usually within a day, and they'll show up on the calendar.`
-        : "I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.";
+      // Charlie, Nov 23: say plainly that it isn't on the calendar until it's checked.
+      if (data.live) doneLive(shows.length > 1 ? `All ${shows.length} dates are live on the calendar!` : "It's live on the calendar!", data.page);
+      else $('[data-done-text]').textContent = shows.length > 1
+        ? `All ${shows.length} dates are in, but they're not on the calendar yet. I check every listing myself, usually within a day, and you'll get an email the moment they're live.`
+        : "It's in, but it's not on the calendar yet. I check every listing myself, usually within a day, and you'll get an email the moment it's live.";
       // Spotlight: send them to pay, with the submission's reference so the payment can be matched in Stripe.
       const paid = body.boost === 'spotlight';
-      $('[data-done-free]').hidden = paid;
       $('[data-done-pay]').hidden = !paid;
       const payUrl = app.dataset.pay || '';
       const link = $('[data-pay-link]') as HTMLAnchorElement;
@@ -723,9 +805,107 @@ const venueList = await getVenues();
   });
 
   $('[data-again]').addEventListener('click', () => {
-    imageId = ''; photoId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
-    photoLabel(false, false);
+    $('[data-done-title]').textContent = 'Got it, thanks!';
+    imageId = ''; photoIds = []; mainId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
+    renderPics();
     applyMe(); step('choose');
+  });
+
+
+  // ---- Pasting into "Tell people why they should come" ----
+  // Text copied from Grok, ChatGPT, Google Docs or a web page often reaches a plain text box
+  // without its line breaks (Charlie, Nov 23). The copied web version still has the paragraphs, so
+  // rebuild them from it: paragraphs and headings become blank lines, list items "• ", and Markdown
+  // marks (**bold**, # headings) are dropped. Plain text that already has line breaks is left alone.
+  function pastedText(html: string) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('script, style').forEach((n) => n.remove());
+    const out: string[] = [];
+    const walk = (n: Node) => {
+      if (n.nodeType === 3) { out.push((n.textContent || '').replace(/\s+/g, ' ')); return; }
+      if (n.nodeType !== 1) return;
+      const tag = (n as Element).tagName;
+      if (tag === 'BR') { out.push('\n'); return; }
+      const block = /^(P|DIV|H[1-6]|LI|UL|OL|BLOCKQUOTE|PRE|TR|SECTION|ARTICLE|HEADER|FOOTER|TABLE)$/.test(tag);
+      if (tag === 'LI') out.push('\n• ');
+      else if (block) out.push('\n\n');
+      n.childNodes.forEach(walk);
+      if (block && tag !== 'LI') out.push('\n\n');
+    };
+    walk(doc.body);
+    return out.join('').replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/\n\n(• )/g, '\n$1').trim();
+  }
+  const tidyMarkdown = (t: string) => t
+    .replace(/\r/g, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1')
+    .replace(/^\s*[-*]\s+/gm, '• ');
+  field('description').addEventListener('paste', (e: ClipboardEvent) => {
+    const html = e.clipboardData?.getData('text/html') || '';
+    const plain = e.clipboardData?.getData('text/plain') || '';
+    let text = '';
+    if (html && !/\n/.test(plain.trim())) text = pastedText(html);
+    else if (/\*\*|^#{1,6}\s|^\s*[-*]\s/m.test(plain)) text = tidyMarkdown(plain);
+    if (!text) return; // let the browser paste it as it is
+    e.preventDefault();
+    const box = field('description') as unknown as HTMLTextAreaElement;
+    box.setRangeText(text, box.selectionStart, box.selectionEnd, 'end');
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  // ---- "Here's how it'll look": a live copy of the listing's row on the calendar ----
+  const CAT_NAMES: Record<string, string> = JSON.parse(app.dataset.cats || '{}');
+  const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const clock = (v: string) => {
+    if (!v) return null;
+    const [H, M] = v.split(':').map(Number);
+    return { t: `${H % 12 || 12}${M ? ':' + String(M).padStart(2, '0') : ''}`, ap: H < 12 ? 'AM' : 'PM' };
+  };
+  function renderPreview() {
+    const box = $('[data-preview]');
+    if (!box) return;
+    const title = field('title').value.trim();
+    $('[data-pv-name]').textContent = title || 'Your event name';
+    const row = showsEl.querySelector<HTMLElement>('.submit-form__show, [data-show]') || showsEl;
+    const date = (row.querySelector('[data-k="date"]') as HTMLInputElement | null)?.value || '';
+    const a = clock((row.querySelector('[data-k="start"]') as HTMLInputElement | null)?.value || '');
+    const b = clock((row.querySelector('[data-k="end"]') as HTMLInputElement | null)?.value || '');
+    let when = '';
+    if (date) { const [y, m, d] = date.split('-').map(Number); const dt = new Date(y, m - 1, d); when = `${DAY[dt.getDay()]}, ${MON[m - 1]} ${d}`; }
+    const time = a ? (b ? `${a.t}${a.ap === b.ap ? '' : ' ' + a.ap} - ${b.t} ${b.ap}` : `${a.t} ${a.ap}`) : '';
+    $('[data-pv-time]').textContent = [when, time].filter(Boolean).join(' · ') || 'Date and time';
+    const venue = field('venue').value.trim();
+    $('[data-pv-venue]').textContent = venue ? `· ${venue}` : '';
+    const desc = (field('description') as unknown as HTMLTextAreaElement).value.replace(/\s+/g, ' ').trim();
+    const first = desc.match(/^(.{20,160}?[.!?])(\s|$)/);
+    $('[data-pv-about]').textContent = first ? first[1] : desc.slice(0, 140);
+    $('[data-pv-where]').textContent = CAT_NAMES[field('category').value] || '';
+    $('[data-pv-price]').textContent = field('price').value.trim();
+    const pic = $('[data-pv-pic]');
+    const id = currentMain();
+    const src = id ? `${INTAKE}/img/${id}` : suggestImage;
+    pic.style.backgroundImage = src ? `url("${src}")` : '';
+    pic.toggleAttribute('data-empty', !src);
+    $('[data-pv-initial]').textContent = src ? '' : (title[0] || '★').toUpperCase();
+  }
+  form.addEventListener('input', renderPreview);
+  form.addEventListener('change', renderPreview);
+
+  // Trusted submitters: their event went straight onto the calendar.
+  function doneLive(text: string, page: string) {
+    const p = $('[data-done-text]');
+    p.textContent = `${text} It shows up within a few minutes. `;
+    if (page) { const a = document.createElement('a'); a.href = page; a.textContent = 'See your event'; p.append(a); }
+    $('[data-done-title]').textContent = 'Thanks!';
+  }
+
+  // Welcome note: once someone taps "Got it", it stays hidden on this device.
+  const WELCOME = 'lc-events-welcome-seen';
+  try { if (localStorage.getItem(WELCOME)) document.querySelector<HTMLElement>('[data-welcome]')!.hidden = true; } catch {}
+  document.querySelector('[data-welcome-close]')?.addEventListener('click', () => {
+    document.querySelector<HTMLElement>('[data-welcome]')!.hidden = true;
+    try { localStorage.setItem(WELCOME, '1'); } catch {}
   });
 
   applyMe();
@@ -736,6 +916,47 @@ const venueList = await getVenues();
 </script>
 
 <style>
+  .submit-welcome { display: flex; flex-direction: column; gap: var(--space-xs); align-items: flex-start; margin-block-start: var(--space-s); padding: var(--space-m); border: 1.5px solid color-mix(in oklch, var(--secondary) 45%, var(--white)); border-radius: var(--radius); background: color-mix(in oklch, var(--secondary) 7%, var(--white)); font-size: var(--text-m); }
+  .submit-welcome[hidden] { display: none; }
+  .submit-welcome h2 { font-size: var(--h4); margin: 0; }
+  .submit-welcome p { margin: 0; }
+  .submit-welcome a { font-weight: 700; color: var(--secondary); }
+  .submit-welcome__sign { font-style: italic; }
+  .submit-welcome button { margin-block-start: var(--space-xs); }
+  /* Pictures box: optional flyer + up to 4 photos, one marked as the main picture. */
+  .submit-pics__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--space-s); margin: var(--space-xs) 0; padding: 0; list-style: none; }
+  .submit-pics__list:empty { display: none; }
+  .submit-pics__list :global(.submit-pics__item) { display: flex; flex-direction: column; gap: 0.375rem; padding: 0.5rem; border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); }
+  .submit-pics__list :global(.submit-pics__item[data-main]) { border-color: var(--secondary); box-shadow: 0 0 0 1px var(--secondary) inset; }
+  .submit-pics__list :global(.submit-pics__item img) { inline-size: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-xs); background: var(--neutral-ultra-light); }
+  .submit-pics__list :global(.submit-pics__kind) { font-size: var(--text-s); font-weight: 700; }
+  .submit-pics__list :global(.submit-pics__main) { display: flex; align-items: center; gap: 0.375rem; font-size: var(--text-s); cursor: pointer; }
+  .submit-pics__list :global(.submit-pics__item[data-main] .submit-pics__main) { color: var(--secondary); font-weight: 700; }
+  .submit-pics__list :global(.submit-pics__main input) { inline-size: auto; accent-color: var(--secondary); }
+  .submit-pics__list :global(.submit-pics__remove) { align-self: flex-start; padding: 0.25rem 0; background: none; border: 0; color: var(--primary); font: inherit; font-size: var(--text-s); text-decoration: underline; cursor: pointer; min-block-size: 2rem; }
+  .submit-pics__add { display: grid; gap: var(--space-xs); grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+  .submit-pics__add [hidden] { display: none; }
+
+  /* "Here's how it'll look": same shape and sizes as a list row on the calendar (EventCard, row). */
+  .submit-preview__card { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--space-s); padding: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); }
+  .submit-preview__pic { inline-size: 6rem; block-size: 6rem; border-radius: var(--radius-s); background: var(--neutral-ultra-light) center / cover no-repeat; display: grid; place-items: center; }
+  .submit-preview__pic[data-empty] { background-color: var(--secondary); }
+  .submit-preview__pic span { color: var(--white); font-family: var(--heading-font-family); font-size: 2.5rem; font-weight: 800; }
+  .submit-preview__body { display: flex; flex-direction: column; gap: 0.125rem; min-inline-size: 0; }
+  .submit-preview__body p, .submit-preview__price { margin: 0; }
+  .submit-preview__name { font-family: var(--heading-font-family); font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+  .submit-preview__when { color: var(--text-dark-muted); font-size: var(--text-m); }
+  .submit-preview__time { color: var(--secondary); font-weight: 700; }
+  .submit-preview__about { font-size: var(--text-m); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .submit-preview__where { color: var(--text-dark-muted); font-size: var(--text-s); }
+  .submit-preview__price { grid-column: 2; color: var(--secondary); font-size: var(--text-m); font-weight: 700; }
+  .submit-preview__price:empty { display: none; }
+  @media (min-width: 48rem) {
+    .submit-preview__card { grid-template-columns: 8rem minmax(0, 1fr) auto; }
+    .submit-preview__pic { inline-size: 8rem; block-size: 8rem; }
+    .submit-preview__price { grid-column: 3; grid-row: 1; text-align: right; }
+  }
+
   .submit-head { display: flex; flex-direction: column; gap: var(--space-s); padding-block-end: var(--space-m); }
   .submit-head h1 { margin-block-start: var(--space-s); }
   .submit-body { padding-block-end: var(--space-xxl); }

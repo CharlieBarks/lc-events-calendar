@@ -149,7 +149,6 @@ Built Nov 23, 2026. Charlie's own picks, free for now; he plans to sell Featured
 - Submissions can still be featured with the **Featured** checkbox when approving (it was called Spotlight before Nov 23; same `featured` flag).
 - **What a Featured event gets:** a full card (even a weekly regular), pinned to the top of its day after any Sponsored ones, a gold star on the corner of its picture (top right on homepage cards, where the date is top left), a navy **★ FEATURED** label and its own soft navy background (`--_featured-bg` in `EventCard.astro`; Charlie turned down red on Nov 23). Reads differently from paid gold and the green regulars, the label on its event page, and a place in the homepage Spotlight rotation.
 - An event both Featured and Sponsored shows as Sponsored only.
-- Preview-only samples "Featured example: …" in `src/data/events.json` show the look on the preview.
 
 ## Bigger list for older readers
 
@@ -182,7 +181,18 @@ Built Nov 14, 2026. One set of rules, `src/lib/repeat.js`, is used by the form, 
   - To Charlie (`NOTIFY_TO` in `wrangler.intake.jsonc`): every new submission and every organizer change, with a link to the review page.
   - The wording is in `mailThanks`, `mailApproved` and `mailCharlie` in `intake.js`. A failed send is logged and never blocks a submission.
   - Links in the emails and on the review page use `LIVE_SITE` in `intake.js` (events.livelovelascruces.com since Nov 23).
-- **Not built yet:** Trusted Editors whose changes go live without review, and one link per venue that lists all of its events.
+- **"Here's how it'll look" (Nov 23, 2026):** a live preview of the listing's calendar row just above Submit on `/submit/`, same sizes as the real row. It updates as the organizer types and shows their photo (or flyer). `renderPreview()` in `submit.astro`.
+- The thank-you screen no longer says the best listings make the newsletter (Charlie, Nov 23).
+- **Welcome note on `/submit/` (Nov 23, 2026):** says this is the new calendar, what's better about it, and asks for problems and ideas at events@livelovelascruces.com (delivers to charlie@ through Google Workspace). "Got it" hides it on that device (localStorage `lc-events-welcome-seen`). Take it out once the calendar is no longer new.
+- **Pasting a description keeps its paragraphs (Nov 23, 2026):** text copied from Grok, ChatGPT, Google Docs or a web page often lost its line breaks in the plain text box. On paste, the form rebuilds paragraphs from the copied web version, turns list items into "• " lines and drops Markdown marks (`**bold**`, `#` headings). Plain text that already has line breaks is pasted as is. `pastedText()` in `submit.astro`. The box is 6 rows tall.
+- **Trusted submitters (built Nov 23, 2026):** emails Charlie trusts. Their new events and their edit-link changes go on the calendar right away, without review.
+  - Review page: **Trust this submitter** on every waiting event (with a "regular" nudge once Charlie has approved 2 or more of theirs), a **Trusted submitters** list with an add-by-email box and **Stop trusting**. Recently approved marks events that went live on their own; taking one down asks whether to stop trusting the sender too.
+  - Safety rails: at most `TRUSTED_PER_DAY` (10) a day each, the rest wait in the queue; paid Spotlight requests and suggested edits to other people's listings always wait; the person check still runs.
+  - Emails: a trusted submitter gets one "is live on the calendar" email (`mailLive`) instead of the thank-you plus approval pair; Charlie gets "Live from a trusted submitter" with a pointer to Recently approved. The thank-you screen says "It's live on the calendar!" with a link.
+  - Stored in KV `trusted.json`; approval counts per email in `submitters.json`; daily counts in `trusted/count/<email>/<date>` (expire after 2 days). Emails never go into the public `/approved.json`.
+  - CitySpark's copied listings don't say who submitted them, so the list starts empty (Charlie can add emails by hand).
+- **Thank-you email and screen (Nov 23, 2026):** say first that the event isn't on the calendar until it's checked ("Got it! … is waiting for a quick review").
+- **Not built yet:** one link per venue that lists all of its events.
 - Feed events (CitySpark, city) can't be edited: they are copies and are overwritten nightly. To change one, enter it through the form; ours replaces the feed's copy.
 
 ## Header and navigation: match livelovelascruces.com
@@ -258,7 +268,11 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 - **Weekly regulars** are the same size as one-off events, set apart by a light tint and their "Every Thursday" tag. Still folded under "Show N more regulars" on each day.
 - **No picture:** a name card (event name, venue, topic icon, date) on the category color. Stock topic photos are off: one photo per topic was often wrong for the event. Row thumbnails keep the icon artwork.
 - **Tall or square pictures** (most flyers) show whole on a blurred copy of themselves; wide ones fill the box. Event pages keep every picture beside the details (wide ones too); "Tap to enlarge" opens it centered, as large as the screen allows.
-- **Flyer plus photo:** an organizer can send both. The photo is the calendar and share picture; the flyer shows in full on the event page.
+- **Pictures (Nov 23, 2026; replaced "flyer plus photo"):** an optional flyer plus up to 4 photos. The form's Pictures box shows each one with **Main picture** and **Remove**; the main picture (default: the first photo, else the flyer; the flyer can be picked) is the calendar and share picture. Edit links show the pictures already uploaded.
+  - Stored on the submission as `imageId` (flyer, or the first picture when there's no flyer), `photoIds` (up to 4) and `main`. Older records with one `photoId` still work (`photosOf()` / `mainOf()` in `intake.js`).
+  - The Worker sends the site `image` (main), `flyer` (when it isn't the main one) and `photos` (the rest), see `calendarPictures()`. The event page shows the flyer, then the main photo, then the other photos as tap-to-enlarge tiles (`event-detail__gallery`). Thumbnails are made for gallery photos too (`photoThumbs`).
+  - The review page lists every picture and marks the main one.
+  - Tiles on the form are made in the browser, so their styles use `:global()` (Astro's scoped styles don't reach them).
 - **Hidden pictures:** review page box. A listing's picture that doesn't fit is replaced by its name card (one date or every date).
 
 ## Design status

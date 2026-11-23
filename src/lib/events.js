@@ -187,6 +187,11 @@ function normalize(e, source) {
   // An organizer who sent a flyer and a photo: the photo is the picture on the calendar and in
   // shared links, the flyer shows in full on the event page.
   if (e.photo && /^https:/.test(e.photo)) { out.flyer = out.image; out.image = e.photo; }
+  // Since Nov 23: up to 4 photos plus a flyer, and the organizer picks the main picture. The
+  // submissions Worker sends image (main), flyer (when it isn't the main one) and photos (the rest).
+  if (e.flyer && /^https:/.test(e.flyer)) out.flyer = e.flyer;
+  const photos = (Array.isArray(e.photos) ? e.photos : []).filter((u) => /^https:/.test(u || '')).slice(0, 4);
+  if (photos.length) out.photos = photos;
   out.topic = topicFor(out);
   if (out.category === 'community' && out.topic?.category) out.category = out.topic.category;
   // No picture of its own: a stock photo of the topic (pickleball, yoga...) when we have one.
@@ -268,7 +273,7 @@ export async function getEvents() {
     const events = [...direct, ...spark, ...city, ...found, ...ours]
       .filter(Boolean)
       .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today);
-    for (const e of events) if (noPicture(e)) { e.image = ''; e.flyer = ''; }
+    for (const e of events) if (noPicture(e)) { e.image = ''; e.flyer = ''; e.photos = []; }
     // Nearby towns: only special events Charlie approved or added (his own listings and the
     // newsletter). A feed's listing from Ruidoso or Deming is left out.
     for (let i = events.length - 1; i >= 0; i--) if (events[i].town && !['lllc', 'newsletter'].includes(events[i].source)) events.splice(i, 1);

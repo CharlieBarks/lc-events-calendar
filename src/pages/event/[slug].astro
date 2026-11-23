@@ -107,6 +107,11 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
         ? <a href={mainImage} data-lightbox={mainImage} data-alt={`${event.title} flyer`} class="event-detail__flyer"><img src={mainThumb || mainImage} alt={`${event.title} flyer`} /><span class="event-detail__zoom">Tap to enlarge</span></a>
         : <div class="event-detail__art"><EventArt event={event} height={340} eager /></div>}
       {event.flyer && event.image && <a href={event.image} data-lightbox={event.image} data-alt={`${event.title} photo`} class="event-detail__flyer event-detail__photo"><img src={event.thumbs?.l || event.image} alt={`${event.title} photo`} loading="lazy" /><span class="event-detail__zoom">Tap to enlarge</span></a>}
+      {event.photos?.length > 0 && (
+        <ul class="event-detail__gallery" role="list">
+          {event.photos.map((u, i) => <li><a href={u} data-lightbox={u} data-alt={`${event.title} photo ${i + 2}`}><img src={event.photoThumbs?.[i]?.m || u} alt={`${event.title} photo ${i + 2}`} loading="lazy" /></a></li>)}
+        </ul>
+      )}
     </div>
 
     <div class="event-detail__info">
@@ -213,6 +218,11 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
   .event-detail__flyer img { inline-size: 100%; max-block-size: 40rem; object-fit: contain; }
   .event-detail__media { display: flex; flex-direction: column; gap: var(--space-s); }
   .event-detail__photo img { max-block-size: 24rem; }
+  /* More photos from the organizer (up to 4): small tiles, tap to see them big. */
+  .event-detail__gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); gap: var(--space-xs); margin: var(--space-s) 0 0; padding: 0; list-style: none; }
+  .event-detail__gallery a { display: block; aspect-ratio: 1; border-radius: var(--radius-s); overflow: hidden; border: 1px solid var(--neutral-light); }
+  .event-detail__gallery img { inline-size: 100%; block-size: 100%; object-fit: cover; transition: transform .2s; }
+  .event-detail__gallery a:hover img { transform: scale(1.04); }
   .event-detail__zoom { position: absolute; right: 0.75rem; bottom: 0.75rem; background: rgba(28,27,26,.8); color: var(--white); font-size: var(--text-xs); padding: 0.375rem var(--space-s); border-radius: 999px; }
   .event-detail__info { display: flex; flex-direction: column; gap: var(--space-m); }
   .event-detail__info h1 { font-size: clamp(2rem, 5vw, 3.2rem); }

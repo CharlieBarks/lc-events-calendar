@@ -1,46 +1,5 @@
 [
  {
-  "slug": "farmers-crafts-market-saturday",
-  "title": "Farmers & Crafts Market of Las Cruces",
-  "start": "2026-10-31T08:00:00",
-  "end": "2026-10-31T13:00:00",
-  "venue": "Downtown Main Street",
-  "address": "N Main St, Las Cruces, NM 88001",
-  "category": "markets",
-  "price": "Free",
-  "description": "Seven blocks of North Main Street packed with growers, bakers, makers and buskers. Go early for the green chile, stay late for the people-watching.",
-  "image": "https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=1200",
-  "featured": true,
-  "url": "https://www.farmersmarketlc.com/",
-  "sample": true
- },
- {
-  "slug": "first-friday-ramble-november",
-  "title": "First Friday Ramble",
-  "start": "2026-11-06T17:00:00",
-  "end": "2026-11-06T20:00:00",
-  "venue": "Downtown Las Cruces",
-  "address": "N Main St, Las Cruces, NM 88001",
-  "category": "arts-culture",
-  "price": "Free",
-  "description": "Museums stay open late, galleries throw openings and Main Street turns into one big art walk. Start at the Museum of Art, end on Mesquite.",
-  "featured": true,
-  "sample": true
- },
- {
-  "slug": "jazz-at-rio-grande-winery",
-  "title": "Live Jazz at the Winery",
-  "start": "2026-11-01T18:00:00",
-  "end": "2026-11-01T20:30:00",
-  "venue": "Rio Grande Winery",
-  "category": "live-music",
-  "description": "Local players, a glass of something red and the Organ Mountains turning pink at sunset. Bring a blanket.",
-  "image": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1200",
-  "featured": true,
-  "url": "https://riograndewinery.com/",
-  "sample": true
- },
- {
   "slug": "nmsu-aggies-football-home",
   "title": "NMSU Aggies Football",
   "start": "2026-11-07T18:00:00",
@@ -96,32 +55,6 @@
   "category": "markets",
   "price": "Free",
   "description": "A sample listing to show how special events in nearby towns appear. Only on the preview.",
-  "sample": true
- },
- {
-  "slug": "featured-example-holiday-lights-stroll-sample-11-24",
-  "title": "Featured example: Holiday Lights Stroll (sample)",
-  "start": "2026-11-24T17:30:00",
-  "end": "2026-11-24T20:00:00",
-  "venue": "Mesilla Plaza",
-  "address": "2231 Calle de Guadalupe, Mesilla, NM 88046",
-  "category": "community",
-  "price": "Free",
-  "description": "Preview-only sample showing how a Featured event looks. Luminarias, carolers and hot cider around the plaza.",
-  "featured": true,
-  "sample": true
- },
- {
-  "slug": "featured-example-small-business-saturday-sample-11-28",
-  "title": "Featured example: Small Business Saturday (sample)",
-  "start": "2026-11-28T17:30:00",
-  "end": "2026-11-28T20:00:00",
-  "venue": "Downtown Main Street",
-  "address": "N Main St, Las Cruces, NM 88001",
-  "category": "markets",
-  "price": "Free",
-  "description": "Preview-only sample showing how a Featured event looks. Shop local up and down Main Street.",
-  "featured": true,
   "sample": true
  }
 ]
