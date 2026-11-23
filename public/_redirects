@@ -74,3 +74,7 @@
 # Other pages of the old WordPress calendar (added on the domain move, Nov 23, 2026)
 /contact    https://livelovelascruces.com/contact   301
 /contact/   https://livelovelascruces.com/contact   301
+
+# Sitemaps: the old WordPress (Yoast) address and its parts point to the new sitemap (Nov 23, 2026)
+/sitemap_index.xml   /sitemap-index.xml   301
+/sitemap.xml         /sitemap-index.xml   301
