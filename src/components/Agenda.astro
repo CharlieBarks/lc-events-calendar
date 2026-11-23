@@ -16,7 +16,7 @@ import { dayLabel } from '../lib/time.js';
 //   only look at the first week.
 // fragment: render only the days after initialDays and nothing else. Used by that fragment page.
 // ongoing: exhibits and long runs. Not part of the day-by-day list, but shown when a search matches them.
-const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0, rest = '', fragment = false } = Astro.props;
+const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0, rest = '', fragment = false, nearby = 0 } = Astro.props;
 
 const byDay = new Map();
 for (const e of events) {
@@ -59,6 +59,7 @@ const itemLevel = headingLevel + 1;
         <button class="agenda__filter" type="button" data-when="tomorrow" aria-pressed="false">Tomorrow</button>
         <button class="agenda__filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
         <button class="agenda__filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
+        {nearby > 0 && <a class="agenda__filter agenda__filter--link" href="/nearby/">Nearby towns <span class="agenda__count">{nearby}</span> →</a>}
       </div>
       {usedFor.length > 0 && (
         <div class="agenda__filter-row" data-group="for" role="group" aria-label="Who it's for">
@@ -92,8 +93,9 @@ const itemLevel = headingLevel + 1;
   )}
 
   {days.map(([date, list], i) => {
-    // Sponsored (paid Spotlight) events are pinned to the top of their day.
-    const cards = list.filter((e) => !e.compact).sort((a, b) => b.sponsored - a.sponsored);
+    // Sponsored (paid) events are pinned to the top of their day, then Featured ones.
+    const rank = (e) => (e.sponsored ? 2 : e.featured ? 1 : 0);
+    const cards = list.filter((e) => !e.compact).sort((a, b) => rank(b) - rank(a));
     const rows = list.filter((e) => e.compact);
     const [weekday, monthDay] = dayLabel(list[0].start).split(', ');
     return (
@@ -672,9 +674,11 @@ const itemLevel = headingLevel + 1;
       letter-spacing: 0;
     }
 
+    /* Kept to a readable width (Charlie, Nov 18: more compact, not the whole screen). */
     .agenda__day-list {
       min-inline-size: 0;
       flex: 1;
+      max-inline-size: 52rem;
     }
 
     .agenda__cards,
@@ -720,7 +724,7 @@ const itemLevel = headingLevel + 1;
     }
 
     @media (min-width: 48rem) {
-      .agenda__more-rows { margin-inline-start: calc(13rem + 2 * var(--space-m)); }
+      .agenda__more-rows { margin-inline-start: calc(4.75rem + var(--space-s)); }
     }
 
     @media (min-width: 60rem) {
@@ -732,7 +736,7 @@ const itemLevel = headingLevel + 1;
       .agenda__day { flex-direction: row; gap: var(--space-l); }
 
       .agenda__day-head {
-        flex: 0 0 14rem;
+        flex: 0 0 11rem;
         flex-direction: column;
         justify-content: flex-start;
         gap: var(--space-xs);
@@ -740,4 +744,5 @@ const itemLevel = headingLevel + 1;
       }
     }
   }
+  .agenda__filter--link { text-decoration: none; color: inherit; display: inline-flex; align-items: center; }
 </style>

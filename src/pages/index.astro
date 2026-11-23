@@ -8,7 +8,7 @@ import { SITE, CATEGORIES, SPOTLIGHT, AUDIENCES } from '../lib/site.js';
 import { getEvents, shortVenue } from '../lib/events.js';
 import { dateKey, todayWall, addDays, shortDate, weekendRange } from '../lib/time.js';
 
-const { events: all, dated: events, ongoing, series } = await getEvents();
+const { events: all, dated: events, ongoing, series, nearby } = await getEvents();
 const today = todayWall();
 const weekEnd = dateKey(addDays(today, 6));
 const thisWeek = events.filter((e) => e.date <= weekEnd).length;
@@ -103,7 +103,7 @@ const jsonLd = [
           <p>Tap a day or a category to narrow it down. Regulars and city meetings are tucked into the short rows so the one-night-only stuff stands out.</p>
         </div>
       </div>
-      <Agenda events={events} ongoing={ongoing} initialDays={HOME_DAYS} rest="/more/home/" />
+      <Agenda events={events} ongoing={ongoing} initialDays={HOME_DAYS} rest="/more/home/" nearby={nearby.length} />
     </div>
   </section>
 
@@ -222,8 +222,8 @@ const jsonLd = [
       if (li.dataset.date < today && !li.hasAttribute('data-ongoing')) { li.remove(); return false; }
       return true;
     });
-    const paid = shuffle(items.filter((li) => li.querySelector('.sponsored')));
-    const free = shuffle(items.filter((li) => !li.querySelector('.sponsored')));
+    const paid = shuffle(items.filter((li) => li.querySelector('[data-sponsored]')));
+    const free = shuffle(items.filter((li) => !li.querySelector('[data-sponsored]')));
     const show = [...paid, ...free].slice(0, 3);
     items.forEach((li) => { if (!show.includes(li)) li.remove(); });
     show.forEach((li) => list.append(li));

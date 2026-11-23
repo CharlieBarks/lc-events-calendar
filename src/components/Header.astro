@@ -59,6 +59,44 @@ const currentValue = path === '/' ? 'page' : 'true';
   </div>
 </header>
 
+<!-- Slim bar (Charlie, Nov 23): slides in at the top once the header above scrolls out of view, and
+     stays there, so "Add your event" and the menu are always one tap away. Always visible while
+     scrolling (no hide-on-scroll-down: it confuses readers when things disappear). -->
+<div class="sticky-bar" data-sticky-bar>
+  <a class="sticky-bar__home" href="/">
+    <img src="/lllc-logo-on-dark.png" width="120" height="30" alt="" />
+    <span class="sticky-bar__name">Las Cruces Events</span>
+  </a>
+  <a class="sticky-bar__cta btn--primary" href="/submit/">Add your event</a>
+  <details class="sticky-bar__menu" data-site-menu>
+    <summary class="site-header__toggle" aria-label="Menu">
+      <svg class="site-header__icon" data-state="closed" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+      <svg class="site-header__icon" data-state="open" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
+    </summary>
+    <nav class="sticky-bar__panel" aria-label="Menu">
+      <a class="sticky-bar__panel-link" href="/">All events</a>
+      {calendarLinks.map((l) => <a class="sticky-bar__panel-link" href={l.href}>{l.label}</a>)}
+      <a class="sticky-bar__panel-link" href="/submit/">Add your event</a>
+      <hr />
+      {siteLinks.filter((l) => !l.current).map((l) => <a class="sticky-bar__panel-link" data-size="small" href={l.href}>{l.label}</a>)}
+      <a class="sticky-bar__subscribe" href={subscribeUrl}>Subscribe</a>
+    </nav>
+  </details>
+</div>
+
+<script>
+  // Show the slim bar once the full header has scrolled out of view.
+  const bar = document.querySelector<HTMLElement>('[data-sticky-bar]');
+  const header = document.querySelector('.site-header');
+  if (bar && header && 'IntersectionObserver' in window) {
+    new IntersectionObserver(([entry]) => {
+      const show = !entry.isIntersecting;
+      bar.toggleAttribute('data-show', show);
+      if (!show) bar.querySelector('details')?.removeAttribute('open');
+    }).observe(header);
+  }
+</script>
+
 <script>
   // <details> gives the menu its keyboard and screen reader support. This adds Escape to close it.
   for (const menu of document.querySelectorAll('[data-site-menu]')) {
@@ -72,6 +110,86 @@ const currentValue = path === '/' ? 'page' : 'true';
 </script>
 
 <style>
+  .sticky-bar {
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: var(--space-s);
+    min-block-size: 3.5rem;
+    padding: 0.375rem var(--gutter);
+    background: var(--bg-ultra-dark);
+    box-shadow: 0 2px 10px rgb(0 0 0 / .2);
+    transform: translateY(-110%);
+    visibility: hidden;
+    transition: transform .2s ease, visibility 0s .2s;
+
+    &[data-show] { transform: none; visibility: visible; transition: transform .2s ease; }
+
+    .sticky-bar__home {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      min-inline-size: 0;
+      margin-inline-end: auto;
+      color: var(--text-light);
+      text-decoration: none;
+      & img { inline-size: 6.5rem; block-size: auto; flex: none; }
+    }
+    .sticky-bar__name { display: none; font-family: var(--heading-font-family); font-size: var(--text-l); font-weight: 800; white-space: nowrap; }
+
+    .sticky-bar__cta { display: inline-flex; align-items: center; min-block-size: 2.75rem; font-size: var(--text-s); white-space: nowrap; }
+
+    .sticky-bar__menu { flex: none; }
+    .sticky-bar__menu .site-header__toggle { display: flex; align-items: center; justify-content: center; inline-size: 2.75rem; block-size: 2.75rem; color: var(--text-light); cursor: pointer; list-style: none; }
+    .sticky-bar__menu .site-header__toggle::-webkit-details-marker { display: none; }
+    .sticky-bar__menu .site-header__icon[data-state="open"] { display: none; }
+    .sticky-bar__menu[open] .site-header__icon[data-state="closed"] { display: none; }
+    .sticky-bar__menu[open] .site-header__icon[data-state="open"] { display: block; }
+
+    .sticky-bar__panel {
+      position: fixed;
+      inset-block: 3.5rem 0;
+      inset-inline: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: var(--space-s) var(--gutter) var(--space-l);
+      background: var(--bg-ultra-dark);
+      & hr { inline-size: 100%; margin-block: var(--space-s); border: 0; border-block-start: 1px solid rgb(255 255 255 / .2); }
+    }
+    .sticky-bar__panel-link {
+      display: flex;
+      align-items: center;
+      min-block-size: 3.25rem;
+      color: var(--text-light);
+      font-family: var(--heading-font-family);
+      font-size: var(--h3);
+      font-weight: 700;
+      text-decoration: none;
+      &:hover { color: var(--text-light); text-decoration: underline; }
+      &[data-size="small"] { min-block-size: 2.75rem; font-family: var(--text-font-family); font-size: var(--text-l); font-weight: 600; }
+    }
+
+    .sticky-bar__subscribe {
+      display: flex; align-items: center; justify-content: center;
+      min-block-size: 3rem; margin-block-start: var(--space-m);
+      border-radius: var(--radius-s); background: var(--lllc-red);
+      color: var(--text-light); font-size: var(--text-l); font-weight: 800; text-decoration: none;
+      &:hover { color: var(--text-light); text-decoration: underline; }
+    }
+
+    @media (min-width: 40rem) {
+      .sticky-bar__name { display: inline; }
+      .sticky-bar__cta { font-size: var(--text-m); }
+    }
+    @media (min-width: 60rem) {
+      .sticky-bar__panel { inset-inline: auto 0; inline-size: 24rem; box-shadow: -4px 0 16px rgb(0 0 0 / .25); }
+    }
+  }
+
   .site-header {
     .site-header__main {
       position: relative;

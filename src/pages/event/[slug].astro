@@ -9,7 +9,7 @@ import { getEvents, shortVenue, mapsLink, googleCalendarLink } from '../../lib/e
 import { longDate, shortDate, timeRange, offsetIso, dateKey } from '../../lib/time.js';
 
 export async function getStaticPaths() {
-  const { events, aliases } = await getEvents();
+  const { allEvents: events, aliases } = await getEvents();
   return [
     ...events.map((event) => ({ params: { slug: event.slug }, props: { event } })),
     // Dateless addresses of long runs in their last days: forward to the next date.
@@ -20,7 +20,7 @@ export async function getStaticPaths() {
 if (Astro.props.forwardTo) return Astro.redirect(Astro.props.forwardTo);
 
 const { event } = Astro.props;
-const { events } = await getEvents();
+const { allEvents: events } = await getEvents();
 const cat = CATEGORIES[event.category];
 const known = SOURCES[event.source] || SOURCES.lllc;
 // Events found through Visit Las Cruces are credited to the organizer, linked to their own page.
@@ -87,6 +87,10 @@ const jsonLd = [
     { name: event.title, path },
   ]),
 ];
+// The main picture on this page: the flyer when the organizer also sent a photo, otherwise the
+// event's picture. Always beside the details (Charlie, Nov 18: wide flyers too; tap to enlarge).
+const mainImage = event.flyer || event.image;
+const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
 ---
 <Layout title={`${event.title}, ${shortDate(event.start)}`} description={description} jsonLd={jsonLd} ogType="article" ogImage={event.image || `/og/event/${event.slug}.png`}>
   <div class="wrap">
@@ -99,13 +103,14 @@ const jsonLd = [
 
   <article class="wrap event-detail">
     <div class="event-detail__media">
-      {event.image
-        ? <a href={event.image} data-lightbox={event.image} data-alt={`${event.title} flyer`} class="event-detail__flyer"><img src={event.thumbs?.l || event.image} alt={`${event.title} flyer`} /><span class="event-detail__zoom">Tap to enlarge</span></a>
+      {mainImage
+        ? <a href={mainImage} data-lightbox={mainImage} data-alt={`${event.title} flyer`} class="event-detail__flyer"><img src={mainThumb || mainImage} alt={`${event.title} flyer`} /><span class="event-detail__zoom">Tap to enlarge</span></a>
         : <div class="event-detail__art"><EventArt event={event} height={340} eager /></div>}
+      {event.flyer && event.image && <a href={event.image} data-lightbox={event.image} data-alt={`${event.title} photo`} class="event-detail__flyer event-detail__photo"><img src={event.thumbs?.l || event.image} alt={`${event.title} photo`} loading="lazy" /><span class="event-detail__zoom">Tap to enlarge</span></a>}
     </div>
 
     <div class="event-detail__info">
-      <p class="eyebrow">{cat.name}{event.sponsored && <> <span class="event-detail__sponsored">Sponsored</span></>}{PREVIEW && event.sample && <> <span class="sample-tag">Sample</span></>}</p>
+      <p class="eyebrow">{cat.name}{event.sponsored && <> <span class="event-detail__sponsored">Sponsored</span></>}{event.featured && !event.sponsored && <> <span class="event-detail__featured"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>Featured</span></>}{PREVIEW && event.sample && <> <span class="sample-tag">Sample</span></>}</p>
       <h1>{event.title}</h1>
 
       <dl class="event-facts">
@@ -206,6 +211,8 @@ const jsonLd = [
   .event-detail__art { border-radius: var(--radius); overflow: hidden; }
   .event-detail__flyer { display: block; position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--neutral-light); background: var(--bg-ultra-light); }
   .event-detail__flyer img { inline-size: 100%; max-block-size: 40rem; object-fit: contain; }
+  .event-detail__media { display: flex; flex-direction: column; gap: var(--space-s); }
+  .event-detail__photo img { max-block-size: 24rem; }
   .event-detail__zoom { position: absolute; right: 0.75rem; bottom: 0.75rem; background: rgba(28,27,26,.8); color: var(--white); font-size: var(--text-xs); padding: 0.375rem var(--space-s); border-radius: 999px; }
   .event-detail__info { display: flex; flex-direction: column; gap: var(--space-m); }
   .event-detail__info h1 { font-size: clamp(2rem, 5vw, 3.2rem); }
@@ -234,6 +241,9 @@ const jsonLd = [
   .event-detail__promote, .event-detail__suggest { font-size: var(--text-s); color: var(--text-dark-muted); }
   .event-detail__suggest a { color: var(--text-dark); }
   .event-detail__promote a { color: var(--primary); font-weight: 600; }
+  .event-detail__featured { font-size: var(--text-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 0.1875rem var(--space-xs); border-radius: 999px; background: var(--base); color: var(--white); vertical-align: 2px; }
+  .event-detail__featured { display: inline-flex; align-items: center; gap: 0.3em; }
+  .event-detail__featured svg { display: inline-block; inline-size: 1.1em; block-size: 1.1em; fill: #F2B705; }
   .event-detail__sponsored { --_sponsored-bg: #FFF4D6; --_sponsored-text: #6B4E00; font-size: var(--text-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 0.1875rem var(--space-xs); border-radius: 999px; background: var(--_sponsored-bg); color: var(--_sponsored-text); vertical-align: 2px; }
   .event-also__more { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); }
   .event-also h2 { font-size: var(--text-xl); font-family: var(--text-font-family); font-weight: 700; letter-spacing: 0; margin-block-end: var(--space-xs); }

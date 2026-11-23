@@ -114,7 +114,7 @@ const venueList = await getVenues();
         <div class="submit-form__field" data-photo-field hidden>
           <label class="submit-form__photo" for="photo">
             <input type="file" id="photo" accept="image/*" class="sr-only" data-photo />
-            <strong>+ Add a photo</strong> <span class="submit-form__optional">(optional, but events with a picture get way more clicks)</span>
+            <strong>+ Add a photo</strong> <span class="submit-form__optional" data-photo-hint>(optional, but events with a picture get way more clicks)</span>
           </label>
         </div>
       </fieldset>
@@ -180,8 +180,8 @@ const venueList = await getVenues();
 <template id="show-row">
   <div class="submit-form__show">
     <div class="submit-form__show-field"><label>Date</label><input type="date" data-k="date" required /></div>
-    <div class="submit-form__show-field"><label>Starts</label><select data-k="start" data-time></select></div>
-    <div class="submit-form__show-field"><label>Ends <span class="submit-form__optional">(opt.)</span></label><select data-k="end" data-time></select></div>
+    <div class="submit-form__show-field"><label>Starts</label><div class="submit-time" data-time="start"></div></div>
+    <div class="submit-form__show-field"><label>Ends <span class="submit-form__optional">(opt.)</span></label><div class="submit-time" data-time="end"></div></div>
     <div class="submit-form__show-field submit-form__act" hidden><label>Different act? <span class="submit-form__optional">(opt.)</span></label><input data-k="title" autocomplete="off" /></div>
     <button type="button" class="submit-form__remove" aria-label="Remove this date" data-del>✕</button>
   </div>
@@ -235,7 +235,8 @@ const venueList = await getVenues();
   const tpl = document.getElementById('show-row') as HTMLTemplateElement;
   const status = app.querySelector('[data-status]') as HTMLElement;
   const KEY = 'lc-events-submitter';
-  let imageId = '';
+  let imageId = ''; // the flyer, or the only picture
+  let photoId = ''; // a photo sent along with a flyer: shown on the calendar instead of the flyer
   let source = 'form';
 
   const $ = <T extends Element = HTMLElement>(s: string) => app.querySelector(s) as T;
@@ -247,33 +248,56 @@ const venueList = await getVenues();
   }
 
   // ---- Dates ----
-  // Times are a short list in 15-minute steps (most events start on the hour or half hour),
-  // starting at 6 AM, with late-night times after 11:45 PM. "Other time…" swaps the list for a
-  // regular time box, so 7:10 still works. Both keep data-k, so the rest of the form reads them alike.
-  const TIMES: string[] = [];
-  for (let i = 0; i < 96; i++) { const m = ((i + 24) % 96) * 15; TIMES.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`); }
-  const timeLabel = (v: string) => { const [h, m] = v.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
-  const TIME_OPTIONS = '<option value="">Choose…</option>' + TIMES.map((v) => `<option value="${v}">${timeLabel(v)}</option>`).join('') + '<option value="other">Other time…</option>';
-  function toTimeBox(sel: HTMLElement) {
+  // A time is three small lists: hour (1-12), minutes (:00 :15 :30 :45, or "Other…" for any
+  // minute) and AM/PM (left for the person to pick). They fill a hidden input that keeps
+  // data-k="start"/"end", so the rest of the form reads the time as "HH:MM" like before.
+  // Picking an hour fills in :00 if no minutes are chosen yet. The time only counts once AM/PM is set.
+  const opt = (v: string, t = v) => `<option value="${v}">${t}</option>`;
+  const TIME_HTML = (k: string) =>
+    `<input type="hidden" data-k="${k}">` +
+    `<select data-tp="h" aria-label="Hour">${opt('', 'Hour')}${[...Array(12)].map((_, i) => opt(String(i + 1))).join('')}</select>` +
+    `<select data-tp="m" aria-label="Minutes">${opt('', 'Min')}${['00', '15', '30', '45'].map((m) => opt(m, ':' + m)).join('')}${opt('other', 'Other…')}</select>` +
+    `<select data-tp="ap" aria-label="AM or PM">${opt('', 'AM/PM')}${opt('AM')}${opt('PM')}</select>`;
+  function readTime(box: HTMLElement) {
+    const h = (box.querySelector('[data-tp="h"]') as HTMLSelectElement).value;
+    const mEl = box.querySelector('[data-tp="m"]') as HTMLSelectElement | HTMLInputElement;
+    const ap = (box.querySelector('[data-tp="ap"]') as HTMLSelectElement).value;
+    const m = Number(mEl.value);
+    const hidden = box.querySelector('input[type="hidden"]') as HTMLInputElement;
+    const v = h && ap && mEl.value !== '' && m >= 0 && m < 60 ? `${String((Number(h) % 12) + (ap === 'PM' ? 12 : 0)).padStart(2, '0')}:${String(m).padStart(2, '0')}` : '';
+    if (hidden.value !== v) { hidden.value = v; hidden.dispatchEvent(new Event('input', { bubbles: true })); }
+  }
+  function minuteBox(sel: HTMLElement) {
     const box = document.createElement('input');
-    box.type = 'time'; box.dataset.k = sel.dataset.k!;
+    box.type = 'number'; box.min = '0'; box.max = '59'; box.inputMode = 'numeric'; box.placeholder = 'min';
+    box.dataset.tp = 'm'; box.setAttribute('aria-label', 'Minutes');
     sel.replaceWith(box);
     return box;
   }
   function setTime(row: HTMLElement, k: 'start' | 'end', v: string) {
-    let el = row.querySelector(`[data-k="${k}"]`) as HTMLInputElement | HTMLSelectElement;
-    if (el instanceof HTMLSelectElement && el.options.length < 2) el.innerHTML = TIME_OPTIONS;
-    if (v && el instanceof HTMLSelectElement && !TIMES.includes(v)) el = toTimeBox(el);
-    el.value = v || '';
+    const box = row.querySelector(`[data-time="${k}"]`) as HTMLElement;
+    box.innerHTML = TIME_HTML(k);
+    if (!v) return;
+    const [H, M] = v.split(':').map(Number);
+    (box.querySelector('[data-tp="h"]') as HTMLSelectElement).value = String(H % 12 || 12);
+    (box.querySelector('[data-tp="ap"]') as HTMLSelectElement).value = H < 12 ? 'AM' : 'PM';
+    const mm = String(M).padStart(2, '0');
+    let mEl = box.querySelector('[data-tp="m"]') as HTMLSelectElement | HTMLInputElement;
+    if (!['00', '15', '30', '45'].includes(mm)) mEl = minuteBox(mEl);
+    mEl.value = mEl instanceof HTMLSelectElement ? mm : String(M);
+    (box.querySelector('input[type="hidden"]') as HTMLInputElement).value = v;
   }
-  showsEl.addEventListener('change', (e) => {
-    const sel = e.target as HTMLSelectElement;
-    if (sel.matches('select[data-time]') && sel.value === 'other') {
-      const box = toTimeBox(sel);
-      box.focus();
-      try { box.showPicker(); } catch {}
-    }
-  });
+  const onTime = (e: Event) => {
+    const el = e.target as HTMLElement;
+    const box = el.closest<HTMLElement>('[data-time]');
+    if (!box || !el.dataset.tp) return;
+    if (el.dataset.tp === 'm' && (el as HTMLSelectElement).value === 'other') { minuteBox(el).focus(); return; }
+    const m = box.querySelector('[data-tp="m"]') as HTMLSelectElement | HTMLInputElement;
+    if (el.dataset.tp === 'h' && (el as HTMLSelectElement).value && m.value === '') m.value = '00';
+    readTime(box);
+  };
+  showsEl.addEventListener('change', onTime);
+  showsEl.addEventListener('input', onTime);
   function addShow(s: { date?: string; start?: string; end?: string; title?: string } = {}) {
     const row = tpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
     for (const k of ['date', 'title'] as const) (row.querySelector(`[data-k="${k}"]`) as HTMLInputElement).value = s[k] || '';
@@ -476,7 +500,9 @@ const venueList = await getVenues();
       }
       $<HTMLInputElement>('[data-annual]').checked = !!x.annual;
       syncRepeat();
-      imageId = x.imageId || '';
+      imageId = x.imageId || ''; photoId = x.photoId || '';
+      if (imageId) source = 'flyer'; // a new photo then goes alongside the existing picture instead of replacing it
+      photoLabel(!!imageId, !!photoId);
       $('[data-edit-note]').hidden = false;
       $('[data-edit-note]').textContent = x.status === 'waiting'
         ? "You're editing an event that's still waiting to be checked. Your changes replace what you sent."
@@ -534,9 +560,23 @@ const venueList = await getVenues();
     const dates = showsEl.querySelectorAll<HTMLInputElement>('[data-k="date"]');
     if (![...dates].some((d) => d.value)) { dates.forEach((d) => d.setAttribute('data-missing', '')); empty.push('the date'); }
     if (![...showsEl.querySelectorAll<HTMLInputElement>('[data-k="start"]')].some((d) => d.value)) empty.push('the start time');
+    showsEl.querySelectorAll<HTMLElement>('[data-time]').forEach((box) => {
+      const ap = box.querySelector('[data-tp="ap"]') as HTMLSelectElement;
+      if ((box.querySelector('[data-tp="h"]') as HTMLSelectElement).value && !ap.value) { ap.setAttribute('data-missing', ''); if (!empty.includes('AM or PM')) empty.push('AM or PM'); }
+    });
     if (!field('venue').value) { field('venue').setAttribute('data-missing', ''); empty.push('the venue'); }
     if (!field('category').value) field('category').setAttribute('data-missing', '');
     return empty;
+  }
+
+  // "+ Add a photo": offered on both paths. With a flyer it's a second picture for the calendar.
+  function photoLabel(withFlyer: boolean, added: boolean) {
+    $('[data-photo-field]').hidden = false;
+    $('label.submit-form__photo strong').textContent = added ? '✓ Photo added (tap to change)' : withFlyer ? '+ Add a photo too' : '+ Add a photo';
+    $('[data-photo-hint]').textContent = withFlyer
+      ? '(optional: a photo of the act or place looks better on the calendar than a flyer; your flyer still shows in full on the event page)'
+      : '(optional, but events with a picture get way more clicks)';
+    $('[data-photo-hint]').hidden = added;
   }
 
   async function startFlyer(file: File) {
@@ -560,7 +600,7 @@ const venueList = await getVenues();
       $('[data-read-note]').innerHTML = `<strong>${err.message === 'Upload failed' ? "That upload didn't go through." : err.message}</strong> You can still fill it in below, or try the flyer again.`;
     }
     $('[data-flyer-box]').hidden = false;
-    $('[data-photo-field]').hidden = true;
+    photoLabel(true, !!photoId);
     step('form');
   }
 
@@ -570,10 +610,10 @@ const venueList = await getVenues();
   });
   $('[data-change]').addEventListener('click', () => ($('[data-flyer]') as HTMLInputElement).click());
   $('[data-manual]').addEventListener('click', () => {
-    source = 'form'; imageId = '';
+    source = 'form'; imageId = ''; photoId = '';
     form.reset(); applyMe(); fill(prefill());
     $('[data-flyer-box]').hidden = true;
-    $('[data-photo-field]').hidden = false;
+    photoLabel(false, false);
     step('form');
     field('title').focus();
   });
@@ -582,6 +622,7 @@ const venueList = await getVenues();
     if (!f) return;
     const label = $('label.submit-form__photo strong');
     label.textContent = 'Uploading…';
+    $('[data-photo-hint]').hidden = true;
     try {
       const fd = new FormData();
       fd.append('image', await prepare(f), 'photo.jpg');
@@ -589,7 +630,8 @@ const venueList = await getVenues();
       const res = await fetch(`${INTAKE}/extract?read=0`, { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      imageId = data.imageId;
+      // With a flyer, the photo goes alongside it. Without one, it's the event's picture.
+      if (source === 'flyer' && imageId) photoId = data.imageId; else imageId = data.imageId;
       label.textContent = '✓ Photo added (tap to change)';
     } catch { label.textContent = "Couldn't upload that one. Try another?"; }
   });
@@ -623,7 +665,7 @@ const venueList = await getVenues();
     btn.disabled = true; status.textContent = 'Sending…';
     const body = {
       title: field('title').value, venue: field('venue').value, address: field('address').value, category: field('category').value,
-      price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId,
+      price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId, photoId,
       name: field('name').value, email: field('email').value, phone: field('phone').value, website: field('website').value,
       act: new URLSearchParams(location.search).get('act') || '', source,
       boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
@@ -681,8 +723,8 @@ const venueList = await getVenues();
   });
 
   $('[data-again]').addEventListener('click', () => {
-    imageId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
-    $('label.submit-form__photo strong').textContent = '+ Add a photo';
+    imageId = ''; photoId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
+    photoLabel(false, false);
     applyMe(); step('choose');
   });
 
@@ -737,8 +779,13 @@ const venueList = await getVenues();
   [data-missing] { border-color: var(--primary); background: var(--primary-ultra-light); }
 
   .submit-form__shows { display: flex; flex-direction: column; gap: var(--space-xs); }
-  .submit-form__show { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: var(--space-xs); align-items: end; }
-  .submit-form__show:has(.submit-form__act:not([hidden])) { grid-template-columns: 1.4fr 1fr 1fr 1.5fr auto; }
+  .submit-form__show { display: grid; grid-template-columns: 1.2fr 1.4fr 1.4fr auto; gap: var(--space-xs); align-items: end; }
+  .submit-form__show:has(.submit-form__act:not([hidden])) { grid-template-columns: 1.2fr 1.4fr 1.4fr 1.3fr auto; }
+  .submit-time { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 0.25rem; }
+  /* The three lists are added by script, so they need :global to pick up the form's field look. */
+  .submit-time :global(select), .submit-time :global(input) { font: inherit; font-size: var(--text-m); min-block-size: 3rem; padding: var(--space-xs) 0.4rem; min-inline-size: 0; inline-size: 100%; border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); color: var(--text-dark); }
+  .submit-time :global(select:focus), .submit-time :global(input:focus) { outline: none; border-color: var(--text-dark); box-shadow: 0 0 0 3px var(--primary-ultra-light); }
+  .submit-time :global([data-missing]) { border-color: var(--primary); background: var(--primary-ultra-light); }
   .submit-form__show-field { display: flex; flex-direction: column; gap: 0.25rem; }
   .submit-form__show-field[hidden] { display: none; }
   .submit-form__show-field label { font-size: var(--text-xs); font-weight: 600; }
@@ -747,7 +794,7 @@ const venueList = await getVenues();
   .submit-form__add { align-self: flex-start; margin-block-start: 0.25rem; min-block-size: 2.75rem; }
   @media (max-width: 620px) {
     .submit-form__show, .submit-form__show:has(.submit-form__act:not([hidden])) { grid-template-columns: 1fr 1fr; padding-block-end: var(--space-s); border-block-end: 1px dashed var(--neutral-light); }
-    .submit-form__show .submit-form__show-field:first-child { grid-column: 1 / -1; }
+    .submit-form__show .submit-form__show-field:first-child, .submit-form__show-field:has(.submit-time) { grid-column: 1 / -1; }
     .submit-form__show-field.act { grid-column: 1 / -1; }
     .submit-form__flyer img, .submit-reading img { inline-size: 6rem; }
   }
@@ -797,6 +844,7 @@ const venueList = await getVenues();
   .submit-repeat__summary { font-weight: 600; }
   .submit-repeat__dates { display: flex; flex-wrap: wrap; gap: 0.375rem; }
   .submit-repeat__dates :global(.submit-repeat__date) { min-block-size: 2.75rem; padding-inline: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius-circle); background: var(--bg-ultra-light); font-size: var(--text-s); cursor: pointer; }
+  .submit-repeat__dates :global(.submit-repeat__date[aria-pressed="true"]) { border-color: var(--text-dark); background: var(--text-dark); color: var(--text-light); }
   .submit-repeat__dates :global(.submit-repeat__date[aria-pressed="false"]) { text-decoration: line-through; color: var(--text-dark-muted); background: transparent; }
 
   /* Edit links */

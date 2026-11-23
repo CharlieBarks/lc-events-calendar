@@ -3,7 +3,7 @@ import { getEvents } from '../../lib/events.js';
 import { buildIcs } from '../../lib/ics.js';
 
 export async function getStaticPaths() {
-  const { events } = await getEvents();
+  const { allEvents: events } = await getEvents();
   return events.map((event) => ({ params: { slug: event.slug }, props: { event } }));
 }
 

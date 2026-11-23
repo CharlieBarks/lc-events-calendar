@@ -17,7 +17,7 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 | CitySpark listings and photos | `cityspark-export` Worker into KV, daily | No |
 | City of Las Cruces events | City feed through `lc-events-proxy` | No |
 | Other organizations' calendars (library, museums, Cruces Creatives, Convention Center, Farm & Ranch Museum, Organ Mountains-Desert Peaks, Audubon, Visit Las Cruces as a finder) | Read nightly by the `lc-events-intake` Worker (`feeds.js`) | No |
-| `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Spotlight; `sponsored: true` = paid Spotlight; `sample: true` = preview only) |
+| `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Featured; `sponsored: true` = paid Spotlight; `sample: true` = preview only) |
 | `src/data/spotlight.json` | Spotlight for events that didn't come through the form (CitySpark, city), matched by name | **Yes** |
 | `src/data/city-snapshot.json` | Offline copy of the city feed | No |
 | `src/data/venues.json` | Built-in venue list: one name per venue, every other spelling as an alias. Charlie's edits from the Venues screen are merged on top at build time | Yes, but the Venues screen is the easy way |
@@ -140,6 +140,20 @@ Decided by Charlie, Nov 10, 2026. Modeled on SFV Local's "Boosted Event". "Charl
 - Sponsored events always get a full card (even if they repeat) and are first in their day.
 - Later (Charlie): longer-running packages.
 
+## Featured events
+
+Built Nov 23, 2026. Charlie's own picks, free for now; he plans to sell Featured as an upgrade later.
+
+- **Review page, "Featured events":** paste any event's address (any source: feeds, CitySpark, the newsletter check, submissions), tick "Every date of it" if wanted, and an optional **until** date (empty = until the event is over). "Stop featuring" undoes it. Saving starts a rebuild. Stored in KV `featured.json` (same matching as Hidden listings, plus `until`), sent to the build inside `/approved.json` (`featured`).
+- Submissions can still be featured with the **Featured** checkbox when approving (it was called Spotlight before Nov 23; same `featured` flag).
+- **What a Featured event gets:** a full card (even a weekly regular), pinned to the top of its day after any Sponsored ones, a gold star on the corner of its picture (top right on homepage cards, where the date is top left), a navy **★ FEATURED** label and its own soft navy background (`--_featured-bg` in `EventCard.astro`; Charlie turned down red on Nov 23). Reads differently from paid gold and the green regulars, the label on its event page, and a place in the homepage Spotlight rotation.
+- An event both Featured and Sponsored shows as Sponsored only.
+- Preview-only samples "Featured example: …" in `src/data/events.json` show the look on the preview.
+
+## Bigger list for older readers
+
+Nov 23, 2026 (Charlie: most subscribers are seniors). Row pictures 8rem on desktop and 6rem on phones (were 4.75rem and 4.5rem), event names 1.3rem, time and venue line, summary and price at `--text-m`, summary up to two lines, tags at `--text-s`. The list is up to 52rem wide. On phones the time sits on its own line above the venue.
+
 ## Recurring events
 
 Built Nov 14, 2026. One set of rules, `src/lib/repeat.js`, is used by the form, the submissions Worker and the site build, so a rule means the same thing everywhere. No extra library: the calendar works in plain Las Cruces dates, so daylight saving time can't shift a repeating date.
@@ -231,6 +245,20 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 **Hidden inputs:** a page-level rule like `input { inline-size: 100% }` also hits visually hidden inputs (`.sr-only`) and makes the page scroll sideways. Write `input:not(.sr-only)`.
 
 **Turned off in ACSS for this site:** the accent color and its buttons (no accent role in the design), transparency shades for accent, tertiary, danger, info, success and warning, the light/dark color scheme switcher, basic overlays, text-shadow variables, forms plus automatic form styling (so loading ACSS can't restyle `/submit/`), default section styles (they turn every top-level `<section>` into a flex column and break the existing `.wrap` layout; revisit in step 5) and automatic image rounding.
+
+## Design process (Charlie, Nov 18, 2026)
+
+- Charlie isn't using Paper. Show design ideas as a quick mockup in the chat, then build on the preview (`redesign` branch) for him to look at. Nothing goes to `main` until he approves it on the preview.
+- When Charlie asks for ideas or "how would that work", lay out the plan and wait for his go-ahead before building.
+
+## Event list and pictures (preview, Nov 18, 2026)
+
+- **List rows lead with the event** (modeled on SFV Local): picture, name, then time and venue, one line about it (its summary or the first sentence of the description), category and genre, badges (Sponsored, Kids & family, Seniors) and the price on the right ("See details" when there's none). No time column.
+- **Weekly regulars** are the same size as one-off events, set apart by a light tint and their "Every Thursday" tag. Still folded under "Show N more regulars" on each day.
+- **No picture:** a name card (event name, venue, topic icon, date) on the category color. Stock topic photos are off: one photo per topic was often wrong for the event. Row thumbnails keep the icon artwork.
+- **Tall or square pictures** (most flyers) show whole on a blurred copy of themselves; wide ones fill the box. Event pages keep every picture beside the details (wide ones too); "Tap to enlarge" opens it centered, as large as the screen allows.
+- **Flyer plus photo:** an organizer can send both. The photo is the calendar and share picture; the flyer shows in full on the event page.
+- **Hidden pictures:** review page box. A listing's picture that doesn't fit is replaced by its name card (one date or every date).
 
 ## Design status
 

@@ -330,6 +330,9 @@ function tidySubmission(b) {
     description: cleanText(b.description, 2000),
     shows: repeat ? shows.slice(0, 1) : shows,
     imageId: /^[a-z0-9]+\.(jpg|png|webp|gif)$/.test(b.imageId || '') ? b.imageId : '',
+    // A photo sent along with a flyer. It becomes the picture on the calendar; the flyer shows in
+    // full on the event page. A photo on its own is just the picture (imageId), see below.
+    photoId: /^[a-z0-9]+\.(jpg|png|webp|gif)$/.test(b.photoId || '') ? b.photoId : '',
     contact: { name: clean(b.name, 100), email: clean(b.email, 160), phone: clean(b.phone, 40) },
     act: clean(b.act, 140), // set when a musician comes from their Las Cruces Live page
     boost: b.boost === 'spotlight' ? 'spotlight' : '', // asked for the paid Spotlight package
@@ -339,6 +342,21 @@ function tidySubmission(b) {
     suggests: /^[a-z0-9-]{3,140}$/.test(b.suggests || '') ? b.suggests : '',
     imageUrl: /^https:\/\//i.test(b.imageUrl || '') ? clean(b.imageUrl, 500) : '',
   };
+}
+
+// Only a photo, no flyer: the photo is simply the picture.
+function onePicture(sub) {
+  if (!sub.imageId && sub.photoId) { sub.imageId = sub.photoId; sub.photoId = ''; }
+  if (sub.photoId === sub.imageId) sub.photoId = '';
+  return sub;
+}
+
+// Moves a just-uploaded picture out of the "uploaded" area (which expires) so it's kept.
+async function keepPicture(env, id) {
+  const { value, metadata } = await env.MEDIA.getWithMetadata(`sub/upload/${id}`, 'arrayBuffer');
+  if (!value) return false;
+  await env.MEDIA.put(`sub/img/${id}`, value, { metadata });
+  return true;
 }
 
 async function handleSubmit(request, env, origin, ctx) {
@@ -351,7 +369,7 @@ async function handleSubmit(request, env, origin, ctx) {
   try { body = await request.json(); } catch { return json({ error: 'Bad request.' }, { status: 400 }, origin); }
   if (body.website) return json({ ok: true }, {}, origin); // honeypot: bots fill every field
   if (!(await isHuman(env, body.human, ip, 'submission'))) return json({ error: NOT_HUMAN }, { status: 403 }, origin);
-  const sub = tidySubmission(body);
+  const sub = onePicture(tidySubmission(body));
   const problems = [];
   if (!sub.title) problems.push('event name');
   if (!sub.shows.length) problems.push('date');
@@ -360,11 +378,9 @@ async function handleSubmit(request, env, origin, ctx) {
   if (problems.length) return json({ error: `Please add: ${problems.join(', ')}.` }, { status: 400 }, origin);
 
   // Keep the flyer for good: move it out of the "uploaded" area (which expires).
-  if (sub.imageId) {
-    const { value, metadata } = await env.MEDIA.getWithMetadata(`sub/upload/${sub.imageId}`, 'arrayBuffer');
-    if (value) await env.MEDIA.put(`sub/img/${sub.imageId}`, value, { metadata });
-    else sub.imageId = '';
-  }
+  if (sub.imageId && !(await keepPicture(env, sub.imageId))) sub.imageId = '';
+  if (sub.photoId && !(await keepPicture(env, sub.photoId))) sub.photoId = '';
+  onePicture(sub);
   const id = newId();
   const token = newToken();
   const record = { id, token, status: 'pending', submittedAt: new Date().toISOString(), ip, site: siteFor(origin), ...sub };
@@ -404,6 +420,7 @@ async function handleMine(request, env, origin) {
     title: rec.title, venue: rec.venue, address: rec.address, category: rec.category, price: rec.price, url: rec.url,
     description: rec.description, shows: rec.shows, repeat: rec.repeat || null, annual: !!rec.annual,
     imageId: rec.imageId || '', imageUrl: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : '',
+    photoId: rec.photoId || '', photoUrl: rec.photoId ? `${PUBLIC_ORIGIN}/img/${rec.photoId}` : '',
     name: rec.contact?.name || '', email: rec.contact?.email || '', phone: rec.contact?.phone || '',
   }, { headers: { 'cache-control': 'no-store' } }, origin);
 }
@@ -420,18 +437,16 @@ async function handleUpdate(request, env, origin, ctx) {
   const found = await findMine(env, body.key);
   if (!found || found.rec.status === 'rejected') return json({ error: "That edit link doesn't match any event." }, { status: 404 }, origin);
   const { rec, live } = found;
-  const sub = tidySubmission(body);
+  const sub = onePicture(tidySubmission(body));
   const problems = [];
   if (!sub.title) problems.push('event name');
   if (!sub.shows.length) problems.push('date');
   if (!sub.venue) problems.push('where it is');
   if (problems.length) return json({ error: `Please add: ${problems.join(', ')}.` }, { status: 400 }, origin);
   // A new picture moves out of the "uploaded" area; otherwise keep the one it had.
-  if (sub.imageId && sub.imageId !== rec.imageId) {
-    const { value, metadata } = await env.MEDIA.getWithMetadata(`sub/upload/${sub.imageId}`, 'arrayBuffer');
-    if (value) await env.MEDIA.put(`sub/img/${sub.imageId}`, value, { metadata });
-    else sub.imageId = rec.imageId || '';
-  }
+  if (sub.imageId && sub.imageId !== rec.imageId && !(await keepPicture(env, sub.imageId))) sub.imageId = rec.imageId || '';
+  if (sub.photoId && sub.photoId !== rec.photoId && !(await keepPicture(env, sub.photoId))) sub.photoId = rec.photoId || '';
+  onePicture(sub);
   // The organizer can't hand themselves a Spotlight or change who submitted it.
   const next = {
     ...rec, ...sub,
@@ -475,6 +490,7 @@ function toCalendarEvents(rec) {
       description: rec.description || (rec.performers ? `With ${rec.performers}.` : ''),
       url: rec.url,
       image: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : rec.imageUrl || '',
+      ...(rec.photoId ? { photo: `${PUBLIC_ORIGIN}/img/${rec.photoId}` } : {}),
       featured: !!rec.featured,
       sponsored: !!rec.sponsored,
       spotlightUntil: rec.spotlightUntil || '',
@@ -504,15 +520,30 @@ function hiddenSlug(input) {
   const m = String(input || '').trim().toLowerCase().match(/(?:\/event\/)?([a-z0-9-]{3,140})\/?(?:[?#].*)?$/);
   return m ? m[1].replace(/\.ics$/, '') : '';
 }
-async function setHidden(env, item, on) {
+async function setHidden(env, item, on, key = 'hidden') {
   const slug = hiddenSlug(item.slug);
   if (!slug) return false;
-  const list = (await getHidden(env)).filter((h) => h.slug !== slug);
+  const list = ((await env.MEDIA.get(`${key}.json`, 'json'))?.[key] || []).filter((h) => h.slug !== slug);
   // No date at the end of the address: it already means every date.
   const all = !!item.all || !/\d{4}-\d{2}-\d{2}(-\d+)?$/.test(slug);
-  if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), at: new Date().toISOString() });
-  await env.MEDIA.put('hidden.json', JSON.stringify({ hidden: list.slice(-500) }));
+  if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), ...(isDate(item.until) ? { until: item.until } : {}), at: new Date().toISOString() });
+  await env.MEDIA.put(`${key}.json`, JSON.stringify({ [key]: list.slice(-500) }));
   return true;
+}
+
+// ---------- Hidden pictures ----------
+// A listing's own picture that doesn't fit (a feed's flyer for the wrong event, a stock photo
+// from somewhere else). Same shape and matching as hidden listings; the site shows its text card instead.
+async function getNoPic(env) {
+  return (await env.MEDIA.get('nopic.json', 'json'))?.nopic || [];
+}
+
+// ---------- Featured events ----------
+// Charlie's own picks from any source (feeds, CitySpark, newsletter, submissions): pinned to the top
+// of their day with a Featured label and their own background, and in the homepage Spotlight.
+// Same shape and matching as hidden listings, plus "until" (last day; empty = the event's last date).
+async function getFeatured(env) {
+  return (await env.MEDIA.get('featured.json', 'json'))?.featured || [];
 }
 
 async function reviewApi(request, env, path, ctx) {
@@ -530,11 +561,21 @@ async function reviewApi(request, env, path, ctx) {
     return json({ pending: pending.map(({ token, ...r }) => r), approved: approved.slice(-60).reverse() });
   }
   if (request.method === 'GET' && path === 'venues') return venuesApi(request, env, path);
-  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
+  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse(), featured: (await getFeatured(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
   if (['venue', 'venue-undo', 'publish'].includes(path)) return venuesApi(request, env, path, body);
   if (path === 'feeds-refresh') return json({ ok: true, feeds: await refreshFeeds(env) });
+  if (path === 'nopic' || path === 'pic') {
+    if (!(await setHidden(env, body, path === 'nopic', 'nopic'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
+    if (body.publish) await rebuild(env);
+    return json({ ok: true });
+  }
+  if (path === 'feature' || path === 'unfeature') {
+    if (!(await setHidden(env, body, path === 'feature', 'featured'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
+    if (body.publish) await rebuild(env);
+    return json({ ok: true });
+  }
   if (path === 'hide' || path === 'unhide') {
     if (!(await setHidden(env, body, path === 'hide'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
     if (body.publish) await rebuild(env);
@@ -545,7 +586,7 @@ async function reviewApi(request, env, path, ctx) {
     if (!rec) return json({ error: 'Already handled.' }, { status: 404 });
     // Charlie's edits from the review screen win.
     const { repeat: repeatEdit, ...plainEdits } = body.edits || {};
-    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...plainEdits, imageId: rec.imageId }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, spotlightUntil: isDate(body.edits?.spotlightUntil) ? body.edits.spotlightUntil : '', id: rec.id };
+    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...plainEdits, imageId: rec.imageId, photoId: rec.photoId }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, spotlightUntil: isDate(body.edits?.spotlightUntil) ? body.edits.spotlightUntil : '', id: rec.id };
     // The review page can change when a repeating event stops and take single dates out.
     if (edited.repeat && repeatEdit) edited.repeat = tidyRepeat({ ...edited.repeat, until: repeatEdit.until, skip: repeatEdit.skip });
     if (!edited.shows.length) return json({ error: 'Needs at least one date.' }, { status: 400 });
@@ -772,7 +813,7 @@ function reviewPage() {
 header{padding:20px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:2}h1{margin:0;font-size:1.3rem}
 main{max-width:1100px;margin:0 auto;padding:20px}.empty{padding:40px;text-align:center;color:var(--muted)}
 .sub{display:grid;grid-template-columns:260px 1fr;gap:20px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}
-.sub img{width:100%;border-radius:8px;cursor:zoom-in;border:1px solid var(--line)}.noimg{aspect-ratio:4/5;display:grid;place-items:center;background:#f1ece4;border-radius:8px;color:var(--muted)}
+.pics{display:flex;flex-direction:column;gap:6px}.pic-note{margin:6px 0 0;font-size:13px;color:var(--muted)}.sub img{width:100%;border-radius:8px;cursor:zoom-in;border:1px solid var(--line)}.noimg{aspect-ratio:4/5;display:grid;place-items:center;background:#f1ece4;border-radius:8px;color:var(--muted)}
 label{display:block;font-size:.8rem;color:var(--muted);margin:8px 0 2px}input,select,textarea{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.show{display:grid;grid-template-columns:1.3fr 1fr 1fr 1.6fr auto;gap:8px;align-items:end;margin-bottom:6px}
 .show button{padding:8px 10px}.meta{font-size:.85rem;color:var(--muted);margin-top:10px}.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
@@ -786,10 +827,17 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 .checks input[type=date]{width:auto;padding:4px 8px}.apflags{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.apflags label{display:flex;gap:4px;align-items:center;margin:0;color:var(--ink);font-size:.85rem}.apflags input[type=checkbox]{width:auto}.apflags input[type=date]{width:auto;padding:2px 6px;font-size:.85rem}@media(max-width:720px){.sub{grid-template-columns:1fr}.show{grid-template-columns:1fr 1fr}}
 </style></head><body>
 <header><h1>Event submissions <a href="/review/venues/" style="font-size:.9rem;font-weight:400;margin-left:12px;color:var(--accent)">Venues</a></h1><div class="msg" id="count">Loading…</div></header>
-<main><div id="pending"></div><h2>Recently approved</h2><div id="approved"></div>
+<main><div id="pending"></div>
+<h2>Featured events</h2><p class="msg">Want an event to stand out? Paste its address from the event page. It's pinned to the top of its day with a Featured label and its own background, and goes into the homepage Spotlight. Works for any event, from any source.</p>
+<form id="feature" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><label>until <input type="date" name="until" title="Leave empty to feature it until the event is over"></label><button>Feature</button><span class="msg" data-msg></span></form>
+<div id="featuredlist"></div>
+<h2>Recently approved</h2><div id="approved"></div>
 <h2>Hidden listings</h2><p class="msg">Something from a feed that shouldn't be on the calendar? Paste its address from the event page. It stays hidden on later nights too.</p>
 <form id="hide" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide</button><span class="msg" data-msg></span></form>
-<div id="hidden"></div></main>
+<div id="hidden"></div>
+<h2>Hidden pictures</h2><p class="msg">A listing whose picture doesn't fit (wrong event, a random stock photo)? Paste its address. It keeps its listing but shows its name card instead of the picture.</p>
+<form id="nopic" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide picture</button><span class="msg" data-msg></span></form>
+<div id="nopiclist"></div></main>
 <div id="lb"><img alt=""></div>
 <script>
 const CATS='${cats.replace(/'/g, "\\'")}';
@@ -798,7 +846,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const lb=document.getElementById('lb');lb.onclick=()=>lb.style.display='none';
 function showRow(s){return '<div class="show"><div><label>Date</label><input type="date" name="date" value="'+esc(s.date)+'"></div><div><label>Starts</label><input type="time" name="start" value="'+esc(s.start)+'"></div><div><label>Ends</label><input type="time" name="end" value="'+esc(s.end)+'"></div><div><label>Different act / title (optional)</label><input name="stitle" value="'+esc(s.title)+'"></div><button type="button" data-del>✕</button></div>'}
 function card(r){
-  const img=r.imageId?'<img src="/img/'+esc(r.imageId)+'" alt="Flyer" data-zoom>':'<div class="noimg">No flyer</div>';
+  const img='<div class="pics">'+(r.imageId?'<img src="/img/'+esc(r.imageId)+'" alt="Flyer" data-zoom>':'<div class="noimg">No flyer</div>')+(r.photoId?'<p class="pic-note">Photo (shown on the calendar):</p><img src="/img/'+esc(r.photoId)+'" alt="Photo" data-zoom>':'')+'</div>';
   return '<form class="sub" data-id="'+esc(r.id)+'">'+img+'<div>'+
   '<label>Event name</label><input name="title" value="'+esc(r.title)+'">'+
   '<div class="row"><div><label>Venue</label><input name="venue" value="'+esc(r.venue)+'"></div><div><label>Address</label><input name="address" value="'+esc(r.address)+'"></div></div>'+
@@ -810,12 +858,14 @@ function card(r){
   (r.annual?'<div class="boost"><strong>Annual event.</strong> The organizer says this happens every year.</div>':'')+
   (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
-  '<div class="checks"><label><input type="checkbox" name="featured"> Spotlight</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
+  '<div class="checks"><label><input type="checkbox" name="featured"> Featured</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
   '<div class="meta">From '+esc(r.contact?.name)+' · <a href="mailto:'+esc(r.contact?.email)+'">'+esc(r.contact?.email)+'</a>'+(r.contact?.phone?' · '+esc(r.contact.phone):'')+(r.act?' · Act: '+esc(r.act):'')+' · '+new Date(r.submittedAt).toLocaleString()+'</div>'+
   '<div class="btns"><button class="approve" type="submit">Approve</button><button class="reject" type="button" data-reject>Reject</button><span class="msg" data-msg></span></div></div></form>';
 }
 async function loadHidden(){
   const d=await fetch('/review/api/hidden').then(r=>r.json());
+  document.getElementById('featuredlist').innerHTML=(d.featured||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.until?'<span class="tag">until '+esc(h.until)+'</span>':'')+'</span><span class="apflags"><a href="'+esc(SITE)+'/event/'+esc(h.slug)+'/" target="_blank" rel="noopener">View</a><button data-unfeature="'+esc(h.slug)+'">Stop featuring</button></span></div>').join('')||'<div class="msg">Nothing featured right now.</div>';
+  document.getElementById('nopiclist').innerHTML=(d.nopic||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+'</span><span class="apflags"><button data-showpic="'+esc(h.slug)+'">Show picture again</button></span></div>').join('')||'<div class="msg">No pictures hidden.</div>';
   document.getElementById('hidden').innerHTML=d.hidden.map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.reason?' · <span class="msg">'+esc(h.reason)+'</span>':'')+'</span><span class="apflags"><button data-unhide="'+esc(h.slug)+'">Show again</button></span></div>').join('')||'<div class="msg">Nothing hidden.</div>';
 }
 async function load(){
@@ -825,7 +875,7 @@ async function load(){
   const p=document.getElementById('pending');
   p.innerHTML=d.pending.length?d.pending.map(card).join(''):'<div class="empty">Nothing waiting. New submissions show up here.</div>';
   d.pending.forEach(r=>{const f=p.querySelector('[data-id="'+r.id+'"]');f.category.value=r.category});
-  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Spotlight</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Spotlight</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
+  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Featured</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Featured</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
 }
 document.addEventListener('click',async e=>{
   const t=e.target;
@@ -835,11 +885,15 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-reject]')){const f=t.closest('form');if(!confirm('Reject this submission?'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id})});load();return}
   if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
   if(t.matches('[data-reopen]')){t.textContent='Opening…';await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.reopen})});await load();window.scrollTo({top:0,behavior:'smooth'});return}
+  if(t.matches('[data-showpic]')){await fetch('/review/api/pic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.showpic,publish:true})});loadHidden();return}
+  if(t.matches('[data-unfeature]')){await fetch('/review/api/unfeature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unfeature,publish:true})});loadHidden();return}
   if(t.matches('[data-unhide]')){await fetch('/review/api/unhide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unhide,publish:true})});loadHidden();return}
   if(t.matches('[data-remove]')){if(!confirm('Take this off the calendar?'))return;await fetch('/review/api/remove',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.remove})});load();return}
 });
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target;const msg=f.querySelector('[data-msg]');msg.textContent='Saving…';
+  if(f.id==='feature'){const r=await fetch('/review/api/feature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,until:f.until.value,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Featured. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
+  if(f.id==='nopic'){const r=await fetch('/review/api/nopic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Picture hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   if(f.id==='hide'){const r=await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,reason:'Hidden by Charlie',publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   const shows=[...f.querySelectorAll('.show')].map(s=>({date:s.querySelector('[name=date]').value,start:s.querySelector('[name=start]').value,end:s.querySelector('[name=end]').value,title:s.querySelector('[name=stitle]').value}));
   const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked,spotlightUntil:f.spotlightUntil.value};
@@ -893,8 +947,8 @@ export default {
       if (path === '/approved.json') {
         // "feeds": events read from other organizations' calendars. They ride along here so the site
         // build makes one request for both (each extra request is one more chance of a failed build).
-        const [approved, feeds, hidden] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env)]);
-        return json({ count: approved.length, events: approved, feeds, hidden }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+        const [approved, feeds, hidden, nopic, featured] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env), getNoPic(env), getFeatured(env)]);
+        return json({ count: approved.length, events: approved, feeds, hidden, nopic, featured }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
       }
 
       if (path.startsWith('/img/')) {
