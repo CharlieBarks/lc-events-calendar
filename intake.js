@@ -113,12 +113,15 @@ const whenLine = (rec) => (rec.repeat ? describe(rec.repeat) : rec.shows.map((s)
 
 // To the submitter, right after they send an event.
 function mailThanks(env, rec, site) {
-  return sendMail(env, rec.contact?.email, rec.suggests ? `Thank you for the fix to "${rec.title}"` : `Thank you! "${rec.title}" is in`, [
+  // Charlie, Nov 23: say up front that it isn't on the calendar yet (it was buried in paragraph three).
+  return sendMail(env, rec.contact?.email, rec.suggests ? `Got it! Your fix to "${rec.title}" is waiting for a quick review` : `Got it! "${rec.title}" is waiting for a quick review`, [
     `Hi ${firstName(rec.contact?.name)},`,
-    ...(rec.suggests ? [`Thank you for taking the time to correct "${rec.title}" on the Las Cruces events calendar. Fixes like yours are how this calendar stays right.`] : []),
-    ...(rec.suggests ? [] : [`Thank you for adding "${rec.title}" to the Las Cruces events calendar. I mean that. This calendar only works because people like you take a few minutes to share what's happening, and every event you add helps a neighbor find something good to do in town.`]),
-    `Here's what happens next: I look over every event myself, usually within a day. You'll hear from me again as soon as it's on the calendar.`,
-    { text: 'Need to fix a time or swap the flyer? This is your private edit link. Keep it handy, and only share it with someone you want editing this event:', href: `${site}/submit/?edit=${rec.id}.${rec.token}` },
+    rec.suggests
+      ? `Your fix isn't on the calendar yet. I check every change myself, usually within a day, and you'll get another email the moment it goes live.`
+      : `Your event isn't on the calendar yet. I check every listing myself, usually within a day, and you'll get another email the moment it goes live.`,
+    ...(rec.suggests ? [`Thank you for taking the time to correct "${rec.title}". Fixes like yours are how this calendar stays right.`] : []),
+    ...(rec.suggests ? [] : [`Thank you for adding "${rec.title}" to the Las Cruces events calendar. Every event you share helps a neighbor find something good to do in town.`]),
+    { text: 'Need to fix a time or a picture before then? This is your private edit link. Keep it handy, and only share it with someone you want editing this event:', href: `${site}/submit/?edit=${rec.id}.${rec.token}` },
     `Got more coming up? Add as many as you like: ${site}/submit/`,
     `Thanks again for showing up for Las Cruces.`,
     SIGN_OFF,
@@ -141,13 +144,79 @@ function mailApproved(env, rec, wasChange) {
   ]);
 }
 
+// To a trusted submitter: their event went straight onto the calendar. One email instead of
+// "thanks, waiting for review" plus "it's live" (Charlie, Nov 23).
+function mailLive(env, rec, wasChange) {
+  const site = rec.site || LIVE_SITE;
+  return sendMail(env, rec.contact?.email, wasChange ? `Your changes to "${rec.title}" are live` : `"${rec.title}" is live on the calendar`, [
+    `Hi ${firstName(rec.contact?.name)},`,
+    wasChange ? `Your changes to "${rec.title}" are on the Las Cruces events calendar now.` : `"${rec.title}" is on the Las Cruces events calendar now. Thanks for sharing it!`,
+    { text: 'It shows up within a few minutes here. Share it anywhere you like:', href: eventPage(rec, site) },
+    { text: 'Your private edit link, if anything changes:', href: `${site}/submit/?edit=${rec.id}.${rec.token}` },
+    SIGN_OFF,
+  ]);
+}
+const eventPage = (rec, site = rec.site || LIVE_SITE) => (rec.repeat ? `${site}/` : `${site}/event/${toCalendarEvents(rec)[0].slug}/`);
+
 // To Charlie: something new is waiting in the review queue.
 function mailCharlie(env, rec, what) {
   return sendMail(env, env.NOTIFY_TO, `${what}: ${rec.title}`, [
     `${what} on the events calendar.`,
     `${rec.title}\n${rec.venue}\n${whenLine(rec)}\nFrom ${rec.contact?.name || 'someone'} (${rec.contact?.email || 'no email'})${rec.boost ? '\nSpotlight requested' : ''}`,
-    { text: 'Review it here:', href: `${PUBLIC_ORIGIN}/review/` },
+    { text: what.startsWith('Live') ? 'It went straight on the calendar. To take it down or stop trusting them, use Recently approved on the review page:' : 'Review it here:', href: `${PUBLIC_ORIGIN}/review/` },
   ]);
+}
+
+// ---------- Trusted submitters (Nov 23, 2026) ----------
+// Emails Charlie trusts: their new events and their changes go live without review. Safety rails:
+// at most TRUSTED_PER_DAY a day each (the rest wait in the queue), paid Spotlight requests and
+// suggested edits to other people's listings still wait, and the person check runs as always.
+// KV trusted.json = { trusted: [{ email, name, at }] }. KV submitters.json = { "<email>": approvedCount }.
+const TRUSTED_PER_DAY = 10;
+const normEmail = (e) => String(e || '').trim().toLowerCase();
+async function getTrusted(env) {
+  return (await env.MEDIA.get('trusted.json', 'json'))?.trusted || [];
+}
+async function isTrusted(env, email) {
+  const e = normEmail(email);
+  return !!e && (await getTrusted(env)).some((t) => t.email === e);
+}
+async function setTrusted(env, email, name, on) {
+  const e = normEmail(email);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return false;
+  const list = (await getTrusted(env)).filter((t) => t.email !== e);
+  if (on) list.push({ email: e, name: clean(name, 100), at: new Date().toISOString() });
+  await env.MEDIA.put('trusted.json', JSON.stringify({ trusted: list }));
+  return true;
+}
+// Counts today's straight-to-the-calendar events for one person. false = over the daily limit.
+async function trustedRoomToday(env, email) {
+  const key = `trusted/count/${normEmail(email)}/${todayLocal()}`;
+  const n = Number(await env.MEDIA.get(key)) || 0;
+  if (n >= TRUSTED_PER_DAY) return false;
+  await env.MEDIA.put(key, String(n + 1), { expirationTtl: 60 * 60 * 48 });
+  return true;
+}
+// How many of someone's events Charlie has approved, to suggest trusting regulars.
+async function countApproved(env, email) {
+  const e = normEmail(email);
+  if (!e) return;
+  const counts = (await env.MEDIA.get('submitters.json', 'json')) || {};
+  counts[e] = (counts[e] || 0) + 1;
+  await env.MEDIA.put('submitters.json', JSON.stringify(counts));
+}
+
+// Puts a submission on the calendar: shared by Charlie's Approve and trusted submitters.
+async function publishRecord(env, rec, edited, by) {
+  const approved = (await getApproved(env)).filter((e) => e.submissionId !== rec.id);
+  approved.push(...toCalendarEvents(edited));
+  await env.MEDIA.put('sub/approved.json', JSON.stringify(approved));
+  await env.MEDIA.put(`sub/done/${rec.id}`, JSON.stringify({ ...edited, change: false, status: 'approved', reviewedAt: new Date().toISOString(), ...(by ? { approvedBy: by } : {}) }));
+  await env.MEDIA.delete(`sub/pending/${rec.id}`);
+  // A suggested edit replaces a listing from a feed: hide that one so the event doesn't show twice.
+  if (rec.suggests) await setHidden(env, { slug: rec.suggests, title: edited.title, reason: 'Replaced by a suggested edit' }, true);
+  if (!rec.change) await countApproved(env, rec.contact?.email);
+  await rebuild(env);
 }
 
 // ---------- "Are you a person?" (Cloudflare Turnstile) ----------
@@ -409,6 +478,13 @@ async function handleSubmit(request, env, origin, ctx) {
   const token = newToken();
   const record = { id, token, status: 'pending', submittedAt: new Date().toISOString(), ip, site: siteFor(origin), ...sub };
   await env.MEDIA.put(`sub/pending/${id}`, JSON.stringify(record));
+  // Trusted submitters: straight onto the calendar (not paid Spotlight requests or suggested
+  // edits to someone else's listing, and not past the daily limit).
+  if (!record.boost && !record.suggests && (await isTrusted(env, record.contact.email)) && (await trustedRoomToday(env, record.contact.email))) {
+    await publishRecord(env, record, record, 'trusted');
+    ctx.waitUntil(Promise.all([mailLive(env, record, false), mailCharlie(env, record, 'Live from a trusted submitter')]));
+    return json({ ok: true, id, key: `${id}.${token}`, shows: sub.shows.length, live: true, page: eventPage(record) }, {}, origin);
+  }
   ctx.waitUntil(Promise.all([mailThanks(env, record, record.site), mailCharlie(env, record, record.suggests ? 'Suggested edit' : 'New event')]));
   return json({ ok: true, id, key: `${id}.${token}`, shows: sub.shows.length }, {}, origin);
 }
@@ -486,6 +562,12 @@ async function handleUpdate(request, env, origin, ctx) {
     ...(live ? { change: true, changedBy: 'organizer' } : {}),
   };
   await env.MEDIA.put(`sub/pending/${rec.id}`, JSON.stringify(next));
+  // A trusted submitter's change goes live right away (Spotlight purchases still wait for Charlie).
+  if (!next.boost && (await isTrusted(env, next.contact.email)) && (await trustedRoomToday(env, next.contact.email))) {
+    await publishRecord(env, next, { ...next, change: false }, 'trusted');
+    ctx.waitUntil(Promise.all([mailLive(env, next, live), mailCharlie(env, next, live ? 'Live change from a trusted submitter' : 'Live from a trusted submitter')]));
+    return json({ ok: true, id: rec.id, live, published: true, page: eventPage(next) }, {}, origin);
+  }
   ctx.waitUntil(mailCharlie(env, next, live ? 'Organizer changed a live event' : 'Organizer updated a waiting event'));
   return json({ ok: true, id: rec.id, live }, {}, origin);
 }
@@ -587,7 +669,18 @@ async function reviewApi(request, env, path, ctx) {
       r.repeatDates = expand(r.repeat, todayLocal(), addDaysKey(todayLocal(), 90)).slice(0, 8);
     }
     const approved = await getApproved(env);
-    return json({ pending: pending.map(({ token, ...r }) => r), approved: approved.slice(-60).reverse() });
+    const [trusted, counts] = await Promise.all([getTrusted(env), env.MEDIA.get('submitters.json', 'json').then((c) => c || {})]);
+    const tset = new Set(trusted.map((t) => t.email));
+    for (const r of pending) { const e = normEmail(r.contact?.email); r.trusted = tset.has(e); r.approvedBefore = counts[e] || 0; }
+    const recent = approved.slice(-60).reverse();
+    // Who sent each recent one (for "stop trusting them too?" when it's taken down). Review page only.
+    const owners = {};
+    await Promise.all([...new Set(recent.map((e) => e.submissionId).filter(Boolean))].map(async (id) => {
+      const d = await env.MEDIA.get(`sub/done/${id}`, 'json');
+      if (d) owners[id] = { email: normEmail(d.contact?.email), by: d.approvedBy || '' };
+    }));
+    for (const e of recent) { const o = owners[e.submissionId]; if (o) { e.ownerEmail = o.email; e.ownerTrusted = tset.has(o.email); e.autoLive = o.by === 'trusted'; } }
+    return json({ pending: pending.map(({ token, ...r }) => r), approved: recent, trusted: [...trusted].reverse() });
   }
   if (request.method === 'GET' && path === 'venues') return venuesApi(request, env, path);
   if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse(), featured: (await getFeatured(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
@@ -598,6 +691,10 @@ async function reviewApi(request, env, path, ctx) {
   if (path === 'nopic' || path === 'pic') {
     if (!(await setHidden(env, body, path === 'nopic', 'nopic'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
     if (body.publish) await rebuild(env);
+    return json({ ok: true });
+  }
+  if (path === 'trust' || path === 'untrust') {
+    if (!(await setTrusted(env, body.email, body.name, path === 'trust'))) return json({ error: "That doesn't look like an email address." }, { status: 400 });
     return json({ ok: true });
   }
   if (path === 'feature' || path === 'unfeature') {
@@ -619,14 +716,7 @@ async function reviewApi(request, env, path, ctx) {
     // The review page can change when a repeating event stops and take single dates out.
     if (edited.repeat && repeatEdit) edited.repeat = tidyRepeat({ ...edited.repeat, until: repeatEdit.until, skip: repeatEdit.skip });
     if (!edited.shows.length) return json({ error: 'Needs at least one date.' }, { status: 400 });
-    const approved = (await getApproved(env)).filter((e) => e.submissionId !== rec.id);
-    approved.push(...toCalendarEvents(edited));
-    await env.MEDIA.put('sub/approved.json', JSON.stringify(approved));
-    await env.MEDIA.put(`sub/done/${rec.id}`, JSON.stringify({ ...edited, change: false, status: 'approved', reviewedAt: new Date().toISOString() }));
-    await env.MEDIA.delete(`sub/pending/${rec.id}`);
-    // A suggested edit replaces a listing from a feed: hide that one so the event doesn't show twice.
-    if (rec.suggests) await setHidden(env, { slug: rec.suggests, title: edited.title, reason: 'Replaced by a suggested edit' }, true);
-    await rebuild(env);
+    await publishRecord(env, rec, edited);
     // Tell the submitter: the first time it goes live, and when a change they made is approved.
     // Not when Charlie reopened it himself to fix something.
     if (!rec.change || rec.changedBy === 'organizer') ctx.waitUntil(mailApproved(env, edited, !!rec.change));
@@ -759,7 +849,7 @@ header{padding:16px 20px;border-bottom:1px solid var(--line);background:#fff;pos
 a{color:var(--accent)}main{max-width:1100px;margin:0 auto;padding:20px}
 label{display:block;font-size:.8rem;color:var(--muted);margin:10px 0 2px}input,textarea{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
 button{font:inherit;font-weight:600;padding:8px 16px;border-radius:999px;border:1px solid var(--ink);background:#fff;cursor:pointer}.save{background:var(--ok);border-color:var(--ok);color:#fff}.undo{color:var(--accent);border-color:var(--accent)}
-.note{font-size:.9rem;color:var(--muted);margin:0 0 14px}.msg{font-size:.9rem;color:var(--muted)}.err{color:var(--accent)}
+.note{font-size:.9rem;color:var(--muted);margin:0 0 14px}.msg{font-size:.9rem;color:var(--muted)}.trustrow{margin:8px 0;font-size:.95rem}.trustrow button{padding:4px 12px;font-size:.85rem}.err{color:var(--accent)}
 #q{max-width:320px}
 .v{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px}
 .v summary{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:10px 14px;cursor:pointer;list-style:none}.v summary::-webkit-details-marker{display:none}
@@ -861,6 +951,9 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 <form id="feature" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><label>until <input type="date" name="until" title="Leave empty to feature it until the event is over"></label><button>Feature</button><span class="msg" data-msg></span></form>
 <div id="featuredlist"></div>
 <h2>Recently approved</h2><div id="approved"></div>
+<h2>Trusted submitters</h2><p class="msg">Their new events and their changes go on the calendar right away, without waiting for you. You still get an email for each one. Limits that stay on: ${TRUSTED_PER_DAY} a day each (the rest wait here), and paid Spotlight requests always wait.</p>
+<form id="trustform" class="hide"><input name="email" type="email" placeholder="their@email.com" aria-label="Email to trust"><input name="name" placeholder="Name (optional)" aria-label="Name" style="max-width:220px"><button>Trust</button><span class="msg" data-msg></span></form>
+<div id="trustedlist"></div>
 <h2>Hidden listings</h2><p class="msg">Something from a feed that shouldn't be on the calendar? Paste its address from the event page. It stays hidden on later nights too.</p>
 <form id="hide" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide</button><span class="msg" data-msg></span></form>
 <div id="hidden"></div>
@@ -890,7 +983,8 @@ function card(r){
   (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
   '<div class="checks"><label><input type="checkbox" name="featured"> Featured</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
-  '<div class="meta">From '+esc(r.contact?.name)+' · <a href="mailto:'+esc(r.contact?.email)+'">'+esc(r.contact?.email)+'</a>'+(r.contact?.phone?' · '+esc(r.contact.phone):'')+(r.act?' · Act: '+esc(r.act):'')+' · '+new Date(r.submittedAt).toLocaleString()+'</div>'+
+  (r.trusted?'':'<div class="trustrow">'+(r.approvedBefore>=2?'<strong>A regular:</strong> '+r.approvedBefore+' earlier events approved. ':'')+'<button type="button" data-trust="'+esc(r.contact?.email)+'" data-trust-name="'+esc(r.contact?.name)+'">Trust this submitter</button> <span class="msg">Their future events go live without waiting.</span></div>')+
+  '<div class="meta">From '+esc(r.contact?.name)+' · <a href="mailto:'+esc(r.contact?.email)+'">'+esc(r.contact?.email)+'</a>'+(r.trusted?' <span class="tag">Trusted</span>':'')+(r.contact?.phone?' · '+esc(r.contact.phone):'')+(r.act?' · Act: '+esc(r.act):'')+' · '+new Date(r.submittedAt).toLocaleString()+'</div>'+
   '<div class="btns"><button class="approve" type="submit">Approve</button><button class="reject" type="button" data-reject>Reject</button><span class="msg" data-msg></span></div></div></form>';
 }
 async function loadHidden(){
@@ -906,7 +1000,8 @@ async function load(){
   const p=document.getElementById('pending');
   p.innerHTML=d.pending.length?d.pending.map(card).join(''):'<div class="empty">Nothing waiting. New submissions show up here.</div>';
   d.pending.forEach(r=>{const f=p.querySelector('[data-id="'+r.id+'"]');f.category.value=r.category});
-  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'"><span><strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Featured</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Featured</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
+  document.getElementById('trustedlist').innerHTML=(d.trusted||[]).map(t=>'<div class="ap"><span>'+esc(t.name||t.email)+(t.name?' · <span class="msg">'+esc(t.email)+'</span>':'')+'</span><span class="apflags"><button data-untrust="'+esc(t.email)+'">Stop trusting</button></span></div>').join('')||'<div class="msg">Nobody yet. Use "Trust this submitter" on a waiting event, or add an email above.</div>';
+  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'" data-owner="'+esc(e.ownerTrusted?e.ownerEmail:'')+'"><span>'+(e.autoLive?'<span class="tag">Trusted · went live on its own</span> ':'')+'<strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Featured</span>':'')+'</span><span class="apflags"><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Featured</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
 }
 document.addEventListener('click',async e=>{
   const t=e.target;
@@ -919,10 +1014,13 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-showpic]')){await fetch('/review/api/pic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.showpic,publish:true})});loadHidden();return}
   if(t.matches('[data-unfeature]')){await fetch('/review/api/unfeature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unfeature,publish:true})});loadHidden();return}
   if(t.matches('[data-unhide]')){await fetch('/review/api/unhide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unhide,publish:true})});loadHidden();return}
-  if(t.matches('[data-remove]')){if(!confirm('Take this off the calendar?'))return;await fetch('/review/api/remove',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.remove})});load();return}
+  if(t.matches('[data-remove]')){if(!confirm('Take this off the calendar?'))return;await fetch('/review/api/remove',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.remove})});const owner=t.closest('.ap')?.dataset.owner;if(owner&&confirm('This came from a trusted submitter ('+owner+'). Stop trusting them too?'))await fetch('/review/api/untrust',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:owner})});load();return}
+  if(t.matches('[data-trust]')){t.textContent='Saving…';await fetch('/review/api/trust',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:t.dataset.trust,name:t.dataset.trustName})});load();return}
+  if(t.matches('[data-untrust]')){if(!confirm('Stop trusting '+t.dataset.untrust+'? Their next events will wait for you again.'))return;await fetch('/review/api/untrust',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:t.dataset.untrust})});load();return}
 });
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target;const msg=f.querySelector('[data-msg]');msg.textContent='Saving…';
+  if(f.id==='trustform'){const r=await fetch('/review/api/trust',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:f.email.value,name:f.name.value})}).then(r=>r.json());msg.textContent=r.ok?'Trusted.':r.error;if(r.ok){f.reset();load()}return}
   if(f.id==='feature'){const r=await fetch('/review/api/feature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,until:f.until.value,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Featured. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   if(f.id==='nopic'){const r=await fetch('/review/api/nopic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Picture hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   if(f.id==='hide'){const r=await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,reason:'Hidden by Charlie',publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}

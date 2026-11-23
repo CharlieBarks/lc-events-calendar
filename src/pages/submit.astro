@@ -196,7 +196,7 @@ const venueList = await getVenues();
 
     <!-- Done -->
     <div class="submit-done" data-step="done" hidden>
-      <h2>Got it, thanks!</h2>
+      <h2 data-done-title>Got it, thanks!</h2>
       <p data-done-text>I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.</p>
       <div class="submit-done__edit" data-done-edit hidden>
         <p><strong>Need to change it later?</strong> This private link opens your event so you can fix a date, a time or anything else. Keep it somewhere safe: anyone with the link can edit this event.</p>
@@ -770,15 +770,19 @@ const venueList = await getVenues();
         $('[data-done-edit]').hidden = false;
       }
       if (editKey) {
-        $('[data-done-text]').textContent = data.live
-          ? "Your changes are in. I'll check them over, usually within a day. Until then the calendar shows the earlier version."
-          : "Your changes are saved. I'll check the event over, usually within a day.";
+        // Trusted submitters' changes go live right away (data.published).
+        if (data.published) doneLive("Your changes are live!", data.page);
+        else $('[data-done-text]').textContent = data.live
+          ? "Your changes are saved, but they're not on the calendar yet. I check every change, usually within a day, and you'll get an email when they're live. Until then the calendar shows the earlier version."
+          : "Your changes are saved. Your event isn't on the calendar yet: I check every listing, usually within a day, and you'll get an email when it's live.";
         $('[data-done-pay]').hidden = true;
         status.textContent = ''; step('done'); return;
       }
-      $('[data-done-text]').textContent = shows.length > 1
-        ? `All ${shows.length} dates are in. I'll check them over, usually within a day, and they'll show up on the calendar.`
-        : "I'll check it over, usually within a day, and it'll show up on the calendar. If anything's unclear I'll email you.";
+      // Charlie, Nov 23: say plainly that it isn't on the calendar until it's checked.
+      if (data.live) doneLive(shows.length > 1 ? `All ${shows.length} dates are live on the calendar!` : "It's live on the calendar!", data.page);
+      else $('[data-done-text]').textContent = shows.length > 1
+        ? `All ${shows.length} dates are in, but they're not on the calendar yet. I check every listing myself, usually within a day, and you'll get an email the moment they're live.`
+        : "It's in, but it's not on the calendar yet. I check every listing myself, usually within a day, and you'll get an email the moment it's live.";
       // Spotlight: send them to pay, with the submission's reference so the payment can be matched in Stripe.
       const paid = body.boost === 'spotlight';
       $('[data-done-pay]').hidden = !paid;
@@ -801,6 +805,7 @@ const venueList = await getVenues();
   });
 
   $('[data-again]').addEventListener('click', () => {
+    $('[data-done-title]').textContent = 'Got it, thanks!';
     imageId = ''; photoIds = []; mainId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
     renderPics();
     applyMe(); step('choose');
@@ -886,6 +891,14 @@ const venueList = await getVenues();
   }
   form.addEventListener('input', renderPreview);
   form.addEventListener('change', renderPreview);
+
+  // Trusted submitters: their event went straight onto the calendar.
+  function doneLive(text: string, page: string) {
+    const p = $('[data-done-text]');
+    p.textContent = `${text} It shows up within a few minutes. `;
+    if (page) { const a = document.createElement('a'); a.href = page; a.textContent = 'See your event'; p.append(a); }
+    $('[data-done-title]').textContent = 'Thanks!';
+  }
 
   // Welcome note: once someone taps "Got it", it stays hidden on this device.
   const WELCOME = 'lc-events-welcome-seen';

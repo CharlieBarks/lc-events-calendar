@@ -185,7 +185,14 @@ Built Nov 14, 2026. One set of rules, `src/lib/repeat.js`, is used by the form, 
 - The thank-you screen no longer says the best listings make the newsletter (Charlie, Nov 23).
 - **Welcome note on `/submit/` (Nov 23, 2026):** says this is the new calendar, what's better about it, and asks for problems and ideas at events@livelovelascruces.com (delivers to charlie@ through Google Workspace). "Got it" hides it on that device (localStorage `lc-events-welcome-seen`). Take it out once the calendar is no longer new.
 - **Pasting a description keeps its paragraphs (Nov 23, 2026):** text copied from Grok, ChatGPT, Google Docs or a web page often lost its line breaks in the plain text box. On paste, the form rebuilds paragraphs from the copied web version, turns list items into "• " lines and drops Markdown marks (`**bold**`, `#` headings). Plain text that already has line breaks is pasted as is. `pastedText()` in `submit.astro`. The box is 6 rows tall.
-- **Not built yet:** Trusted Editors whose changes go live without review, and one link per venue that lists all of its events.
+- **Trusted submitters (built Nov 23, 2026):** emails Charlie trusts. Their new events and their edit-link changes go on the calendar right away, without review.
+  - Review page: **Trust this submitter** on every waiting event (with a "regular" nudge once Charlie has approved 2 or more of theirs), a **Trusted submitters** list with an add-by-email box and **Stop trusting**. Recently approved marks events that went live on their own; taking one down asks whether to stop trusting the sender too.
+  - Safety rails: at most `TRUSTED_PER_DAY` (10) a day each, the rest wait in the queue; paid Spotlight requests and suggested edits to other people's listings always wait; the person check still runs.
+  - Emails: a trusted submitter gets one "is live on the calendar" email (`mailLive`) instead of the thank-you plus approval pair; Charlie gets "Live from a trusted submitter" with a pointer to Recently approved. The thank-you screen says "It's live on the calendar!" with a link.
+  - Stored in KV `trusted.json`; approval counts per email in `submitters.json`; daily counts in `trusted/count/<email>/<date>` (expire after 2 days). Emails never go into the public `/approved.json`.
+  - CitySpark's copied listings don't say who submitted them, so the list starts empty (Charlie can add emails by hand).
+- **Thank-you email and screen (Nov 23, 2026):** say first that the event isn't on the calendar until it's checked ("Got it! … is waiting for a quick review").
+- **Not built yet:** one link per venue that lists all of its events.
 - Feed events (CitySpark, city) can't be edited: they are copies and are overwritten nightly. To change one, enter it through the form; ours replaces the feed's copy.
 
 ## Header and navigation: match livelovelascruces.com
