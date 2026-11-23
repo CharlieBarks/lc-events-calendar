@@ -111,11 +111,22 @@ const venueList = await getVenues();
         <div class="submit-form__field"><label for="description">Tell people why they should come <span class="submit-form__optional">(optional)</span></label><textarea id="description" name="description" rows="6"></textarea></div>
         <div class="submit-form__field"><label for="url">Tickets or more info <span class="submit-form__optional">(optional)</span></label><input type="url" id="url" name="url" placeholder="https://" inputmode="url" /></div>
 
-        <div class="submit-form__field" data-photo-field hidden>
-          <label class="submit-form__photo" for="photo">
-            <input type="file" id="photo" accept="image/*" class="sr-only" data-photo />
-            <strong>+ Add a photo</strong> <span class="submit-form__optional" data-photo-hint>(optional, but events with a picture get way more clicks)</span>
-          </label>
+        <!-- Pictures (Nov 23): an optional flyer plus up to 4 photos. The main picture shows on the calendar. -->
+        <div class="submit-form__field submit-pics" data-pics>
+          <span class="submit-form__label">Pictures <span class="submit-form__optional">(optional, but events with a picture get way more clicks)</span></span>
+          <ul class="submit-pics__list" role="list" data-pics-list></ul>
+          <div class="submit-pics__add">
+            <label class="submit-form__photo" for="add-flyer" data-add-flyer>
+              <input type="file" id="add-flyer" accept="image/*" class="sr-only" data-flyer-extra />
+              <strong>+ Add a flyer</strong>
+            </label>
+            <label class="submit-form__photo" for="photo" data-add-photos>
+              <input type="file" id="photo" accept="image/*" multiple class="sr-only" data-photo />
+              <strong data-photos-label>+ Add photos</strong> <span class="submit-form__optional" data-photos-left>(up to 4)</span>
+            </label>
+          </div>
+          <p class="submit-form__hint" data-pics-hint hidden>Pick the <strong>main picture</strong>: it's the one people see on the calendar. Your event page shows all of them.</p>
+          <p class="submit-form__status" data-pics-status role="status"></p>
         </div>
       </fieldset>
 
@@ -250,8 +261,10 @@ const venueList = await getVenues();
   const tpl = document.getElementById('show-row') as HTMLTemplateElement;
   const status = app.querySelector('[data-status]') as HTMLElement;
   const KEY = 'lc-events-submitter';
-  let imageId = ''; // the flyer, or the only picture
-  let photoId = ''; // a photo sent along with a flyer: shown on the calendar instead of the flyer
+  let imageId = ''; // the flyer (optional)
+  let photoIds: string[] = []; // up to 4 photos
+  let mainId = ''; // the picture shown on the calendar; '' = automatic (first photo, else the flyer)
+  const MAX_PHOTOS = 4;
   let source = 'form';
 
   const $ = <T extends Element = HTMLElement>(s: string) => app.querySelector(s) as T;
@@ -516,9 +529,9 @@ const venueList = await getVenues();
       }
       $<HTMLInputElement>('[data-annual]').checked = !!x.annual;
       syncRepeat();
-      imageId = x.imageId || ''; photoId = x.photoId || '';
-      if (imageId) source = 'flyer'; // a new photo then goes alongside the existing picture instead of replacing it
-      photoLabel(!!imageId, !!photoId);
+      // The pictures it already has, ready to keep, remove or change (Charlie, Nov 23).
+      imageId = x.imageId || ''; photoIds = (x.photoIds || []).slice(0, MAX_PHOTOS); mainId = x.main || '';
+      renderPics();
       $('[data-edit-note]').hidden = false;
       $('[data-edit-note]').textContent = x.status === 'waiting'
         ? "You're editing an event that's still waiting to be checked. Your changes replace what you sent."
@@ -585,15 +598,73 @@ const venueList = await getVenues();
     return empty;
   }
 
-  // "+ Add a photo": offered on both paths. With a flyer it's a second picture for the calendar.
-  function photoLabel(withFlyer: boolean, added: boolean) {
-    $('[data-photo-field]').hidden = false;
-    $('label.submit-form__photo strong').textContent = added ? '✓ Photo added (tap to change)' : withFlyer ? '+ Add a photo too' : '+ Add a photo';
-    $('[data-photo-hint]').textContent = withFlyer
-      ? '(optional: a photo of the act or place looks better on the calendar than a flyer; your flyer still shows in full on the event page)'
-      : '(optional, but events with a picture get way more clicks)';
-    $('[data-photo-hint]').hidden = added;
+  // ---- Pictures: optional flyer + up to 4 photos, one of them the main picture ----
+  const picUrl = (id: string) => `${INTAKE}/img/${id}`;
+  const currentMain = () => [imageId, ...photoIds].includes(mainId) ? mainId : (photoIds[0] || imageId || '');
+  function renderPics() {
+    const list = $('[data-pics-list]');
+    const pics = [...(imageId ? [{ id: imageId, kind: 'Flyer' }] : []), ...photoIds.map((id, i) => ({ id, kind: `Photo ${i + 1}` }))];
+    const main = currentMain();
+    list.innerHTML = pics.map((p) => `<li class="submit-pics__item"${p.id === main ? ' data-main' : ''}>
+      <img src="${picUrl(p.id)}" alt="${p.kind}">
+      <span class="submit-pics__kind">${p.kind}</span>
+      <label class="submit-pics__main"><input type="radio" name="mainpic" value="${p.id}"${p.id === main ? ' checked' : ''}> Main picture</label>
+      <button type="button" class="submit-pics__remove" data-remove-pic="${p.id}" aria-label="Remove ${p.kind.toLowerCase()}">Remove</button>
+    </li>`).join('');
+    ($('[data-add-flyer]') as HTMLElement).hidden = !!imageId;
+    const left = MAX_PHOTOS - photoIds.length;
+    ($('[data-add-photos]') as HTMLElement).hidden = left <= 0;
+    $('[data-photos-label]').textContent = photoIds.length ? '+ Add more photos' : '+ Add photos';
+    $('[data-photos-left]').textContent = `(up to ${left} more)`;
+    $('[data-pics-hint]').hidden = pics.length < 2;
+    renderPreview();
   }
+  async function uploadPicture(f: File) {
+    const fd = new FormData();
+    fd.append('image', await prepare(f), 'photo.jpg');
+    fd.append('human', await humanToken());
+    const res = await fetch(`${INTAKE}/extract?read=0`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data.imageId as string;
+  }
+  ($('[data-pics-list]') as HTMLElement).addEventListener('change', (e) => {
+    const r = e.target as HTMLInputElement;
+    if (r.name === 'mainpic') { mainId = r.value; renderPics(); }
+  });
+  ($('[data-pics-list]') as HTMLElement).addEventListener('click', (e) => {
+    const id = (e.target as HTMLElement).closest<HTMLElement>('[data-remove-pic]')?.dataset.removePic;
+    if (!id) return;
+    if (id === imageId) imageId = ''; else photoIds = photoIds.filter((x) => x !== id);
+    if (mainId === id) mainId = '';
+    renderPics();
+  });
+  ($('[data-photo]') as HTMLInputElement).addEventListener('change', async (e) => {
+    const input = e.target as HTMLInputElement;
+    const files = [...(input.files || [])];
+    input.value = '';
+    if (!files.length) return;
+    const room = MAX_PHOTOS - photoIds.length;
+    const st = $('[data-pics-status]');
+    if (files.length > room) st.textContent = `Only ${room} more photo${room === 1 ? '' : 's'} fit, so I added the first ${room}.`;
+    else st.textContent = 'Uploading…';
+    for (const f of files.slice(0, room)) {
+      try { photoIds.push(await uploadPicture(f)); renderPics(); }
+      catch { st.textContent = "Couldn't upload one of those. Try another?"; }
+    }
+    if (st.textContent === 'Uploading…') st.textContent = '';
+  });
+  // A flyer added later (typed-in path, or after removing one): kept as the flyer, details not re-read.
+  ($('[data-flyer-extra]') as HTMLInputElement).addEventListener('change', async (e) => {
+    const input = e.target as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    const st = $('[data-pics-status]');
+    st.textContent = 'Uploading…';
+    try { imageId = await uploadPicture(f); st.textContent = ''; renderPics(); }
+    catch { st.textContent = "Couldn't upload that one. Try another?"; }
+  });
 
   async function startFlyer(file: File) {
     const url = URL.createObjectURL(file);
@@ -616,8 +687,8 @@ const venueList = await getVenues();
       $('[data-read-note]').innerHTML = `<strong>${err.message === 'Upload failed' ? "That upload didn't go through." : err.message}</strong> You can still fill it in below, or try the flyer again.`;
     }
     $('[data-flyer-box]').hidden = false;
-    photoLabel(true, !!photoId);
     step('form');
+    renderPics();
     renderPreview();
   }
 
@@ -627,34 +698,14 @@ const venueList = await getVenues();
   });
   $('[data-change]').addEventListener('click', () => ($('[data-flyer]') as HTMLInputElement).click());
   $('[data-manual]').addEventListener('click', () => {
-    source = 'form'; imageId = ''; photoId = '';
+    source = 'form'; imageId = ''; photoIds = []; mainId = '';
     form.reset(); applyMe(); fill(prefill());
     $('[data-flyer-box]').hidden = true;
-    photoLabel(false, false);
     step('form');
+    renderPics();
     renderPreview();
     field('title').focus();
   });
-  ($('[data-photo]') as HTMLInputElement).addEventListener('change', async (e) => {
-    const f = (e.target as HTMLInputElement).files?.[0];
-    if (!f) return;
-    const label = $('label.submit-form__photo strong');
-    label.textContent = 'Uploading…';
-    $('[data-photo-hint]').hidden = true;
-    try {
-      const fd = new FormData();
-      fd.append('image', await prepare(f), 'photo.jpg');
-      fd.append('human', await humanToken());
-      const res = await fetch(`${INTAKE}/extract?read=0`, { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      // With a flyer, the photo goes alongside it. Without one, it's the event's picture.
-      if (source === 'flyer' && imageId) photoId = data.imageId; else imageId = data.imageId;
-      label.textContent = '✓ Photo added (tap to change)';
-      renderPreview();
-    } catch { label.textContent = "Couldn't upload that one. Try another?"; }
-  });
-
   // Musicians arriving from their Las Cruces Live page: ?act=Desert%20Rose%20Trio
   function prefill() {
     const p = new URLSearchParams(location.search);
@@ -684,7 +735,7 @@ const venueList = await getVenues();
     btn.disabled = true; status.textContent = 'Sending…';
     const body = {
       title: field('title').value, venue: field('venue').value, address: field('address').value, category: field('category').value,
-      price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId, photoId,
+      price: field('price').value, url: field('url').value, description: field('description').value, shows, imageId, photoIds, main: currentMain(),
       name: field('name').value, email: field('email').value, phone: field('phone').value, website: field('website').value,
       act: new URLSearchParams(location.search).get('act') || '', source,
       boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
@@ -741,8 +792,8 @@ const venueList = await getVenues();
   });
 
   $('[data-again]').addEventListener('click', () => {
-    imageId = ''; photoId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
-    photoLabel(false, false);
+    imageId = ''; photoIds = []; mainId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
+    renderPics();
     applyMe(); step('choose');
   });
 
@@ -818,7 +869,7 @@ const venueList = await getVenues();
     $('[data-pv-where]').textContent = CAT_NAMES[field('category').value] || '';
     $('[data-pv-price]').textContent = field('price').value.trim();
     const pic = $('[data-pv-pic]');
-    const id = photoId || imageId;
+    const id = currentMain();
     const src = id ? `${INTAKE}/img/${id}` : suggestImage;
     pic.style.backgroundImage = src ? `url("${src}")` : '';
     pic.toggleAttribute('data-empty', !src);
@@ -835,6 +886,20 @@ const venueList = await getVenues();
 </script>
 
 <style>
+  /* Pictures box: optional flyer + up to 4 photos, one marked as the main picture. */
+  .submit-pics__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--space-s); margin: var(--space-xs) 0; padding: 0; list-style: none; }
+  .submit-pics__list:empty { display: none; }
+  .submit-pics__list :global(.submit-pics__item) { display: flex; flex-direction: column; gap: 0.375rem; padding: 0.5rem; border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); }
+  .submit-pics__list :global(.submit-pics__item[data-main]) { border-color: var(--secondary); box-shadow: 0 0 0 1px var(--secondary) inset; }
+  .submit-pics__list :global(.submit-pics__item img) { inline-size: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-xs); background: var(--neutral-ultra-light); }
+  .submit-pics__list :global(.submit-pics__kind) { font-size: var(--text-s); font-weight: 700; }
+  .submit-pics__list :global(.submit-pics__main) { display: flex; align-items: center; gap: 0.375rem; font-size: var(--text-s); cursor: pointer; }
+  .submit-pics__list :global(.submit-pics__item[data-main] .submit-pics__main) { color: var(--secondary); font-weight: 700; }
+  .submit-pics__list :global(.submit-pics__main input) { inline-size: auto; accent-color: var(--secondary); }
+  .submit-pics__list :global(.submit-pics__remove) { align-self: flex-start; padding: 0.25rem 0; background: none; border: 0; color: var(--primary); font: inherit; font-size: var(--text-s); text-decoration: underline; cursor: pointer; min-block-size: 2rem; }
+  .submit-pics__add { display: grid; gap: var(--space-xs); grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+  .submit-pics__add [hidden] { display: none; }
+
   /* "Here's how it'll look": same shape and sizes as a list row on the calendar (EventCard, row). */
   .submit-preview__card { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--space-s); padding: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); }
   .submit-preview__pic { inline-size: 6rem; block-size: 6rem; border-radius: var(--radius-s); background: var(--neutral-ultra-light) center / cover no-repeat; display: grid; place-items: center; }

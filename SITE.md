@@ -260,7 +260,11 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 - **Weekly regulars** are the same size as one-off events, set apart by a light tint and their "Every Thursday" tag. Still folded under "Show N more regulars" on each day.
 - **No picture:** a name card (event name, venue, topic icon, date) on the category color. Stock topic photos are off: one photo per topic was often wrong for the event. Row thumbnails keep the icon artwork.
 - **Tall or square pictures** (most flyers) show whole on a blurred copy of themselves; wide ones fill the box. Event pages keep every picture beside the details (wide ones too); "Tap to enlarge" opens it centered, as large as the screen allows.
-- **Flyer plus photo:** an organizer can send both. The photo is the calendar and share picture; the flyer shows in full on the event page.
+- **Pictures (Nov 23, 2026; replaced "flyer plus photo"):** an optional flyer plus up to 4 photos. The form's Pictures box shows each one with **Main picture** and **Remove**; the main picture (default: the first photo, else the flyer; the flyer can be picked) is the calendar and share picture. Edit links show the pictures already uploaded.
+  - Stored on the submission as `imageId` (flyer, or the first picture when there's no flyer), `photoIds` (up to 4) and `main`. Older records with one `photoId` still work (`photosOf()` / `mainOf()` in `intake.js`).
+  - The Worker sends the site `image` (main), `flyer` (when it isn't the main one) and `photos` (the rest), see `calendarPictures()`. The event page shows the flyer, then the main photo, then the other photos as tap-to-enlarge tiles (`event-detail__gallery`). Thumbnails are made for gallery photos too (`photoThumbs`).
+  - The review page lists every picture and marks the main one.
+  - Tiles on the form are made in the browser, so their styles use `:global()` (Astro's scoped styles don't reach them).
 - **Hidden pictures:** review page box. A listing's picture that doesn't fit is replaced by its name card (one date or every date).
 
 ## Design status

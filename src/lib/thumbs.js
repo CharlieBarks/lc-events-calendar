@@ -52,7 +52,8 @@ export async function addThumbs(events) {
   fs.mkdirSync(dir, { recursive: true });
   // e.stock: the topic photo for an event without a picture of its own (src/data/topic-photos.json).
   // e.flyer: an organizer's flyer when they also sent a photo (the photo is e.image then).
-  const urls = [...new Set(events.flatMap((e) => [e.image, e.stock, e.flyer]).filter((u) => /^https?:/.test(u || '')))];
+  // e.photos: an organizer's extra photos (event page gallery).
+  const urls = [...new Set(events.flatMap((e) => [e.image, e.stock, e.flyer, ...(e.photos || [])]).filter((u) => /^https?:/.test(u || '')))];
   const done = new Map();
   const gone = new Set(); // pictures that no longer exist (404)
   let failed = 0;
@@ -70,6 +71,10 @@ export async function addThumbs(events) {
     // A picture that no longer exists would show as a broken image. Use our artwork instead.
     else if (gone.has(e.image)) e.image = '';
     if (e.flyer) { if (done.has(e.flyer)) e.flyerThumbs = done.get(e.flyer); else if (gone.has(e.flyer)) e.flyer = ''; }
+    if (e.photos?.length) {
+      e.photos = e.photos.filter((u) => !gone.has(u));
+      e.photoThumbs = e.photos.map((u) => done.get(u) || null);
+    }
     // A topic photo is only ever shown from our own small copies.
     if (e.stock) { if (done.has(e.stock)) e.stockThumbs = done.get(e.stock); else e.stock = ''; }
   }

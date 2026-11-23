@@ -329,10 +329,11 @@ function tidySubmission(b) {
     url: /^https?:\/\//i.test(b.url || '') ? clean(b.url, 400) : '',
     description: cleanText(b.description, 2000),
     shows: repeat ? shows.slice(0, 1) : shows,
-    imageId: /^[a-z0-9]+\.(jpg|png|webp|gif)$/.test(b.imageId || '') ? b.imageId : '',
-    // A photo sent along with a flyer. It becomes the picture on the calendar; the flyer shows in
-    // full on the event page. A photo on its own is just the picture (imageId), see below.
-    photoId: /^[a-z0-9]+\.(jpg|png|webp|gif)$/.test(b.photoId || '') ? b.photoId : '',
+    imageId: isPicId(b.imageId) ? b.imageId : '',
+    // Up to 4 photos besides the flyer (Charlie, Nov 23). "photoId" is the older single photo.
+    photoIds: [...new Set([...(Array.isArray(b.photoIds) ? b.photoIds : []), b.photoId])].filter((x) => isPicId(x) && x !== b.imageId).slice(0, MAX_PHOTOS),
+    // Which picture shows on the calendar and in shared links (the flyer or one of the photos).
+    main: isPicId(b.main) ? b.main : '',
     contact: { name: clean(b.name, 100), email: clean(b.email, 160), phone: clean(b.phone, 40) },
     act: clean(b.act, 140), // set when a musician comes from their Las Cruces Live page
     boost: b.boost === 'spotlight' ? 'spotlight' : '', // asked for the paid Spotlight package
@@ -344,12 +345,21 @@ function tidySubmission(b) {
   };
 }
 
-// Only a photo, no flyer: the photo is simply the picture.
+const MAX_PHOTOS = 4;
+const isPicId = (x) => /^[a-z0-9]+\.(jpg|png|webp|gif)$/.test(x || '');
+// Tidies the pictures: no flyer but photos means the first photo is simply the picture (imageId);
+// the main picture must be one of them (default: the first photo, else the flyer).
 function onePicture(sub) {
-  if (!sub.imageId && sub.photoId) { sub.imageId = sub.photoId; sub.photoId = ''; }
-  if (sub.photoId === sub.imageId) sub.photoId = '';
+  sub.photoIds = (sub.photoIds || []).filter((x) => x && x !== sub.imageId);
+  if (!sub.imageId && sub.photoIds.length) sub.imageId = sub.photoIds.shift();
+  const all = [sub.imageId, ...sub.photoIds].filter(Boolean);
+  if (!all.includes(sub.main)) sub.main = sub.photoIds[0] || sub.imageId || '';
+  delete sub.photoId;
   return sub;
 }
+// Older records have one "photoId" instead of "photoIds".
+const photosOf = (rec) => (rec.photoIds || (rec.photoId ? [rec.photoId] : [])).filter(Boolean);
+const mainOf = (rec) => rec.main || photosOf(rec)[0] || rec.imageId || '';
 
 // Moves a just-uploaded picture out of the "uploaded" area (which expires) so it's kept.
 async function keepPicture(env, id) {
@@ -357,6 +367,18 @@ async function keepPicture(env, id) {
   if (!value) return false;
   await env.MEDIA.put(`sub/img/${id}`, value, { metadata });
   return true;
+}
+
+function calendarPictures(rec) {
+  const url = (id) => `${PUBLIC_ORIGIN}/img/${id}`;
+  const main = mainOf(rec);
+  if (!main) return { image: rec.imageUrl || '' };
+  const photos = photosOf(rec).filter((p) => p !== main);
+  return {
+    image: url(main),
+    ...(rec.imageId && rec.imageId !== main ? { flyer: url(rec.imageId) } : {}),
+    ...(photos.length ? { photos: photos.map(url) } : {}),
+  };
 }
 
 async function handleSubmit(request, env, origin, ctx) {
@@ -379,7 +401,9 @@ async function handleSubmit(request, env, origin, ctx) {
 
   // Keep the flyer for good: move it out of the "uploaded" area (which expires).
   if (sub.imageId && !(await keepPicture(env, sub.imageId))) sub.imageId = '';
-  if (sub.photoId && !(await keepPicture(env, sub.photoId))) sub.photoId = '';
+  const kept = [];
+  for (const p of sub.photoIds) if (await keepPicture(env, p)) kept.push(p);
+  sub.photoIds = kept;
   onePicture(sub);
   const id = newId();
   const token = newToken();
@@ -420,7 +444,7 @@ async function handleMine(request, env, origin) {
     title: rec.title, venue: rec.venue, address: rec.address, category: rec.category, price: rec.price, url: rec.url,
     description: rec.description, shows: rec.shows, repeat: rec.repeat || null, annual: !!rec.annual,
     imageId: rec.imageId || '', imageUrl: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : '',
-    photoId: rec.photoId || '', photoUrl: rec.photoId ? `${PUBLIC_ORIGIN}/img/${rec.photoId}` : '',
+    photoIds: photosOf(rec), main: mainOf(rec), imgBase: `${PUBLIC_ORIGIN}/img/`,
     name: rec.contact?.name || '', email: rec.contact?.email || '', phone: rec.contact?.phone || '',
   }, { headers: { 'cache-control': 'no-store' } }, origin);
 }
@@ -444,8 +468,12 @@ async function handleUpdate(request, env, origin, ctx) {
   if (!sub.venue) problems.push('where it is');
   if (problems.length) return json({ error: `Please add: ${problems.join(', ')}.` }, { status: 400 }, origin);
   // A new picture moves out of the "uploaded" area; otherwise keep the one it had.
-  if (sub.imageId && sub.imageId !== rec.imageId && !(await keepPicture(env, sub.imageId))) sub.imageId = rec.imageId || '';
-  if (sub.photoId && sub.photoId !== rec.photoId && !(await keepPicture(env, sub.photoId))) sub.photoId = rec.photoId || '';
+  // New pictures move out of the "uploaded" area; ones the event already had are kept as they are.
+  const had = new Set([rec.imageId, ...photosOf(rec)].filter(Boolean));
+  if (sub.imageId && !had.has(sub.imageId) && !(await keepPicture(env, sub.imageId))) sub.imageId = '';
+  const kept = [];
+  for (const p of sub.photoIds) if (had.has(p) || (await keepPicture(env, p))) kept.push(p);
+  sub.photoIds = kept;
   onePicture(sub);
   // The organizer can't hand themselves a Spotlight or change who submitted it.
   const next = {
@@ -489,8 +517,9 @@ function toCalendarEvents(rec) {
       price: rec.price,
       description: rec.description || (rec.performers ? `With ${rec.performers}.` : ''),
       url: rec.url,
-      image: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : rec.imageUrl || '',
-      ...(rec.photoId ? { photo: `${PUBLIC_ORIGIN}/img/${rec.photoId}` } : {}),
+      // image: the main picture (calendar and shared links). flyer: the flyer when it isn't the main
+      // picture (shown first on the event page). photos: the rest, as a gallery on the event page.
+      ...calendarPictures(rec),
       featured: !!rec.featured,
       sponsored: !!rec.sponsored,
       spotlightUntil: rec.spotlightUntil || '',
@@ -586,7 +615,7 @@ async function reviewApi(request, env, path, ctx) {
     if (!rec) return json({ error: 'Already handled.' }, { status: 404 });
     // Charlie's edits from the review screen win.
     const { repeat: repeatEdit, ...plainEdits } = body.edits || {};
-    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...plainEdits, imageId: rec.imageId, photoId: rec.photoId }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, spotlightUntil: isDate(body.edits?.spotlightUntil) ? body.edits.spotlightUntil : '', id: rec.id };
+    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...plainEdits, imageId: rec.imageId, photoIds: photosOf(rec), main: mainOf(rec) }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, spotlightUntil: isDate(body.edits?.spotlightUntil) ? body.edits.spotlightUntil : '', id: rec.id };
     // The review page can change when a repeating event stops and take single dates out.
     if (edited.repeat && repeatEdit) edited.repeat = tidyRepeat({ ...edited.repeat, until: repeatEdit.until, skip: repeatEdit.skip });
     if (!edited.shows.length) return json({ error: 'Needs at least one date.' }, { status: 400 });
@@ -846,7 +875,9 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const lb=document.getElementById('lb');lb.onclick=()=>lb.style.display='none';
 function showRow(s){return '<div class="show"><div><label>Date</label><input type="date" name="date" value="'+esc(s.date)+'"></div><div><label>Starts</label><input type="time" name="start" value="'+esc(s.start)+'"></div><div><label>Ends</label><input type="time" name="end" value="'+esc(s.end)+'"></div><div><label>Different act / title (optional)</label><input name="stitle" value="'+esc(s.title)+'"></div><button type="button" data-del>✕</button></div>'}
 function card(r){
-  const img='<div class="pics">'+(r.imageId?'<img src="/img/'+esc(r.imageId)+'" alt="Flyer" data-zoom>':'<div class="noimg">No flyer</div>')+(r.photoId?'<p class="pic-note">Photo (shown on the calendar):</p><img src="/img/'+esc(r.photoId)+'" alt="Photo" data-zoom>':'')+'</div>';
+  const ph=(r.photoIds||(r.photoId?[r.photoId]:[])).filter(Boolean);const mn=r.main||ph[0]||r.imageId;
+  const pic=(id,label)=>'<p class="pic-note">'+label+(id===mn?' · <strong>main picture (on the calendar)</strong>':'')+'</p><img src="/img/'+esc(id)+'" alt="'+label+'" data-zoom>';
+  const img='<div class="pics">'+(r.imageId?pic(r.imageId,'Flyer or first picture'):'<div class="noimg">No pictures</div>')+ph.map((p,i)=>pic(p,'Photo '+(i+1))).join('')+'</div>';
   return '<form class="sub" data-id="'+esc(r.id)+'">'+img+'<div>'+
   '<label>Event name</label><input name="title" value="'+esc(r.title)+'">'+
   '<div class="row"><div><label>Venue</label><input name="venue" value="'+esc(r.venue)+'"></div><div><label>Address</label><input name="address" value="'+esc(r.address)+'"></div></div>'+
