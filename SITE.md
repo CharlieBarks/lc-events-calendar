@@ -149,7 +149,6 @@ Built Nov 23, 2026. Charlie's own picks, free for now; he plans to sell Featured
 - Submissions can still be featured with the **Featured** checkbox when approving (it was called Spotlight before Nov 23; same `featured` flag).
 - **What a Featured event gets:** a full card (even a weekly regular), pinned to the top of its day after any Sponsored ones, a gold star on the corner of its picture (top right on homepage cards, where the date is top left), a navy **★ FEATURED** label and its own soft navy background (`--_featured-bg` in `EventCard.astro`; Charlie turned down red on Nov 23). Reads differently from paid gold and the green regulars, the label on its event page, and a place in the homepage Spotlight rotation.
 - An event both Featured and Sponsored shows as Sponsored only.
-- Preview-only samples "Featured example: …" in `src/data/events.json` show the look on the preview.
 
 ## Bigger list for older readers
 
@@ -182,6 +181,8 @@ Built Nov 14, 2026. One set of rules, `src/lib/repeat.js`, is used by the form, 
   - To Charlie (`NOTIFY_TO` in `wrangler.intake.jsonc`): every new submission and every organizer change, with a link to the review page.
   - The wording is in `mailThanks`, `mailApproved` and `mailCharlie` in `intake.js`. A failed send is logged and never blocks a submission.
   - Links in the emails and on the review page use `LIVE_SITE` in `intake.js` (events.livelovelascruces.com since Nov 23).
+- **"Here's how it'll look" (Nov 23, 2026):** a live preview of the listing's calendar row just above Submit on `/submit/`, same sizes as the real row. It updates as the organizer types and shows their photo (or flyer). `renderPreview()` in `submit.astro`.
+- The thank-you screen no longer says the best listings make the newsletter (Charlie, Nov 23).
 - **Not built yet:** Trusted Editors whose changes go live without review, and one link per venue that lists all of its events.
 - Feed events (CitySpark, city) can't be edited: they are copies and are overwritten nightly. To change one, enter it through the form; ours replaces the feed's copy.
 
