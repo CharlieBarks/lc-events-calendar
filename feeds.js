@@ -41,6 +41,11 @@ export const FEEDS = [
   // Claude task writes feeds/newsletter.json after each issue (see SITE.md, "Newsletter check").
   // Each event links to the organizer's page, like every other feed.
   { id: 'newsletter', reader: 'manual', tags: [] },
+  // The weekly markets (Farmers & Crafts Market of Las Cruces, Mesilla Mercado), entered by hand as repeat
+  // rules in feeds/markets.json. Not read here: a weekly Claude task (Mondays) checks the markets'
+  // own pages, the city and Mesilla calendars, and the newsletter for closed or moved dates, and adds
+  // them to the rule's skip list or as one-off dates. See SITE.md, "Weekly markets".
+  { id: 'markets', reader: 'manual', tags: [] },
 ];
 
 // ---------- Small helpers ----------
