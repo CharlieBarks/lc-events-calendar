@@ -33,7 +33,7 @@ const laterCount = later.reduce((n, [, list]) => n + list.length, 0);
 let eagerLeft = fragment ? 0 : 4;
 const usedCats = Object.keys(CATEGORIES).filter((k) => events.some((e) => e.category === k));
 const count = (k) => events.filter((e) => e.category === k).length;
-// "Free", "Kids & Family", "Seniors": who it's for, on top of the category (audienceOf in site.js).
+// "Free", "Kids & Family", "Seniors", "Outdoors": who it's for, on top of the category (audienceOf in site.js).
 const forCount = (k) => events.filter((e) => e.audience?.includes(k)).length;
 const usedFor = Object.keys(AUDIENCES).filter((k) => forCount(k) > 0);
 const H = `h${headingLevel}`;
@@ -309,7 +309,7 @@ const itemLevel = headingLevel + 1;
         chip.querySelector('[data-venue-name]').textContent = venueName || state.venue;
       }
       if (status) {
-        const who = { free: 'free ', kids: 'kid-friendly ', seniors: 'senior ' }[state.for] || '';
+        const who = { free: 'free ', kids: 'kid-friendly ', seniors: 'senior ', outdoors: 'outdoor ' }[state.for] || '';
         const what = `${shown} ${who}event${shown === 1 ? '' : 's'}`;
         const q = matches && state.q ? ` matching “${state.q}”` : '';
         const at = state.venue ? ` at ${venueName || 'that venue'}` : '';

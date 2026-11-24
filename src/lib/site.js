@@ -220,10 +220,14 @@ export function tagged(url) {
   }
 }
 
-// Who an event is for, on top of its category (Charlie, Nov 15): the "Free", "Kids & Family" and
-// "Seniors" buttons on the calendar. An event can be all three. Las Cruces is a retirement town, so
+// Who an event is for, on top of its category (Charlie, Nov 15): the "Free", "Kids & Family",
+// "Seniors" and (Nov 24) "Outdoors" buttons on the calendar. An event can be in all of them. Las Cruces is a retirement town, so
 // senior programs get their own way in.
 const SENIOR = /\bseniors?\b|55\+|50\+|older adults?|retirees?|medicare|\baarp\b|tai chi for health|senior (center|community)|munson senior|trails west senior/i;
+// Outdoors button (Charlie, Nov 24): hikes, runs and anything outside. Every Outdoors-category event,
+// plus races and run clubs (often filed under Fitness). Whole words only: "Trails West" is a senior
+// center, not a trail, so "trail" alone doesn't count.
+const OUTDOOR = /\b(hikes?|hiking|hikers?|trail ?(runs?|running|walks?|rides?|work|days?)|fun ?run|color run|turkey trot|\d{1,2}k (run|walk|race)|\d{1,2}k\b|half[- ]marathon|marathon (run|race)|bataan|run(ning)? club|bird ?walks?|birding|nature walks?|star ?part(y|ies)|stargazing|kayak(ing)?|paddle|camp(ing|out)|bike rides?|group rides?|mountain bik(e|ing)|(park|river|trail|litter|arroyo|desert) clean-?up|organ mountains|dripping springs|soledad canyon|la llorona park|rio grande bosque|bosque walk)\b/i;
 const KIDS = /\bkids?\b|child|children|family|families|teens?\b|youth|toddler|story ?time|homeschool|\bpre-?k\b|ages \d+ ?(-|–|to) ?1[0-7]\b|stay and play|baby|babies|tween/i;
 export function audienceOf(e) {
   const tags = (e.tags || []).join(' | ');
@@ -232,7 +236,8 @@ export function audienceOf(e) {
   if (/\bfree\b/i.test(e.price || '') || /^\$?0(\.00)?$/.test((e.price || '').trim()) || /\bfree\b/i.test(e.title) || /^free$/im.test(tags.replace(/ \| /g, '\n'))
     || /\b(free (admission|entry|event|and open|to (the public|attend|all))|admission is free|no cost|no charge)\b/i.test(e.description || '')) out.push('free');
   if (e.category === 'family' || KIDS.test(text)) out.push('kids');
+  if (e.category === 'outdoors' || OUTDOOR.test(text)) out.push('outdoors');
   if (SENIOR.test(`${text} | ${e.venue || ''} | ${(e.description || '').slice(0, 400)}`)) out.push('seniors');
   return out;
 }
-export const AUDIENCES = { free: 'Free', kids: 'Kids & Family', seniors: 'Seniors' };
+export const AUDIENCES = { free: 'Free', kids: 'Kids & Family', seniors: 'Seniors', outdoors: 'Outdoors' };
