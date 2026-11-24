@@ -47,6 +47,7 @@ Built Nov 15, 2026. Charlie's rule: **no review step for feeds.** They publish a
 - **Links out carry UTM tags** (`utm_source=livelovelascruces&utm_medium=events_calendar`, `tagged()` in `src/lib/site.js`), so organizers see our visitors in their analytics. Not on our own sites, and not on links that already have UTM tags. The newsletter uses `utm_medium=newsletter` (GrokBot adds those).
 - **Las Cruces Museums** (Museum of Art, Nature & Science, Branigan Cultural Center, Railroad Museum) come from their Assabet calendar's XML list. "Registration period" items are skipped.
 - **Visit Las Cruces is a finder only** (Charlie, Nov 15): read through the same search their calendar page uses (Simpleview, with a short-lived token). An event is kept only when it links to the organizer's own site, and it links there, never to Visit Las Cruces. It loses to every other source (`finder: true` in `FEEDS`), so it only adds events nobody else has. Its "Listed by" line credits the venue.
+- **No visitlascruces.com links from any source (Nov 24, 2026):** a CitySpark copy of the Mesilla Mercado linked to a Visit Las Cruces page that had gone 404. `offVisitLC()` in `src/lib/events.js` now blanks any visitlascruces.com address on every listing (CitySpark, newsletter, submissions, feeds) at build time. If Visit Las Cruces' own copy of the same event links to the organizer, that link is borrowed; otherwise the event shows no "Event details" button.
 - Source research: project doc `event-sources-feed-check-2026-11-15.md`.
 
 ## Newsletter check

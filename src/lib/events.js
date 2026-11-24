@@ -142,6 +142,14 @@ const decode = (s = '') => String(s || '').replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/
 // "Canceled - Computer Literacy Class"). Dropped from every source.
 const NOT_AN_EVENT = /^\s*(cancel+ed|postponed)\b|^\s*librar(y|ies) closed|\bclosed for (the )?\w+ ?(holiday|day)\b/i;
 
+// Charlie's rule (Nov 15, again Nov 24): the calendar never links to visitlascruces.com. Their pages
+// move and 404 (the Mesilla Mercado listing did). Any source can carry one (CitySpark copied 34 of
+// them), so every link goes through this: a Visit Las Cruces address becomes no link at all.
+const VISIT_LC = /(^|\.)visitlascruces\.com$/i;
+export const offVisitLC = (url = '') => {
+  try { return VISIT_LC.test(new URL(url).hostname) ? '' : url; } catch { return url || ''; }
+};
+
 function normalize(e, source) {
   if (NOT_AN_EVENT.test(e.title || '')) return null;
   const start = wall(e.start);
@@ -167,8 +175,8 @@ function normalize(e, source) {
     category,
     description: decode(unescape(e.description)).trim(),
     summary: decode(unescape(e.summary)).trim(),
-    url: e.url || '',
-    ticketUrl: e.ticketUrl || '',
+    url: offVisitLC(e.url),
+    ticketUrl: offVisitLC(e.ticketUrl),
     image: source === 'cityspark' && !CITYSPARK_SUBSCRIBED && CITYSPARK_PLACEHOLDER.test(e.image || '') ? '' : e.image || '',
     tags: e.tags || [],
     price: e.price || '',
@@ -265,8 +273,14 @@ export async function getEvents() {
     const city = cityRaw.map((e) => normalize(e, 'city-of-las-cruces')).filter((e) => shown(e) && !dupOf(sparkIndex, e) && !dupOf(subIndex, e) && !dupOf(directIndex, e));
     // Last: Visit Las Cruces, used only to find events the others miss (Charlie, Nov 15).
     const cityIndex = index(city);
-    const found = feedsRaw.filter((e) => e.finder).map((e) => normalize(e, e.feed))
-      .filter((e) => shown(e) && ![subIndex, directIndex, sparkIndex, cityIndex].some((m) => dupOf(m, e)));
+    const finderAll = feedsRaw.filter((e) => e.finder).map((e) => normalize(e, e.feed)).filter((e) => e && shown(e));
+    // A copy that lost its link (it only had a Visit Las Cruces one) borrows the organizer's link from
+    // Visit Las Cruces' own copy of the same event, when that copy has one.
+    for (const f of finderAll) {
+      if (!f.url) continue;
+      for (const m of [directIndex, sparkIndex, cityIndex]) for (const x of m.get(key(f)) || []) if (!x.url && samePlace(x, f)) x.url = f.url;
+    }
+    const found = finderAll.filter((e) => ![subIndex, directIndex, sparkIndex, cityIndex].some((m) => dupOf(m, e)));
     // Sample listings only show on the private preview, never on the live site.
     const ours = [...subs, ...lllcEvents.filter((e) => PREVIEW || !e.sample).flatMap((e) => spread(e, today)).map((e) => normalize(e, 'lllc'))];
 
