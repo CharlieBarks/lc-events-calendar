@@ -144,6 +144,20 @@ function mailApproved(env, rec, wasChange) {
   ]);
 }
 
+// To the submitter, when Charlie turns an event down because it's already on the calendar.
+function mailDuplicate(env, rec) {
+  const site = rec.site || LIVE_SITE;
+  const page = rec.possibleDuplicate ? `${site}/event/${rec.possibleDuplicate}/` : `${site}/`;
+  return sendMail(env, rec.contact?.email, `Good news: "${rec.title}" is already on the calendar`, [
+    `Hi ${firstName(rec.contact?.name)},`,
+    `Thanks for sending "${rec.title}"! It turns out it's already on the Las Cruces events calendar, so I didn't add a second copy. Two listings for one event just splits the clicks.`,
+    { text: "Here's the listing. Share it anywhere you like:", href: page },
+    { text: "Something wrong or missing on it? Open it and tap \"Suggest an edit\". Or if I got this wrong and yours really is a different event, just reply to this email and I'll fix it.", href: page },
+    `Thanks for helping keep Las Cruces in the know.`,
+    SIGN_OFF,
+  ]);
+}
+
 // To a trusted submitter: their event went straight onto the calendar. One email instead of
 // "thanks, waiting for review" plus "it's live" (Charlie, Nov 23).
 function mailLive(env, rec, wasChange) {
@@ -368,13 +382,28 @@ async function handleExtract(request, env, origin) {
   let readError = '';
   // ?read=0: just a photo for the listing, nothing to read.
   if (new URL(request.url).searchParams.get('read') === '0') return json({ imageId, imageUrl: `${PUBLIC_ORIGIN}/img/${imageId}`, extracted: null }, {}, origin);
-  try {
-    extracted = tidyExtract(await readFlyer(env, buf, type));
-  } catch (err) {
-    readError = err.message;
-    console.log('Flyer read failed', err.message);
-  }
-  return json({ imageId, imageUrl: `${PUBLIC_ORIGIN}/img/${imageId}`, extracted, readError: readError ? 'Could not read the flyer automatically.' : '' }, {}, origin);
+  const [read, sameFlyer] = await Promise.all([
+    readFlyer(env, buf, type).then(tidyExtract, (err) => { readError = err.message; console.log('Flyer read failed', err.message); return null; }),
+    flyerSeenBefore(env, buf, imageId).catch((err) => { console.log('Flyer fingerprint failed', err.message); return null; }),
+  ]);
+  extracted = read;
+  return json({ imageId, imageUrl: `${PUBLIC_ORIGIN}/img/${imageId}`, extracted, readError: readError ? 'Could not read the flyer automatically.' : '', ...(sameFlyer ? { sameFlyer } : {}) }, {}, origin);
+}
+
+// The exact same flyer file was uploaded before, for an event that's on the calendar now
+// (Nov 24, 2026). KV flyerhash/<sha-256> = { ids: [the last few uploads of that file] }. Returns
+// that event's name and venue, so the form can say "this one's already on the calendar".
+// Only flyers that were read (not extra photos), and only exact copies of the file.
+async function flyerSeenBefore(env, buf, imageId) {
+  const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', buf))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const key = `flyerhash/${hash}`;
+  const before = (await env.MEDIA.get(key, 'json'))?.ids || [];
+  await env.MEDIA.put(key, JSON.stringify({ ids: [imageId, ...before].slice(0, 5) }), { expirationTtl: 60 * 60 * 24 * 180 });
+  if (!before.length) return null;
+  const ends = before.map((id) => `/img/${id}`);
+  const has = (u) => typeof u === 'string' && ends.some((e) => u.endsWith(e));
+  const hit = (await getApproved(env)).find((e) => [e.image, e.flyer, ...(e.photos || [])].some(has));
+  return hit ? { title: hit.title, venue: hit.venue } : null;
 }
 
 // ---------- Submissions ----------
@@ -411,6 +440,10 @@ function tidySubmission(b) {
     // picture that listing already had, so an approved suggestion doesn't lose it.
     suggests: /^[a-z0-9-]{3,140}$/.test(b.suggests || '') ? b.suggests : '',
     imageUrl: /^https:\/\//i.test(b.imageUrl || '') ? clean(b.imageUrl, 500) : '',
+    // The form thought this was already on the calendar and the organizer said "No, mine's
+    // different" (Nov 24, 2026): that listing's address and name, for the review page.
+    possibleDuplicate: /^[a-z0-9-]{3,140}$/.test(b.possibleDuplicate || '') ? b.possibleDuplicate : '',
+    possibleDuplicateTitle: clean(b.possibleDuplicateTitle, 140),
   };
 }
 
@@ -480,12 +513,13 @@ async function handleSubmit(request, env, origin, ctx) {
   await env.MEDIA.put(`sub/pending/${id}`, JSON.stringify(record));
   // Trusted submitters: straight onto the calendar (not paid Spotlight requests or suggested
   // edits to someone else's listing, and not past the daily limit).
-  if (!record.boost && !record.suggests && (await isTrusted(env, record.contact.email)) && (await trustedRoomToday(env, record.contact.email))) {
+  // A possible duplicate waits too, so Charlie can decide whether it's the same event.
+  if (!record.boost && !record.suggests && !record.possibleDuplicate && (await isTrusted(env, record.contact.email)) && (await trustedRoomToday(env, record.contact.email))) {
     await publishRecord(env, record, record, 'trusted');
     ctx.waitUntil(Promise.all([mailLive(env, record, false), mailCharlie(env, record, 'Live from a trusted submitter')]));
     return json({ ok: true, id, key: `${id}.${token}`, shows: sub.shows.length, live: true, page: eventPage(record) }, {}, origin);
   }
-  ctx.waitUntil(Promise.all([mailThanks(env, record, record.site), mailCharlie(env, record, record.suggests ? 'Suggested edit' : 'New event')]));
+  ctx.waitUntil(Promise.all([mailThanks(env, record, record.site), mailCharlie(env, record, record.suggests ? 'Suggested edit' : record.possibleDuplicate ? 'New event (possible duplicate)' : 'New event')]));
   return json({ ok: true, id, key: `${id}.${token}`, shows: sub.shows.length }, {}, origin);
 }
 
@@ -718,6 +752,9 @@ async function reviewApi(request, env, path, ctx) {
     // The review page can change when a repeating event stops and take single dates out.
     if (edited.repeat && repeatEdit) edited.repeat = tidyRepeat({ ...edited.repeat, until: repeatEdit.until, skip: repeatEdit.skip });
     if (!edited.shows.length) return json({ error: 'Needs at least one date.' }, { status: 400 });
+    // A possible duplicate approved as "Same event: replace that listing": works like a suggested
+    // edit (this version goes up, the other listing is hidden).
+    if (body.edits?.replaceDuplicate && rec.possibleDuplicate) { edited.suggests = rec.possibleDuplicate; rec.suggests = rec.possibleDuplicate; }
     await publishRecord(env, rec, edited);
     // Tell the submitter: the first time it goes live, and when a change they made is approved.
     // Not when Charlie reopened it himself to fix something.
@@ -736,6 +773,8 @@ async function reviewApi(request, env, path, ctx) {
   }
   if (path === 'reject') {
     const rec = await env.MEDIA.get(`sub/pending/${body.id}`, 'json');
+    // "Reject: already listed": a friendly email with the link to the listing that's already up.
+    if (rec && body.duplicate && !rec.change) ctx.waitUntil(mailDuplicate(env, rec));
     if (rec?.change) {
       // Turning down a change: the version already on the calendar stays as it is.
       await env.MEDIA.delete(`sub/pending/${rec.id}`);
@@ -942,7 +981,7 @@ button{font:inherit;font-weight:600;padding:10px 16px;border-radius:999px;border
 .checks{display:flex;gap:16px;margin-top:10px}.checks label{display:flex;gap:6px;align-items:center;color:var(--ink);font-size:.95rem;margin:0}.checks input{width:auto}
 h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:.95rem}
 .ap a{color:var(--ink)}.ap button{padding:4px 12px;font-size:.85rem}#lb{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;place-items:center;z-index:9;cursor:zoom-out}#lb img{max-width:96vw;max-height:96vh}
-.msg{font-size:.9rem;color:var(--muted)}.boost{background:#fff4d6;border:1px solid #e8c766;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:.95rem}
+.msg{font-size:.9rem;color:var(--muted)}.boost{background:#fff4d6;border:1px solid #e8c766;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:.95rem}.boost.dupe{background:#fde8e4;border-color:#e3a397}.boost.dupe label{display:flex;gap:6px;align-items:center;margin:8px 0 0;color:var(--ink);font-size:.95rem}.boost.dupe input{width:auto}
 .hide{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.hide input[name=slug]{flex:1;min-width:260px}.hide label{display:flex;gap:6px;align-items:center;margin:0;color:var(--ink)}.hide input[type=checkbox]{width:auto}
 .tag{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;background:#f1ece4}.tag.sp{background:#fff4d6}
 .checks input[type=date]{width:auto;padding:4px 8px}.apflags{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.apflags label{display:flex;gap:4px;align-items:center;margin:0;color:var(--ink);font-size:.85rem}.apflags input[type=checkbox]{width:auto}.apflags input[type=date]{width:auto;padding:2px 6px;font-size:.85rem}@media(max-width:720px){.sub{grid-template-columns:1fr}.show{grid-template-columns:1fr 1fr}}
@@ -982,12 +1021,13 @@ function card(r){
   (r.change?'<div class="boost"><strong>'+(r.changedBy==='charlie'?'You reopened this to edit it.':'Changed by the organizer.')+'</strong> The calendar keeps the current version until you approve. Reject = keep the current version.</div>':'')+
   (r.repeat?'<div class="boost" data-repeat><strong>Repeats: '+esc(r.repeatText)+'.</strong> The first date above sets the start and the times. Next dates: '+esc((r.repeatDates||[]).join(', ')||'none in the next 90 days')+'<div class="row"><div><label>Stops after (empty = keeps going)</label><input type="date" name="repeatUntil" value="'+esc(r.repeat.until||'')+'"></div><div><label>Dates to leave out (YYYY-MM-DD, commas)</label><input name="repeatSkip" value="'+esc((r.repeat.skip||[]).join(', '))+'"></div></div></div>':'')+
   (r.annual?'<div class="boost"><strong>Annual event.</strong> The organizer says this happens every year.</div>':'')+
+  (r.possibleDuplicate&&!r.suggests?'<div class="boost dupe"><strong>Possible duplicate</strong> of <a href="'+esc(SITE)+'/event/'+esc(r.possibleDuplicate)+'/" target="_blank" rel="noopener">'+esc(r.possibleDuplicateTitle||'this listing')+'</a>. The form asked and the organizer said theirs is a different event. Same event after all? Tick the box below to replace that listing, or use <em>Reject: already listed</em>.<label><input type="checkbox" name="replaceDuplicate"> Same event: approve this and hide the other listing</label></div>':'')+
   (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
   '<div class="checks"><label><input type="checkbox" name="featured"> Featured</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
   (r.trusted?'':'<div class="trustrow">'+(r.approvedBefore>=2?'<strong>A regular:</strong> '+r.approvedBefore+' earlier events approved. ':'')+'<button type="button" data-trust="'+esc(r.contact?.email)+'" data-trust-name="'+esc(r.contact?.name)+'">Trust this submitter</button> <span class="msg">Their future events go live without waiting.</span></div>')+
   '<div class="meta">From '+esc(r.contact?.name)+' · <a href="mailto:'+esc(r.contact?.email)+'">'+esc(r.contact?.email)+'</a>'+(r.trusted?' <span class="tag">Trusted</span>':'')+(r.contact?.phone?' · '+esc(r.contact.phone):'')+(r.act?' · Act: '+esc(r.act):'')+' · '+new Date(r.submittedAt).toLocaleString()+'</div>'+
-  '<div class="btns"><button class="approve" type="submit">Approve</button><button class="reject" type="button" data-reject>Reject</button><span class="msg" data-msg></span></div></div></form>';
+  '<div class="btns"><button class="approve" type="submit">Approve</button><button class="reject" type="button" data-reject>Reject</button>'+(r.possibleDuplicate&&!r.change?'<button class="reject" type="button" data-reject-dupe>Reject: already listed</button>':'')+'<span class="msg" data-msg></span></div></div></form>';
 }
 async function loadHidden(){
   const d=await fetch('/review/api/hidden').then(r=>r.json());
@@ -1010,6 +1050,7 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-zoom]')){lb.querySelector('img').src=t.src;lb.style.display='grid';return}
   if(t.matches('[data-del]')){t.closest('.show').remove();return}
   if(t.matches('[data-add]')){t.previousElementSibling.insertAdjacentHTML('beforeend',showRow({}));return}
+  if(t.matches('[data-reject-dupe]')){const f=t.closest('form');if(!confirm('Turn this down as a duplicate? The organizer gets a friendly email with the link to the listing that is already up.'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id,duplicate:true})});load();return}
   if(t.matches('[data-reject]')){const f=t.closest('form');if(!confirm('Reject this submission?'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id})});load();return}
   if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
   if(t.matches('[data-reopen]')){t.textContent='Opening…';await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.reopen})});await load();window.scrollTo({top:0,behavior:'smooth'});return}
@@ -1027,7 +1068,7 @@ document.addEventListener('submit',async e=>{
   if(f.id==='nopic'){const r=await fetch('/review/api/nopic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Picture hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   if(f.id==='hide'){const r=await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,reason:'Hidden by Charlie',publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
   const shows=[...f.querySelectorAll('.show')].map(s=>({date:s.querySelector('[name=date]').value,start:s.querySelector('[name=start]').value,end:s.querySelector('[name=end]').value,title:s.querySelector('[name=stitle]').value}));
-  const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked,spotlightUntil:f.spotlightUntil.value};
+  const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked,spotlightUntil:f.spotlightUntil.value,replaceDuplicate:!!f.replaceDuplicate?.checked};
   if(f.repeatUntil)edits.repeat={until:f.repeatUntil.value,skip:f.repeatSkip.value.split(',').map(x=>x.trim()).filter(Boolean)};
   const r=await fetch('/review/api/approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id,edits})}).then(r=>r.json());
   if(r.ok){msg.textContent='Approved. The calendar updates in a couple of minutes.';setTimeout(load,1200)}else msg.textContent=r.error||'Something went wrong.';

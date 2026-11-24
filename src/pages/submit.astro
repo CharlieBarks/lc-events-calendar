@@ -57,6 +57,20 @@ const venueList = await getVenues();
       <div><span class="submit-reading__spinner" aria-hidden="true"></span><strong>Reading your flyer…</strong><p>This takes about 10 seconds.</p></div>
     </div>
 
+    <!-- Already on the calendar? (Nov 24, 2026). Shown after a flyer is read, or before sending,
+         when the event looks like a listing that's already up. See src/lib/dupes.js. -->
+    <div class="submit-dupe" data-step="dupe" hidden>
+      <h2 class="submit-dupe__title" data-dupe-title>Good news: this one's already on the calendar!</h2>
+      <p class="submit-dupe__text" data-dupe-text>Here's the listing I found. Is it your event?</p>
+      <ul class="submit-dupe__list" role="list" data-dupe-list></ul>
+      <div class="submit-dupe__choices">
+        <button type="button" class="btn--primary" data-dupe-done>That's it, I'm all set</button>
+        <button type="button" class="btn--base" data-dupe-update>That's mine, update it</button>
+        <button type="button" class="btn--base btn--outline" data-dupe-new>No, mine's a different event</button>
+      </div>
+      <p class="submit-form__hint" data-dupe-hint>"Update it" opens the listing so you can fix or add anything. Your flyer comes along as its new picture.</p>
+    </div>
+
     <!-- Step 2: the form (both paths end here) -->
     <form class="submit-form" data-step="form" hidden novalidate>
       <div class="submit-form__flyer" data-flyer-box hidden>
@@ -224,6 +238,7 @@ const venueList = await getVenues();
 
 <script>
   import { tidyRepeat, expand, describe, monthlyChoices, addDaysKey } from '../lib/repeat.js';
+  import { findDuplicates, findByTitle } from '../lib/dupes.js';
   const app = document.querySelector('[data-app]') as HTMLElement;
   const INTAKE = app.dataset.intake!;
 
@@ -494,7 +509,7 @@ const venueList = await getVenues();
   const MINE = 'lc-events-mine';
   const editKey = new URLSearchParams(location.search).get('edit') || '';
   // "Suggest an edit" on an event page: /submit/?suggest=<that page's address>.
-  const suggest = (new URLSearchParams(location.search).get('suggest') || '').replace(/[^a-z0-9-]/g, '');
+  let suggest = (new URLSearchParams(location.search).get('suggest') || '').replace(/[^a-z0-9-]/g, '');
   let suggestImage = '';
   const editUrl = (key: string) => `${location.origin}/submit/?edit=${key}`;
   function rememberEvent(key: string, title: string) {
@@ -692,6 +707,16 @@ const venueList = await getVenues();
       $('[data-read-note]').innerHTML = data.extracted && empty.length < 3
         ? `<strong>Here's what I read off your flyer.</strong> Check it over${empty.length ? ` and add ${empty.join(', ')}` : ''}.`
         : `<strong>I couldn't read much off this one.</strong> No problem, just fill in the details below.`;
+      // Already on the calendar? Ask before the form (Charlie, Nov 24).
+      flyerRead = data.extracted || {};
+      const x = flyerRead;
+      const found = await checkDupes({ title: x.title, venue: x.venue, dates: (x.shows || []).map((s: any) => s.date) }, data.sameFlyer);
+      if (found.length) {
+        $('[data-flyer-box]').hidden = false;
+        renderPics();
+        await showDupes(found, 'flyer');
+        return;
+      }
     } catch (err: any) {
       imageId = '';
       form.reset(); applyMe(); fill({});
@@ -709,7 +734,7 @@ const venueList = await getVenues();
   });
   $('[data-change]').addEventListener('click', () => ($('[data-flyer]') as HTMLInputElement).click());
   $('[data-manual]').addEventListener('click', () => {
-    source = 'form'; imageId = ''; photoIds = []; mainId = '';
+    source = 'form'; imageId = ''; photoIds = []; mainId = ''; dupeAsked = false; dupeOf = null; flyerRead = {};
     form.reset(); applyMe(); fill(prefill());
     $('[data-flyer-box]').hidden = true;
     step('form');
@@ -725,6 +750,118 @@ const venueList = await getVenues();
     const known = venue && venueAddresses[venue] ? { address: venueAddresses[venue] } : {};
     return { ...(act ? { title: act, category: 'live-music' } : {}), ...(venue ? { venue, ...known } : {}) };
   }
+
+  // ---- Already on the calendar? (Nov 24, 2026) ----
+  // Checks the new event against the calendar's own search index (/search.json, rebuilt with the
+  // site). Matching rules are in src/lib/dupes.js. If anything goes wrong (no index, slow network)
+  // the form simply carries on: this check must never stop someone from sending an event.
+  let searchIndex: Promise<any> | undefined;
+  let dupeAsked = false; // the before-sending check runs once per event
+  let dupeOf: { id: string; title: string } | null = null; // "No, mine's different": told to Charlie
+  let flyerRead: any = {}; // what was read off the flyer, to add to a listing on "Update it"
+  let dupeFound: any[] = [];
+  let dupeFrom = 'flyer';
+  const todayKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver' }).format(new Date());
+  function loadIndex() {
+    searchIndex ??= fetch('/search.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    return searchIndex;
+  }
+  async function checkDupes(ev: { title?: string; venue?: string; dates?: string[] }, sameFlyer?: { title: string; venue: string }) {
+    try {
+      const index = await Promise.race([loadIndex(), new Promise((r) => setTimeout(() => r(null), 6000))]);
+      if (!index) return [];
+      const today = todayKey();
+      const found = findDuplicates({ title: ev.title || '', venue: ev.venue || '', dates: (ev.dates || []).filter((d) => d >= today) }, index, today);
+      // The very same flyer file was uploaded before for a listing that's up now.
+      const twin = sameFlyer ? findByTitle(sameFlyer.title, sameFlyer.venue, index, today) : null;
+      if (twin && !found.some((f) => f.id === twin.id)) found.unshift(twin);
+      return found.slice(0, 3);
+    } catch { return []; }
+  }
+  // A listing's picture and time come from its event page (the same "event-data" block "Suggest
+  // an edit" uses). No answer in 4 seconds: the card shows without them.
+  async function listingInfo(id: string) {
+    try {
+      const html = await Promise.race([fetch(`/event/${id}/`).then((r) => (r.ok ? r.text() : '')), new Promise<string>((r) => setTimeout(() => r(''), 4000))]);
+      const raw = html && new DOMParser().parseFromString(html, 'text/html').getElementById('event-data')?.textContent;
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+  const escHtml = (v: any) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  function niceDate(k: string, start = '') {
+    const d = new Date(k + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
+    const t = start ? new Date(`2000-01-01T${start}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(':00', '') : '';
+    return t ? `${d} at ${t}` : d;
+  }
+  async function showDupes(found: any[], from: 'flyer' | 'submit') {
+    dupeFound = found; dupeFrom = from;
+    const infos = await Promise.all(found.map((f) => listingInfo(f.id)));
+    const many = found.length > 1;
+    $('[data-dupe-title]').textContent = many ? 'Is your event one of these?' : "Good news: this one's already on the calendar!";
+    $('[data-dupe-text]').textContent = many
+      ? 'These are already on the calendar and look a lot like yours.'
+      : from === 'flyer' ? "I found it while reading your flyer. Is this your event?" : 'Before you send it: is this your event?';
+    $('[data-dupe-list]').innerHTML = found.map((f, i) => {
+      const x = infos[i] || {};
+      const pic = x.image ? `<img class="submit-dupe__pic" src="${escHtml(x.image)}" alt="" loading="lazy">` : `<span class="submit-dupe__pic" aria-hidden="true"></span>`;
+      const more = f.more ? `<p class="submit-dupe__more">Also on the calendar ${f.more === 1 ? '1 more time' : `${f.more} more times`} coming up.</p>` : '';
+      const actions = many ? `<div class="submit-dupe__actions"><button type="button" class="btn--primary btn--s" data-dupe-done-one="${i}">That's it, I'm all set</button><button type="button" class="btn--base btn--s" data-dupe-update-one="${i}">That's mine, update it</button></div>` : '';
+      return `<li class="submit-dupe__card">${pic}<div>
+        <p class="submit-dupe__name"><a href="/event/${escHtml(f.id)}/" target="_blank" rel="noopener">${escHtml(f.title)}</a></p>
+        <p class="submit-dupe__when">${escHtml(niceDate(f.date, x.start))}${f.venue ? ` · ${escHtml(f.venue)}` : ''}</p>${more}${actions}</div></li>`;
+    }).join('');
+    const choices = $('[data-step="dupe"] .submit-dupe__choices');
+    if (many) choices.setAttribute('data-many', ''); else choices.removeAttribute('data-many');
+    $('[data-dupe-hint]').hidden = !imageId;
+    step('dupe');
+  }
+  // "That's it, I'm all set": nothing is sent. The link to share instead.
+  function dupeDone(i: number) {
+    const f = dupeFound[i];
+    $('[data-done-title]').textContent = "You're all set!";
+    const p = $('[data-done-text]');
+    p.textContent = "It's already on the calendar, so there's nothing to send. Here's the link to share: ";
+    const a = document.createElement('a');
+    a.href = `/event/${f.id}/`; a.textContent = `${location.origin}/event/${f.id}/`;
+    p.append(a);
+    $('[data-done-edit]').hidden = true;
+    $('[data-done-pay]').hidden = true;
+    step('done');
+  }
+  // "That's mine, update it": the listing opens as a suggested edit. The flyer comes along as its
+  // new picture, and anything the flyer has that the listing is missing is filled in.
+  async function dupeUpdate(i: number) {
+    const f = dupeFound[i];
+    suggest = f.id;
+    history.replaceState(null, '', `/submit/?suggest=${encodeURIComponent(f.id)}`);
+    await startSuggest();
+    if ($('[data-step="form"]').hidden) { suggest = ''; history.replaceState(null, '', '/submit/'); return; }
+    for (const k of ['price', 'url', 'description']) if (!field(k).value && flyerRead[k]) field(k).value = flyerRead[k];
+    $('[data-flyer-box]').hidden = true;
+    if (imageId) {
+      mainId = imageId;
+      $('[data-edit-note]').textContent += ' Your flyer is added as the listing\'s new picture.';
+    }
+    renderPics();
+    renderPreview();
+  }
+  $('[data-dupe-done]').addEventListener('click', () => dupeDone(0));
+  $('[data-dupe-update]').addEventListener('click', () => dupeUpdate(0));
+  $('[data-dupe-list]').addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    const d = t.closest<HTMLElement>('[data-dupe-done-one]');
+    if (d) return dupeDone(Number(d.dataset.dupeDoneOne));
+    const u = t.closest<HTMLElement>('[data-dupe-update-one]');
+    if (u) dupeUpdate(Number(u.dataset.dupeUpdateOne));
+  });
+  // "No, mine's a different event": on to the form (or straight on to sending), and the review
+  // page shows Charlie which listing it looked like.
+  $('[data-dupe-new]').addEventListener('click', () => {
+    dupeOf = { id: dupeFound[0].id, title: dupeFound[0].title };
+    dupeAsked = true;
+    step('form');
+    if (dupeFrom === 'submit') form.requestSubmit();
+  });
 
   // ---- Send ----
   form.addEventListener('submit', async (e) => {
@@ -743,6 +880,16 @@ const venueList = await getVenues();
       return;
     }
     const btn = form.querySelector('.submit-form__send') as HTMLButtonElement;
+    // Typed in by hand: one look for the same event on the calendar before it's sent.
+    if (!dupeAsked && !editKey && !suggest) {
+      dupeAsked = true;
+      const rule = repeatRule();
+      const dates = rule ? expand({ ...rule, skip: rpSkip }, shows[0].date, addDaysKey(shows[0].date, 90), 30) : shows.map((s) => s.date);
+      btn.disabled = true; status.textContent = 'Checking the calendar…';
+      const found = await checkDupes({ title: field('title').value, venue: field('venue').value, dates });
+      btn.disabled = false; status.textContent = '';
+      if (found.length) { await showDupes(found, 'submit'); return; }
+    }
     btn.disabled = true; status.textContent = 'Sending…';
     const body = {
       title: field('title').value, venue: field('venue').value, address: field('address').value, category: field('category').value,
@@ -753,6 +900,7 @@ const venueList = await getVenues();
       repeat: repeatRule(),
       annual: $<HTMLInputElement>('[data-annual]').checked,
       ...(suggest ? { suggests: suggest, imageUrl: imageId ? '' : suggestImage } : {}),
+      ...(dupeOf && !suggest ? { possibleDuplicate: dupeOf.id, possibleDuplicateTitle: dupeOf.title } : {}),
     };
     try {
       body.human = await humanToken();
@@ -809,6 +957,7 @@ const venueList = await getVenues();
   $('[data-again]').addEventListener('click', () => {
     $('[data-done-title]').textContent = 'Got it, thanks!';
     imageId = ''; photoIds = []; mainId = ''; form.reset(); ($('[data-flyer]') as HTMLInputElement).value = '';
+    dupeAsked = false; dupeOf = null; flyerRead = {};
     renderPics();
     applyMe(); step('choose');
   });
@@ -1052,6 +1201,23 @@ const venueList = await getVenues();
   .submit-done__pay[hidden] { display: none; }
   .submit-done { padding: var(--space-l); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); display: flex; flex-direction: column; gap: var(--space-s); }
   .submit-done h2 { margin: 0; }
+  .submit-dupe { padding: var(--space-l); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--bg-ultra-light); display: flex; flex-direction: column; gap: var(--space-s); }
+  .submit-dupe[hidden] { display: none; }
+  .submit-dupe__title, .submit-dupe__text { margin: 0; }
+  .submit-dupe__list { display: flex; flex-direction: column; gap: var(--space-xs); padding: 0; margin: 0; list-style: none; }
+  .submit-dupe__choices { display: flex; flex-wrap: wrap; gap: var(--space-s); }
+  .submit-dupe__choices > * { min-block-size: 2.75rem; }
+  .submit-dupe__choices[data-many] [data-dupe-done], .submit-dupe__choices[data-many] [data-dupe-update] { display: none; }
+  :global(.submit-dupe__card) { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--space-s); align-items: start; padding: var(--space-s); border: 1px solid var(--neutral-light); border-radius: var(--radius); background: var(--white); }
+  :global(.submit-dupe__pic) { inline-size: 6rem; block-size: 6rem; border-radius: var(--radius-s); object-fit: cover; background: var(--neutral-ultra-light); }
+  :global(.submit-dupe__name) { margin: 0; font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+  :global(.submit-dupe__when), :global(.submit-dupe__more) { margin: 0; font-size: var(--text-m); }
+  :global(.submit-dupe__more) { color: var(--text-dark-muted); }
+  :global(.submit-dupe__actions) { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-block-start: var(--space-xs); }
+  @media (min-width: 561px) {
+    :global(.submit-dupe__card) { grid-template-columns: 8rem minmax(0, 1fr); }
+    :global(.submit-dupe__pic) { inline-size: 8rem; block-size: 8rem; }
+  }
   .submit-done p { margin: 0; }
   .btn-row { display: flex; flex-wrap: wrap; gap: var(--space-s); margin-block-start: var(--space-xs); }
 
