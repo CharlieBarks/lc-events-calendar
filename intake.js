@@ -673,7 +673,7 @@ async function setHidden(env, item, on, key = 'hidden') {
   const list = ((await env.MEDIA.get(`${key}.json`, 'json'))?.[key] || []).filter((h) => h.slug !== slug);
   // No date at the end of the address: it already means every date.
   const all = !!item.all || !/\d{4}-\d{2}-\d{2}(-\d+)?$/.test(slug);
-  if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), ...(isDate(item.until) ? { until: item.until } : {}), at: new Date().toISOString() });
+  if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), ...(isDate(item.until) ? { until: item.until } : {}), ...(key === 'featured' && item.sponsored ? { sponsored: true } : {}), at: new Date().toISOString() });
   await env.MEDIA.put(`${key}.json`, JSON.stringify({ [key]: list.slice(-500) }));
   return true;
 }
@@ -989,17 +989,17 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 <header><h1>Event submissions <a href="/review/venues/" style="font-size:.9rem;font-weight:400;margin-left:12px;color:var(--accent)">Venues</a></h1><div class="msg" id="count">Loading…</div></header>
 <main><div id="pending"></div>
 <h2>Featured events</h2><p class="msg">Want an event to stand out? Paste its address from the event page. It's pinned to the top of its day with a Featured label and its own background, and goes into the homepage Spotlight. Works for any event, from any source.</p>
-<form id="feature" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><label>until <input type="date" name="until" title="Leave empty to feature it until the event is over"></label><button>Feature</button><span class="msg" data-msg></span></form>
+<form id="feature" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><input type="hidden" name="title"><label><input type="checkbox" name="all"> Every date of it</label><label><input type="checkbox" name="sponsored"> Sponsored (paid)</label><label>until <input type="date" name="until" title="Leave empty to feature it until the event is over"></label><button>Feature</button><span class="msg" data-msg></span></form>
 <div id="featuredlist"></div>
 <h2>Recently approved</h2><div id="approved"></div>
 <h2>Trusted submitters</h2><p class="msg">Their new events and their changes go on the calendar right away, without waiting for you. You still get an email for each one. Limits that stay on: ${TRUSTED_PER_DAY} a day each (the rest wait here), and paid Spotlight requests always wait.</p>
 <form id="trustform" class="hide"><input name="email" type="email" placeholder="their@email.com" aria-label="Email to trust"><input name="name" placeholder="Name (optional)" aria-label="Name" style="max-width:220px"><button>Trust</button><span class="msg" data-msg></span></form>
 <div id="trustedlist"></div>
 <h2>Hidden listings</h2><p class="msg">Something from a feed that shouldn't be on the calendar? Paste its address from the event page. It stays hidden on later nights too.</p>
-<form id="hide" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide</button><span class="msg" data-msg></span></form>
+<form id="hide" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><input type="hidden" name="title"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide</button><span class="msg" data-msg></span></form>
 <div id="hidden"></div>
 <h2>Hidden pictures</h2><p class="msg">A listing whose picture doesn't fit (wrong event, a random stock photo)? Paste its address. It keeps its listing but shows its name card instead of the picture.</p>
-<form id="nopic" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide picture</button><span class="msg" data-msg></span></form>
+<form id="nopic" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><input type="hidden" name="title"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide picture</button><span class="msg" data-msg></span></form>
 <div id="nopiclist"></div></main>
 <div id="lb"><img alt=""></div>
 <script>
@@ -1031,7 +1031,7 @@ function card(r){
 }
 async function loadHidden(){
   const d=await fetch('/review/api/hidden').then(r=>r.json());
-  document.getElementById('featuredlist').innerHTML=(d.featured||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.until?'<span class="tag">until '+esc(h.until)+'</span>':'')+'</span><span class="apflags"><a href="'+esc(SITE)+'/event/'+esc(h.slug)+'/" target="_blank" rel="noopener">View</a><button data-unfeature="'+esc(h.slug)+'">Stop featuring</button></span></div>').join('')||'<div class="msg">Nothing featured right now.</div>';
+  document.getElementById('featuredlist').innerHTML=(d.featured||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.sponsored?'<span class="tag sp">Sponsored</span>':'')+(h.all?'<span class="tag">Every date</span>':'')+(h.until?'<span class="tag">until '+esc(h.until)+'</span>':'')+'</span><span class="apflags"><a href="'+esc(SITE)+'/event/'+esc(h.slug)+'/" target="_blank" rel="noopener">View</a><button data-unfeature="'+esc(h.slug)+'">Stop featuring</button></span></div>').join('')||'<div class="msg">Nothing featured right now.</div>';
   document.getElementById('nopiclist').innerHTML=(d.nopic||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+'</span><span class="apflags"><button data-showpic="'+esc(h.slug)+'">Show picture again</button></span></div>').join('')||'<div class="msg">No pictures hidden.</div>';
   document.getElementById('hidden').innerHTML=d.hidden.map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.reason?' · <span class="msg">'+esc(h.reason)+'</span>':'')+'</span><span class="apflags"><button data-unhide="'+esc(h.slug)+'">Show again</button></span></div>').join('')||'<div class="msg">Nothing hidden.</div>';
 }
@@ -1064,9 +1064,9 @@ document.addEventListener('click',async e=>{
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target;const msg=f.querySelector('[data-msg]');msg.textContent='Saving…';
   if(f.id==='trustform'){const r=await fetch('/review/api/trust',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:f.email.value,name:f.name.value})}).then(r=>r.json());msg.textContent=r.ok?'Trusted.':r.error;if(r.ok){f.reset();load()}return}
-  if(f.id==='feature'){const r=await fetch('/review/api/feature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,until:f.until.value,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Featured. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
-  if(f.id==='nopic'){const r=await fetch('/review/api/nopic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Picture hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
-  if(f.id==='hide'){const r=await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,all:f.all.checked,reason:'Hidden by Charlie',publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();loadHidden()}return}
+  if(f.id==='feature'){const r=await fetch('/review/api/feature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,title:f.title.value,all:f.all.checked,sponsored:f.sponsored.checked,until:f.until.value,publish:true})}).then(r=>r.json());msg.textContent=r.ok?(f.sponsored.checked?'Marked Sponsored (paid).':'Featured.')+' The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();f.title.value='';loadHidden()}return}
+  if(f.id==='nopic'){const r=await fetch('/review/api/nopic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,title:f.title.value,all:f.all.checked,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Picture hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();f.title.value='';loadHidden()}return}
+  if(f.id==='hide'){const r=await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,title:f.title.value,all:f.all.checked,reason:'Hidden by Charlie',publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();f.title.value='';loadHidden()}return}
   const shows=[...f.querySelectorAll('.show')].map(s=>({date:s.querySelector('[name=date]').value,start:s.querySelector('[name=start]').value,end:s.querySelector('[name=end]').value,title:s.querySelector('[name=stitle]').value}));
   const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked,spotlightUntil:f.spotlightUntil.value,replaceDuplicate:!!f.replaceDuplicate?.checked};
   if(f.repeatUntil)edits.repeat={until:f.repeatUntil.value,skip:f.repeatSkip.value.split(',').map(x=>x.trim()).filter(Boolean)};
@@ -1074,6 +1074,38 @@ document.addEventListener('submit',async e=>{
   if(r.ok){msg.textContent='Approved. The calendar updates in a couple of minutes.';setTimeout(load,1200)}else msg.textContent=r.error||'Something went wrong.';
 });
 load();
+// From the admin bar on an event page (?act=feature|sponsor|hide|nopic|edit&slug=…&title=…&all=1):
+// fill in the right box and point at it. Nothing is saved until Charlie taps its button.
+(function(){
+  const q=new URLSearchParams(location.search);const act=q.get('act'),slug=(q.get('slug')||'').replace(/[^a-z0-9-]/g,'');
+  if(!act||!slug)return;
+  history.replaceState(null,'',location.pathname);
+  const mark=el=>{el.style.outline='3px solid #e8c766';el.style.outlineOffset='4px';el.style.borderRadius='10px';el.scrollIntoView({block:'center'})};
+  const id={feature:'feature',sponsor:'feature',hide:'hide',nopic:'nopic'}[act];
+  if(id){
+    const f=document.getElementById(id);const b=f.querySelector('button');
+    f.slug.value=SITE+'/event/'+slug+'/';f.title.value=q.get('title')||'';f.all.checked=q.get('all')==='1';
+    if(f.sponsored)f.sponsored.checked=act==='sponsor';
+    f.querySelector('[data-msg]').textContent='Filled in from the event page'+(q.get('title')?' ('+q.get('title')+')':'')+'. Check it, then tap '+b.textContent+'.';
+    mark(f);b.focus({preventScroll:true});return;
+  }
+  if(act==='unfeature'){
+    let n=0;const t=setInterval(()=>{
+      const btn=[...document.querySelectorAll('#featuredlist [data-unfeature]')].find(x=>x.dataset.unfeature===slug||slug.startsWith(x.dataset.unfeature.replace(/-[0-9]{4}-[0-9]{2}-[0-9]{2}$/,'')+'-'));
+      if(!btn&&++n<25)return;clearInterval(t);
+      if(btn){mark(btn.closest('.ap'));btn.focus({preventScroll:true})}else mark(document.getElementById('featuredlist'));
+    },300);return;
+  }
+  if(act==='edit'){
+    let n=0;const t=setInterval(()=>{
+      const row=[...document.querySelectorAll('#approved .ap')].find(r=>r.dataset.slug===slug||slug.startsWith(r.dataset.slug+'-'));
+      if(!row&&++n<25)return;clearInterval(t);
+      if(row){mark(row);return}
+      const note=document.createElement('p');note.className='msg';note.textContent='That event isn’t in the last 60 approved, so it can’t be edited from here. Featured, Hidden listings and Hidden pictures still work for it.';
+      document.getElementById('approved').before(note);mark(note);
+    },300);
+  }
+})();
 </script></body></html>`;
 }
 

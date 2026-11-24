@@ -59,3 +59,6 @@ html { scroll-behavior: smooth; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Admin bar on/off note (?admin=on / ?admin=off, Layout.astro). Charlie only. */
+.admin-toast { position: fixed; inset-block-end: var(--space-m); inset-inline: var(--space-m); margin-inline: auto; max-inline-size: 28rem; z-index: 1000; background: var(--base); color: var(--white); padding: var(--space-s) var(--space-m); border-radius: var(--radius-s); font-weight: 600; text-align: center; box-shadow: 0 6px 24px rgb(0 0 0 / .25); }
