@@ -1095,7 +1095,7 @@ main{max-width:1100px;margin:0 auto;padding:20px}.empty{padding:40px;text-align:
 .sub{display:grid;grid-template-columns:260px 1fr;gap:20px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}
 .pics{display:flex;flex-direction:column;gap:6px}.pic-note{margin:6px 0 0;font-size:13px;color:var(--muted)}.sub img{width:100%;border-radius:8px;cursor:zoom-in;border:1px solid var(--line)}.noimg{aspect-ratio:4/5;display:grid;place-items:center;background:#f1ece4;border-radius:8px;color:var(--muted)}
 label{display:block;font-size:.8rem;color:var(--muted);margin:8px 0 2px}input,select,textarea{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
-.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.show{display:grid;grid-template-columns:1.3fr 1fr 1fr 1.6fr auto;gap:8px;align-items:end;margin-bottom:6px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.show{display:grid;grid-template-columns:1.2fr 1.5fr 1.5fr 1.3fr auto;gap:8px;align-items:end;margin-bottom:6px}.tp{display:flex;gap:4px}.tp select,.tp input{flex:1;min-width:0;padding:8px 4px}
 .show button{padding:8px 10px}.meta{font-size:.85rem;color:var(--muted);margin-top:10px}.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
 button{font:inherit;font-weight:600;padding:10px 16px;border-radius:999px;border:1px solid var(--ink);background:#fff;cursor:pointer}.approve{background:var(--ok);border-color:var(--ok);color:#fff}.reject{color:var(--accent);border-color:var(--accent)}
 .checks{display:flex;gap:16px;margin-top:10px}.checks label{display:flex;gap:6px;align-items:center;color:var(--ink);font-size:.95rem;margin:0}.checks input{width:auto}
@@ -1133,7 +1133,6 @@ const SITE='${LIVE_SITE}';
 const viewLink=e=>e.repeat?SITE+'/?q='+encodeURIComponent(e.title):SITE+'/event/'+e.slug+'/';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 const lb=document.getElementById('lb');lb.onclick=()=>lb.style.display='none';
-function showRow(s){return '<div class="show"><div><label>Date</label><input type="date" name="date" value="'+esc(s.date)+'"></div><div><label>Starts</label><input type="time" name="start" value="'+esc(s.start)+'"></div><div><label>Ends</label><input type="time" name="end" value="'+esc(s.end)+'"></div><div><label>Different act / title (optional)</label><input name="stitle" value="'+esc(s.title)+'"></div><button type="button" data-del>✕</button></div>'}
 // What changed (Nov 24, 2026): a suggested edit or an organizer's change is compared with the version
 // it would replace (r.original, both sides in the same shape from the Worker). Spaces, capitals,
 // "$0" vs "Free" and tracking tags on links don't count as changes.
@@ -1193,6 +1192,34 @@ function markChanges(f,r){
   }
   if(d.pics)f.querySelector('.pics')?.classList.add('chg');
 }
+// Times (Nov 24, 2026, same as /submit/): three short lists instead of the browser's clock with 60
+// minutes. Hour (1-12), minutes (:00 :15 :30 :45, or "Other…" for a box that takes any minute) and
+// AM/PM. They fill a hidden input named start/end that keeps "HH:MM", so saving reads it as before.
+// Picking an hour fills in :00 if no minutes are chosen yet. (No regex or backslashes here: this
+// script sits inside a template string.)
+const MINS=['00','15','30','45'];
+const op=(v,t,on)=>'<option value="'+v+'"'+(on?' selected':'')+'>'+(t??v)+'</option>';
+const minBox=v=>'<input type="number" min="0" max="59" inputmode="numeric" placeholder="min" data-tp="m" aria-label="Minutes" value="'+v+'">';
+function timeBox(k,v){
+  let h='',m='',ap='';
+  if(v){const a=String(v).split(':');const H=Number(a[0]),M=Number(a[1]);h=String(H%12||12);ap=H<12?'AM':'PM';m=String(M).padStart(2,'0')}
+  const mEl=m!==''&&!MINS.includes(m)?minBox(Number(m)):'<select data-tp="m" aria-label="Minutes">'+op('','Min')+MINS.map(x=>op(x,':'+x,x===m)).join('')+op('other','Other…')+'</select>';
+  return '<div class="tp" data-tp-box><input type="hidden" name="'+k+'" value="'+esc(v||'')+'"><select data-tp="h" aria-label="Hour">'+op('','Hour')+[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>op(String(n),String(n),String(n)===h)).join('')+'</select>'+mEl+'<select data-tp="ap" aria-label="AM or PM">'+op('','AM/PM')+op('AM','AM',ap==='AM')+op('PM','PM',ap==='PM')+'</select></div>';
+}
+function readTime(box){
+  const h=box.querySelector('[data-tp="h"]').value,mEl=box.querySelector('[data-tp="m"]'),ap=box.querySelector('[data-tp="ap"]').value,m=Number(mEl.value);
+  box.querySelector('input[type="hidden"]').value=h&&ap&&mEl.value!==''&&m>=0&&m<60?String(Number(h)%12+(ap==='PM'?12:0)).padStart(2,'0')+':'+String(m).padStart(2,'0'):'';
+}
+function onTime(e){
+  const el=e.target,box=el.closest&&el.closest('[data-tp-box]');
+  if(!box||!el.dataset.tp)return;
+  if(el.dataset.tp==='m'&&el.value==='other'){el.insertAdjacentHTML('afterend',minBox(''));const b=el.nextElementSibling;el.remove();b.focus();readTime(box);return}
+  const m=box.querySelector('[data-tp="m"]');
+  if(el.dataset.tp==='h'&&el.value&&m.value==='')m.value='00';
+  readTime(box);
+}
+document.addEventListener('change',onTime);document.addEventListener('input',onTime);
+function showRow(s){return '<div class="show"><div><label>Date</label><input type="date" name="date" value="'+esc(s.date)+'"></div><div><label>Starts</label>'+timeBox('start',s.start)+'</div><div><label>Ends</label>'+timeBox('end',s.end)+'</div><div><label>Different act / title (optional)</label><input name="stitle" value="'+esc(s.title)+'"></div><button type="button" data-del>✕</button></div>'}
 function card(r){
   r._diff=diffOf(r);
   const ph=(r.photoIds||(r.photoId?[r.photoId]:[])).filter(Boolean);const mn=r.main||ph[0]||r.imageId;
