@@ -1,4 +1,5 @@
 ---
+import HeaderSearch from './HeaderSearch.astro';
 // Top row matches livelovelascruces.com, so the calendar feels like part of the main site.
 // The second row holds the calendar's own links.
 const path = Astro.url.pathname;
@@ -16,6 +17,8 @@ const calendarLinks = [
   { href: '/#browse', label: 'Browse', match: '/category/' },
 ];
 const currentValue = path === '/' ? 'page' : 'true';
+// The homepage and category pages already have a search box in their filters.
+const showSearch = path !== '/' && !path.startsWith('/category/');
 ---
 <header class="site-header">
   <div class="site-header__main">
@@ -55,6 +58,7 @@ const currentValue = path === '/' ? 'page' : 'true';
         >{l.label}</a>
       ))}
     </nav>
+    {showSearch && <HeaderSearch />}
     <a class="site-header__cta btn--primary" href="/submit/">Add your event</a>
   </div>
 </header>
@@ -334,10 +338,28 @@ const currentValue = path === '/' ? 'page' : 'true';
       gap: var(--space-m);
     }
 
+    /* Phones: the search button sits at the end of the links row, so "Add your event" keeps its room. */
+    /* With search (phones): three columns, so the links row can run under "Add your event" and
+       end with the magnifying glass. Row 1: name | Add your event. Row 2: links | search button. */
+    .site-header__calendar:has(.header-search) {
+      grid-template-columns: 1fr auto auto;
+      & .site-header__name { grid-column: 1; }
+      & .site-header__cta { grid-column: 2 / 4; grid-row: 1; justify-self: end; }
+    }
+    .site-header__calendar:has(.header-search) .site-header__calendar-nav {
+      grid-column: 1 / 3;
+      gap: var(--space-s);
+      /* Very small phones: the links slide sideways rather than pushing the page wider. */
+      min-inline-size: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
     .site-header__calendar-link {
       display: inline-flex;
       align-items: center;
       min-block-size: 2.75rem;
+      white-space: nowrap;
       color: var(--text-dark);
       font-weight: 600;
       text-decoration: none;
@@ -358,13 +380,18 @@ const currentValue = path === '/' ? 'page' : 'true';
 
       .site-header__calendar {
         grid-template-columns: auto 1fr auto;
+        &:has(.header-search) { grid-template-columns: auto 1fr auto auto; }
+        &:has(.header-search) .site-header__cta { grid-column: 4; }
         gap: var(--space-l);
         padding-block: var(--space-s);
       }
 
-      .site-header__calendar-nav {
+      .site-header__calendar-nav,
+      .site-header__calendar:has(.header-search) .site-header__calendar-nav {
         grid-column: 2;
         grid-row: 1;
+        gap: var(--space-m);
+        overflow-x: visible;
         justify-content: flex-start;
       }
     }
