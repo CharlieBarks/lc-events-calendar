@@ -89,6 +89,14 @@ const jsonLd = [
 ];
 // The main picture on this page: the flyer when the organizer also sent a photo, otherwise the
 // event's picture. Always beside the details (Charlie, Nov 18: wide flyers too; tap to enlarge).
+// Alt text (Charlie, Nov 24): say what the picture is, which event, where and when, so screen
+// readers and image search get real context. "Flyer for Salsa Night at The Bike Shop, Dec 5".
+const altWhere = event.venue ? ` at ${event.venue}` : '';
+const altWhen = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  .format(new Date(Date.UTC(event.start.y, event.start.m - 1, event.start.d)));
+const altAbout = `${event.title}${altWhere}, ${altWhen}`;
+const mainAlt = event.flyer ? `Flyer for ${altAbout}` : `Photo for ${altAbout}`;
+const photoAlt = `Photo for ${altAbout}`;
 const mainImage = event.flyer || event.image;
 const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
 ---
@@ -104,12 +112,12 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
   <article class="wrap event-detail">
     <div class="event-detail__media">
       {mainImage
-        ? <a href={mainImage} data-lightbox={mainImage} data-alt={`${event.title} flyer`} class="event-detail__flyer"><img src={mainThumb || mainImage} alt={`${event.title} flyer`} /><span class="event-detail__zoom">Tap to enlarge</span></a>
+        ? <a href={mainImage} data-lightbox={mainImage} data-alt={mainAlt} class="event-detail__flyer"><img src={mainThumb || mainImage} alt={mainAlt} /><span class="event-detail__zoom">Tap to enlarge</span></a>
         : <div class="event-detail__art"><EventArt event={event} height={340} eager /></div>}
-      {event.flyer && event.image && <a href={event.image} data-lightbox={event.image} data-alt={`${event.title} photo`} class="event-detail__flyer event-detail__photo"><img src={event.thumbs?.l || event.image} alt={`${event.title} photo`} loading="lazy" /><span class="event-detail__zoom">Tap to enlarge</span></a>}
+      {event.flyer && event.image && <a href={event.image} data-lightbox={event.image} data-alt={photoAlt} class="event-detail__flyer event-detail__photo"><img src={event.thumbs?.l || event.image} alt={photoAlt} loading="lazy" /><span class="event-detail__zoom">Tap to enlarge</span></a>}
       {event.photos?.length > 0 && (
         <ul class="event-detail__gallery" role="list">
-          {event.photos.map((u, i) => <li><a href={u} data-lightbox={u} data-alt={`${event.title} photo ${i + 2}`}><img src={event.photoThumbs?.[i]?.m || u} alt={`${event.title} photo ${i + 2}`} loading="lazy" /></a></li>)}
+          {event.photos.map((u, i) => <li><a href={u} data-lightbox={u} data-alt={`${photoAlt} (${i + 2})`}><img src={event.photoThumbs?.[i]?.m || u} alt={`${photoAlt} (${i + 2})`} loading="lazy" /></a></li>)}
         </ul>
       )}
     </div>
