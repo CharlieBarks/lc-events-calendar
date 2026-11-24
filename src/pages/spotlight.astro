@@ -1,0 +1,82 @@
+---
+// Spotlight: what it is, what it costs, and how to buy it (Nov 24, 2026).
+// From an event page (/spotlight/?event=<slug>&title=…&date=…): pay for that listing directly, no
+// re-adding it. The Stripe link carries the event's address as client_reference_id, so Charlie's
+// Stripe email names the event; he then taps Sponsored (paid) in the admin bar.
+// From anywhere else: "Add your event with Spotlight" (the submit form, as before).
+import Layout from '../layouts/Layout.astro';
+import { SITE, SPOTLIGHT } from '../lib/site.js';
+---
+<Layout title="Spotlight your event" description={`Put your Las Cruces event at the top of the calendar and in front of ${SITE.subscribers} newsletter readers. $${SPOTLIGHT.price}.`}>
+  <section class="wrap-narrow spotlight" data-spotlight data-pay={SPOTLIGHT.payUrl}>
+    <p class="eyebrow">Spotlight · ${SPOTLIGHT.price}</p>
+    <h1>Put your event where Las Cruces actually looks.</h1>
+    <p class="lede">The calendar is where locals check what's happening tonight and this weekend. Spotlight puts yours first, so it doesn't get lost in a busy Saturday.</p>
+
+    <div class="spotlight__event" data-for-event hidden>
+      <p class="spotlight__event-label">You're spotlighting</p>
+      <p class="spotlight__event-title" data-event-title></p>
+      <p class="spotlight__event-date" data-event-date></p>
+      <div class="btn-row">
+        <a class="btn--primary" data-pay-link href={SPOTLIGHT.payUrl} rel="noopener">Pay ${SPOTLIGHT.price} and spotlight it</a>
+        <a class="btn--base btn--outline" data-event-link href="/">Back to the event</a>
+      </div>
+      <p class="spotlight__small">Secure checkout through Stripe. I'll switch it on as soon as the payment comes through, usually the same day.</p>
+    </div>
+
+    <h2>What you get</h2>
+    <ul class="spotlight__perks" role="list">
+      <li><strong>Top of its day.</strong> Your event is pinned first on the calendar for its date, with a Sponsored label and a full-size card with your picture.</li>
+      <li><strong>The homepage Spotlight.</strong> It rotates through the Spotlight section at the top of the calendar's homepage until the big day.</li>
+      <li><strong>A newsletter mention.</strong> I'll mention it in the Live Love Las Cruces newsletter ({SITE.subscribers} locals) before your event.</li>
+    </ul>
+
+    <h2>How it works</h2>
+    <ol class="spotlight__steps">
+      <li><strong>Already on the calendar?</strong> Open your event's page and tap "Spotlight it". You'll come back here to pay, no need to add it again.</li>
+      <li><strong>Not on the calendar yet?</strong> Add it with Spotlight picked, then pay at the end.</li>
+      <li>One price: ${SPOTLIGHT.price} per event. It runs until the event is over.</li>
+    </ol>
+
+    <div class="btn-row" data-not-event>
+      <a class="btn--primary" href="/submit/?spotlight=1">Add your event with Spotlight</a>
+      <a class="btn--base btn--outline" href="/">Find your event on the calendar</a>
+    </div>
+
+    <p class="spotlight__small">Questions? Email <a href="mailto:events@livelovelascruces.com">events@livelovelascruces.com</a>.</p>
+  </section>
+</Layout>
+
+<script>
+  const box = document.querySelector<HTMLElement>('[data-spotlight]')!;
+  const q = new URLSearchParams(location.search);
+  const slug = (q.get('event') || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 140);
+  if (slug) {
+    const ev = box.querySelector<HTMLElement>('[data-for-event]')!;
+    ev.hidden = false;
+    box.querySelector('[data-event-title]')!.textContent = q.get('title') || 'Your event';
+    box.querySelector('[data-event-date]')!.textContent = q.get('date') || '';
+    box.querySelector<HTMLAnchorElement>('[data-event-link]')!.href = `/event/${slug}/`;
+    const pay = box.dataset.pay;
+    if (pay) {
+      const u = new URL(pay);
+      u.searchParams.set('client_reference_id', slug.replace(/[^a-zA-Z0-9_-]/g, ''));
+      box.querySelector<HTMLAnchorElement>('[data-pay-link]')!.href = u.toString();
+    }
+    box.querySelector<HTMLElement>('[data-not-event]')!.hidden = true;
+  }
+</script>
+
+<style>
+  .spotlight { display: flex; flex-direction: column; gap: var(--space-m); padding-block: var(--space-xl); }
+  .spotlight h2 { font-size: var(--h3); margin-block-start: var(--space-s); }
+  .spotlight__event { display: flex; flex-direction: column; gap: var(--space-xs); padding: var(--space-m); border: 2px solid var(--base); border-radius: var(--radius); background: var(--bg-ultra-light); }
+  .spotlight__event[hidden], .spotlight [hidden] { display: none; }
+  .spotlight__event-label { margin: 0; font-size: var(--text-s); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dark-muted); }
+  .spotlight__event-title { margin: 0; font-size: var(--h3); font-weight: 700; }
+  .spotlight__event-date { margin: 0 0 var(--space-xs); font-size: var(--text-m); }
+  .spotlight__perks { display: grid; gap: var(--space-s); margin: 0; padding: 0; list-style: none; }
+  .spotlight__perks li { padding: var(--space-s) var(--space-m); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); font-size: var(--text-m); }
+  .spotlight__steps { display: grid; gap: var(--space-xs); margin: 0; padding-inline-start: 1.25rem; font-size: var(--text-m); }
+  .spotlight__small { margin: 0; font-size: var(--text-s); color: var(--text-dark-muted); }
+</style>

@@ -230,7 +230,7 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
       <script type="application/json" id="event-data" set:html={JSON.stringify(suggestData).replace(/</g, '\\u003c')} />
 
       {!event.sponsored && (
-        <p class="event-detail__promote">Is this your event? <a href="/submit/?spotlight=1">Spotlight it</a> to pin it to the top of the calendar and get it in the newsletter.</p>
+        <p class="event-detail__promote">Is this your event? <a href={`/spotlight/?event=${event.slug}&title=${encodeURIComponent(event.title)}&date=${encodeURIComponent(shortDate(event.start))}`}>Spotlight it</a> to pin it to the top of the calendar and get it in the newsletter.</p>
       )}
 
       {otherDates.length > 0 && (
