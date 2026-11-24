@@ -245,6 +245,38 @@ async function adoptListing(env, slug) {
   return { ok: true, id };
 }
 
+// ---------- "What changed" on the review page (Nov 24, 2026) ----------
+// A suggested edit or an organizer's change shows what's different from the version it would replace.
+// Both sides are kept in the same small shape so the review page can compare them field by field.
+function compareShape(r) {
+  return {
+    title: r.title || '', venue: r.venue || '', address: r.address || '', category: r.category || '',
+    price: r.price || '', url: r.url || '', description: r.description || '',
+    shows: (r.shows || []).map((s) => ({ date: s.date || '', start: s.start || '', end: s.end || '', title: s.title || '' })),
+    pictures: [r.imageId, ...photosOf(r)].filter(Boolean),
+    image: r.image || '',
+  };
+}
+// The listing a suggested edit points at, read from its event page the way Edit does. Saved on the
+// submission the first time, so the comparison still works after the original is hidden.
+async function snapshotOriginal(env, rec) {
+  if (!rec?.suggests || rec.original || rec.adminEdit) return rec;
+  try {
+    const res = await fetch(`${LIVE_SITE}/event/${rec.suggests}/`, { headers: { 'user-agent': 'lc-events-intake' }, signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return rec;
+    const m = (await res.text()).match(/<script type="application\/json" id="event-data">([\s\S]*?)<\/script>/);
+    if (!m) return rec;
+    const d = JSON.parse(m[1]);
+    rec.original = compareShape({ ...d, shows: [{ date: d.date, start: d.start, end: d.end }] });
+    const key = `sub/pending/${rec.id}`;
+    const now = await env.MEDIA.get(key, 'json');
+    if (now) await env.MEDIA.put(key, JSON.stringify({ ...now, original: rec.original }));
+  } catch (e) {
+    console.log('snapshotOriginal', rec.suggests, String(e));
+  }
+  return rec;
+}
+
 // ---------- Trusted submitters (Nov 23, 2026) ----------
 // Emails Charlie trusts: their new events and their changes go live without review. Safety rails:
 // at most TRUSTED_PER_DAY a day each (the rest wait in the queue), paid Spotlight requests and
@@ -583,7 +615,7 @@ async function handleSubmit(request, env, origin, ctx) {
     ctx.waitUntil(Promise.all([mailLive(env, record, false), mailCharlie(env, record, 'Live from a trusted submitter')]));
     return json({ ok: true, id, key: `${id}.${token}`, shows: sub.shows.length, live: true, page: eventPage(record) }, {}, origin);
   }
-  ctx.waitUntil(Promise.all([mailThanks(env, record, record.site), mailCharlie(env, record, record.suggests ? 'Suggested edit' : record.possibleDuplicate ? 'New event (possible duplicate)' : 'New event')]));
+  ctx.waitUntil(Promise.all([mailThanks(env, record, record.site), mailCharlie(env, record, record.suggests ? 'Suggested edit' : record.possibleDuplicate ? 'New event (possible duplicate)' : 'New event'), snapshotOriginal(env, { ...record })]));
   return json({ ok: true, id, key: `${id}.${token}`, shows: sub.shows.length }, {}, origin);
 }
 
@@ -772,6 +804,17 @@ async function reviewApi(request, env, path, ctx) {
     const [trusted, counts] = await Promise.all([getTrusted(env), env.MEDIA.get('submitters.json', 'json').then((c) => c || {})]);
     const tset = new Set(trusted.map((t) => t.email));
     for (const r of pending) { const e = normEmail(r.contact?.email); r.trusted = tset.has(e); r.approvedBefore = counts[e] || 0; }
+    // What changed: a suggested edit against the listing it points at (saved the first time), an
+    // organizer's change against the version that's live now.
+    await Promise.all(pending.map(async (r) => {
+      if (r.adminEdit) return;
+      if (r.suggests) { await snapshotOriginal(env, r); return; }
+      if (r.change && r.changedBy === 'organizer') {
+        const live = await env.MEDIA.get(`sub/done/${r.id}`, 'json');
+        if (live) r.original = compareShape(live);
+      }
+    }));
+    for (const r of pending) r.mine = compareShape(r);
     const recent = approved.slice(-60).reverse();
     // Who sent each recent one (for "stop trusting them too?" when it's taken down). Review page only.
     const owners = {};
@@ -1059,6 +1102,7 @@ button{font:inherit;font-weight:600;padding:10px 16px;border-radius:999px;border
 h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:.95rem}
 .ap a{color:var(--ink)}.ap button{padding:4px 12px;font-size:.85rem}#lb{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;place-items:center;z-index:9;cursor:zoom-out}#lb img{max-width:96vw;max-height:96vh}
 .msg{font-size:.9rem;color:var(--muted)}.boost{background:#fff4d6;border:1px solid #e8c766;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:.95rem}.boost.dupe{background:#fde8e4;border-color:#e3a397}.boost.dupe label{display:flex;gap:6px;align-items:center;margin:8px 0 0;color:var(--ink);font-size:.95rem}.boost.dupe input{width:auto}
+.chg{outline:2px solid #e0a800;outline-offset:1px;background:#fffbea}.was{font-size:.82rem;color:var(--muted);margin:3px 0 0;line-height:1.4;white-space:pre-wrap}.was del{color:#a33;background:#fde8e4}.was ins{text-decoration:none;color:#14532d;background:#dcf5e3}.diffsum{margin-top:6px}.diffsum.same{color:#a33;font-weight:700}
 .hide{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.hide input[name=slug]{flex:1;min-width:260px}.hide label{display:flex;gap:6px;align-items:center;margin:0;color:var(--ink)}.hide input[type=checkbox]{width:auto}
 .tag{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;background:#f1ece4}.tag.sp{background:#fff4d6}
 .checks input[type=date]{width:auto;padding:4px 8px}.apflags{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.apflags label{display:flex;gap:4px;align-items:center;margin:0;color:var(--ink);font-size:.85rem}.apflags input[type=checkbox]{width:auto}.apflags input[type=date]{width:auto;padding:2px 6px;font-size:.85rem}@media(max-width:720px){.sub{grid-template-columns:1fr}.show{grid-template-columns:1fr 1fr}}
@@ -1090,7 +1134,67 @@ const viewLink=e=>e.repeat?SITE+'/?q='+encodeURIComponent(e.title):SITE+'/event/
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 const lb=document.getElementById('lb');lb.onclick=()=>lb.style.display='none';
 function showRow(s){return '<div class="show"><div><label>Date</label><input type="date" name="date" value="'+esc(s.date)+'"></div><div><label>Starts</label><input type="time" name="start" value="'+esc(s.start)+'"></div><div><label>Ends</label><input type="time" name="end" value="'+esc(s.end)+'"></div><div><label>Different act / title (optional)</label><input name="stitle" value="'+esc(s.title)+'"></div><button type="button" data-del>✕</button></div>'}
+// What changed (Nov 24, 2026): a suggested edit or an organizer's change is compared with the version
+// it would replace (r.original, both sides in the same shape from the Worker). Spaces, capitals,
+// "$0" vs "Free" and tracking tags on links don't count as changes.
+const nrm=s=>String(s??'').replace(/\\s+/g,' ').trim().toLowerCase();
+const nurl=u=>nrm(u).replace(/^https?:\\/\\/(www\\.)?/,'').replace(/[?&]utm_[^&#]*/g,'').replace(/[?&#]+$/,'').replace(/\\/+$/,'');
+const nprice=p=>nrm(p).replace(/^\\$?0(\\.00)?$/,'free');
+const FIELDS=[['title','event name'],['venue','venue'],['address','address'],['category','category'],['price','cost'],['url','link'],['description','description']];
+const sameVal=(k,a,b)=>k==='url'?nurl(a)===nurl(b):k==='price'?nprice(a)===nprice(b):nrm(a)===nrm(b);
+const showKey=s=>[s.date,s.start||'',s.end||'',nrm(s.title)].join('|');
+function t12(h){if(!h)return '';const[H,M]=h.split(':').map(Number);return ((H%12)||12)+(M?':'+String(M).padStart(2,'0'):'')+(H<12?' AM':' PM')}
+function dLabel(s){return new Date(s.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+(s.start?' '+t12(s.start)+(s.end?'–'+t12(s.end):''):'')+(s.title?' ('+s.title+')':'')}
+function diffOf(r){
+  const o=r.original,m=r.mine;if(!o||!m)return null;
+  const fields=FIELDS.filter(([k])=>!sameVal(k,o[k],m[k])).map(([k])=>k);
+  const ok=new Set(o.shows.map(showKey)),mk=new Set(m.shows.map(showKey));
+  const added=m.shows.filter(s=>!ok.has(showKey(s))),removed=o.shows.filter(s=>!mk.has(showKey(s)));
+  // A suggested edit keeps the listing's picture unless the person sent their own.
+  const pics=r.suggests?m.pictures.length>0:m.pictures.join()!==o.pictures.join();
+  const words=fields.map(k=>k==='url'&&!m.url?'link removed':k==='url'&&!o.url?'link added':FIELDS.find(f=>f[0]===k)[1]);
+  if(added.length===1&&removed.length===1){const a=added[0],b=removed[0];if(a.date!==b.date)words.push('date');if(a.start!==b.start)words.push('start time');if(a.end!==b.end)words.push('end time');if(nrm(a.title)!==nrm(b.title))words.push('act')}
+  else{if(added.length)words.push(added.length+(added.length>1?' dates':' date')+' added');if(removed.length)words.push(removed.length+(removed.length>1?' dates':' date')+' removed')}
+  if(pics)words.push(r.suggests?'new picture':'pictures');
+  return {fields,added,removed,pics,words};
+}
+function diffSum(r){
+  const d=r._diff;if(!d)return '';
+  if(!d.words.length)return '<div class="diffsum same">No changes from '+(r.suggests?'the original':'the live version')+'. Probably sent twice: safe to reject.</div>';
+  return '<div class="diffsum"><strong>Changed:</strong> '+esc(d.words.join(', '))+'</div>';
+}
+// Word-by-word changes in a description: removed words struck through, new words in green.
+function wordDiff(a,b){
+  const A=String(a||'').split(/(\\s+)/),B=String(b||'').split(/(\\s+)/),n=A.length,m=B.length;
+  if(n*m>400000)return '<del>'+esc(a)+'</del> <ins>'+esc(b)+'</ins>';
+  const L=Array.from({length:n+1},()=>new Uint16Array(m+1));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[i][j]=A[i]===B[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  let i=0,j=0,out='';
+  while(i<n&&j<m){if(A[i]===B[j]){out+=esc(A[i]);i++;j++}else if(L[i+1][j]>=L[i][j+1]){out+='<del>'+esc(A[i])+'</del>';i++}else{out+='<ins>'+esc(B[j])+'</ins>';j++}}
+  while(i<n)out+='<del>'+esc(A[i++])+'</del>';while(j<m)out+='<ins>'+esc(B[j++])+'</ins>';
+  return out;
+}
+// Outline each changed field and put the old value under it.
+function markChanges(f,r){
+  const d=r._diff,o=r.original;if(!d)return;
+  for(const k of d.fields){
+    const el=f.elements.namedItem(k);if(!el)continue;
+    el.classList.add('chg');
+    let was;
+    if(k==='description')was='<strong>What changed:</strong> '+wordDiff(o.description,r.mine.description);
+    else if(k==='category'){const opt=f.category.querySelector('option[value="'+CSS.escape(o.category)+'"]');was='Was: '+esc(opt?opt.textContent:o.category||'none')}
+    else was='Was: '+(o[k]?esc(o[k]):'<em>empty</em>');
+    el.insertAdjacentHTML('afterend','<div class="was">'+was+'</div>');
+  }
+  if(d.added.length||d.removed.length){
+    const ok=new Set(o.shows.map(showKey));
+    f.querySelectorAll('[data-shows] .show').forEach((row,i)=>{const s=r.mine.shows[i];if(s&&!ok.has(showKey(s)))row.classList.add('chg')});
+    if(d.removed.length)f.querySelector('[data-shows]').insertAdjacentHTML('afterend','<div class="was">Was: '+esc(d.removed.map(dLabel).join(' · '))+'</div>');
+  }
+  if(d.pics)f.querySelector('.pics')?.classList.add('chg');
+}
 function card(r){
+  r._diff=diffOf(r);
   const ph=(r.photoIds||(r.photoId?[r.photoId]:[])).filter(Boolean);const mn=r.main||ph[0]||r.imageId;
   const pic=(id,label)=>'<p class="pic-note">'+label+(id===mn?' · <strong>main picture (on the calendar)</strong>':'')+'</p><img src="/img/'+esc(id)+'" alt="'+label+'" data-zoom>';
   const img='<div class="pics">'+(r.imageId?pic(r.imageId,'Flyer or first picture'):'<div class="noimg">No pictures</div>')+ph.map((p,i)=>pic(p,'Photo '+(i+1))).join('')+'</div>';
@@ -1100,11 +1204,11 @@ function card(r){
   '<div class="row"><div><label>Category</label><select name="category">'+CATS+'</select></div><div><label>Cost</label><input name="price" value="'+esc(r.price)+'"></div><div><label>Link</label><input name="url" value="'+esc(r.url)+'"></div></div>'+
   '<label>Description</label><textarea name="description" rows="3">'+esc(r.description)+'</textarea>'+
   '<label>Dates ('+r.shows.length+')</label><div data-shows>'+r.shows.map(showRow).join('')+'</div><button type="button" data-add>+ Add a date</button>'+
-  (r.change?'<div class="boost"><strong>'+(r.changedBy==='charlie'?'You reopened this to edit it.':'Changed by the organizer.')+'</strong> The calendar keeps the current version until you approve. Reject = keep the current version.</div>':'')+
+  (r.change?'<div class="boost"><strong>'+(r.changedBy==='charlie'?'You reopened this to edit it.':'Changed by the organizer.')+'</strong> The calendar keeps the current version until you approve. Reject = keep the current version.'+diffSum(r)+'</div>':'')+
   (r.repeat?'<div class="boost" data-repeat><strong>Repeats: '+esc(r.repeatText)+'.</strong> The first date above sets the start and the times. Next dates: '+esc((r.repeatDates||[]).join(', ')||'none in the next 90 days')+'<div class="row"><div><label>Stops after (empty = keeps going)</label><input type="date" name="repeatUntil" value="'+esc(r.repeat.until||'')+'"></div><div><label>Dates to leave out (YYYY-MM-DD, commas)</label><input name="repeatSkip" value="'+esc((r.repeat.skip||[]).join(', '))+'"></div></div></div>':'')+
   (r.annual?'<div class="boost"><strong>Annual event.</strong> The organizer says this happens every year.</div>':'')+
   (r.possibleDuplicate&&!r.suggests?'<div class="boost dupe"><strong>Possible duplicate</strong> of <a href="'+esc(SITE)+'/event/'+esc(r.possibleDuplicate)+'/" target="_blank" rel="noopener">'+esc(r.possibleDuplicateTitle||'this listing')+'</a>. The form asked and the organizer said theirs is a different event. Same event after all? Tick the box below to replace that listing, or use <em>Reject: already listed</em>.<label><input type="checkbox" name="replaceDuplicate"> Same event: approve this and hide the other listing</label></div>':'')+
-  (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.</div>':'')+
+  (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.'+diffSum(r)+'</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
   '<div class="checks"><label><input type="checkbox" name="featured"> Featured</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
   (r.trusted?'':'<div class="trustrow">'+(r.approvedBefore>=2?'<strong>A regular:</strong> '+r.approvedBefore+' earlier events approved. ':'')+'<button type="button" data-trust="'+esc(r.contact?.email)+'" data-trust-name="'+esc(r.contact?.name)+'">Trust this submitter</button> <span class="msg">Their future events go live without waiting.</span></div>')+
@@ -1139,7 +1243,7 @@ async function load(){
   document.getElementById('count').textContent=d.pending.length?d.pending.length+' waiting for you':'All caught up';
   const p=document.getElementById('pending');
   p.innerHTML=d.pending.length?d.pending.map(card).join(''):'<div class="empty">Nothing waiting. New submissions show up here.</div>';
-  d.pending.forEach(r=>{const f=p.querySelector('[data-id="'+r.id+'"]');f.category.value=r.category});
+  d.pending.forEach(r=>{const f=p.querySelector('[data-id="'+r.id+'"]');f.category.value=r.category;markChanges(f,r)});
   document.getElementById('trustedlist').innerHTML=(d.trusted||[]).map(t=>'<div class="ap"><span>'+esc(t.name||t.email)+(t.name?' · <span class="msg">'+esc(t.email)+'</span>':'')+'</span><span class="apflags"><button data-untrust="'+esc(t.email)+'">Stop trusting</button></span></div>').join('')||'<div class="msg">Nobody yet. Use "Trust this submitter" on a waiting event, or add an email above.</div>';
   document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'" data-owner="'+esc(e.ownerTrusted?e.ownerEmail:'')+'"><span>'+(e.autoLive?'<span class="tag">Trusted · went live on its own</span> ':'')+'<strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Featured</span>':'')+'</span><span class="apflags"><a href="'+esc(viewLink(e))+'" target="_blank" rel="noopener">View</a><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Featured</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
 }
