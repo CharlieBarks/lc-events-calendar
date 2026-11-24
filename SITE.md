@@ -155,6 +155,17 @@ Built Nov 23, 2026. Charlie's own picks, free for now; he plans to sell Featured
 - Submissions can still be featured with the **Featured** checkbox when approving (it was called Spotlight before Nov 23; same `featured` flag).
 - **What a Featured event gets:** a full card (even a weekly regular), pinned to the top of its day after any Sponsored ones, a gold star on the corner of its picture (on homepage cards, just right of the date, so it doesn't cover the category label), a navy **★ FEATURED** label and its own soft navy background (`--_featured-bg` in `EventCard.astro`; Charlie turned down red on Nov 23). Reads differently from paid gold and the green regulars, the label on its event page, and a place in the homepage Spotlight rotation.
 - An event both Featured and Sponsored shows as Sponsored only.
+- **Sponsored (paid) for any event (Nov 24, 2026):** the Featured events box has a **Sponsored (paid)** tick, so a paid Spotlight works for feed and CitySpark listings too (stored as `sponsored: true` on the pick in `featured.json`). `src/data/spotlight.json` is no longer needed for that.
+
+## Admin bar on event pages
+
+Built Nov 24, 2026 (Charlie: admin controls while viewing an event).
+
+- **Turn it on:** visit any page with `?admin=on` (for example `https://events.livelovelascruces.com/?admin=on`). It stays on for that device and browser (localStorage `lc-admin`). `?admin=off` turns it off. Visitors never see it.
+- **What it shows:** a slim strip above the breadcrumb on every event page with the event's status (Featured / Sponsored, until when) and buttons: ★ Feature (or Stop featuring), Sponsored (paid), Hide listing (feed events) or Edit or remove (events from the form), Hide picture (when it has one), Review page. "Every date" appears on repeating events.
+- **How it works:** each button opens the review page in a new tab with `?act=…&slug=…&title=…` (plus `all=1`), which fills in the right box and points at it. Nothing is saved until Charlie taps that box's button. The review page stays behind the Cloudflare Access login, so the bar is only shortcuts: on someone else's device it does nothing they can use.
+- The fill-in code is at the end of the review page script in `intake.js` (it only goes live when `intake.js` reaches `main`). The bar is in `src/pages/event/[slug].astro`, the switch in `Layout.astro`.
+- "Edit or remove" finds the event under Recently approved (the last 60).
 
 ## Bigger list for older readers
 

@@ -404,6 +404,9 @@ export async function getEvents() {
       const pick = featuredList.length ? pickFor(e) : null;
       if (!pick) continue;
       e.featured = true;
+      // Ticked "Sponsored (paid)" (review page or the admin bar on event pages): a paid Spotlight
+      // for an event that didn't come through the form. Shows the Sponsored label like any paid one.
+      if (pick.sponsored) e.sponsored = true;
       if (pick.until) e.spotlightUntil = pick.until;
     }
     for (const e of kept) {

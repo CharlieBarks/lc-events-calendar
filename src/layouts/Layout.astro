@@ -102,5 +102,25 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
     <slot />
   </main>
   <Footer />
+  {/* Admin bar switch (Charlie only): ?admin=on on any page turns on the admin bar on event pages
+      for this device, ?admin=off turns it off. It's only shortcuts to the review page, which stays
+      behind the Cloudflare Access login, so anyone else who tries it gets nothing they can use. */}
+  <script is:inline>
+    (function () {
+      try {
+        var u = new URL(location.href), a = u.searchParams.get('admin');
+        if (a !== 'on' && a !== 'off') return;
+        if (a === 'on') localStorage.setItem('lc-admin', '1'); else localStorage.removeItem('lc-admin');
+        u.searchParams.delete('admin');
+        history.replaceState(null, '', u.pathname + u.search + u.hash);
+        var n = document.createElement('div');
+        n.className = 'admin-toast';
+        n.setAttribute('role', 'status');
+        n.textContent = a === 'on' ? 'Admin bar is on for this device. Open any event page.' : 'Admin bar is off for this device.';
+        document.body.appendChild(n);
+        setTimeout(function () { n.remove(); }, 5000);
+      } catch (e) {}
+    })();
+  </script>
 </body>
 </html>

@@ -4,7 +4,7 @@ import EventArt from '../../components/EventArt.astro';
 import EventCard from '../../components/EventCard.astro';
 import Lightbox from '../../components/Lightbox.astro';
 import Newsletter from '../../components/Newsletter.astro';
-import { SITE, CATEGORIES, SOURCES, PREVIEW, breadcrumbJsonLd, tagged } from '../../lib/site.js';
+import { SITE, CATEGORIES, SOURCES, PREVIEW, INTAKE_URL, breadcrumbJsonLd, tagged } from '../../lib/site.js';
 import { getEvents, shortVenue, mapsLink, googleCalendarLink } from '../../lib/events.js';
 import { longDate, shortDate, timeRange, offsetIso, dateKey } from '../../lib/time.js';
 
@@ -97,10 +97,35 @@ const altWhen = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric
 const altAbout = `${event.title}${altWhere}, ${altWhen}`;
 const mainAlt = event.flyer ? `Flyer for ${altAbout}` : `Photo for ${altAbout}`;
 const photoAlt = `Photo for ${altAbout}`;
+// Admin bar (Charlie only, switched on per device with ?admin=on): shortcuts to the review page with
+// this event filled in. The review page stays behind the Cloudflare Access login and asks him to
+// confirm, so the bar can't change anything by itself.
+const repeats = !!(event.series || event.rule || event.seriesKey);
+const fromForm = event.source === 'lllc';
+const adminLink = (act) => `${INTAKE_URL}/review/?act=${act}&slug=${encodeURIComponent(event.slug)}&title=${encodeURIComponent(event.title)}`;
+const status = event.sponsored ? 'Sponsored (paid)' : event.featured ? 'Featured' : '';
 const mainImage = event.flyer || event.image;
 const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
 ---
 <Layout title={`${event.title}, ${shortDate(event.start)}`} description={description} jsonLd={jsonLd} ogType="article" ogImage={event.image || `/og/event/${event.slug}.png`}>
+  <aside class="admin-bar" data-admin-bar hidden aria-label="Admin">
+    <div class="wrap admin-bar__inner">
+      <p class="admin-bar__title">Admin{status && <span class="admin-bar__status">{status}{event.spotlightUntil && ` until ${event.spotlightUntil}`}</span>}</p>
+      {repeats && <label class="admin-bar__all"><input type="checkbox" data-admin-all /> Every date</label>}
+      <div class="admin-bar__actions">
+        {event.featured || event.sponsored
+          ? <a class="btn--base btn--s" href={adminLink('unfeature')} data-admin-act target="_blank" rel="noopener">Stop featuring</a>
+          : <a class="btn--base btn--s" href={adminLink('feature')} data-admin-act target="_blank" rel="noopener">★ Feature</a>}
+        {!event.sponsored && <a class="btn--base btn--outline btn--s" href={adminLink('sponsor')} data-admin-act target="_blank" rel="noopener">Sponsored (paid)</a>}
+        {fromForm
+          ? <a class="btn--base btn--outline btn--s" href={adminLink('edit')} data-admin-act target="_blank" rel="noopener">Edit or remove</a>
+          : <a class="btn--base btn--outline btn--s" href={adminLink('hide')} data-admin-act target="_blank" rel="noopener">Hide listing</a>}
+        {(event.image || event.flyer) && <a class="btn--base btn--outline btn--s" href={adminLink('nopic')} data-admin-act target="_blank" rel="noopener">Hide picture</a>}
+        <a class="btn--base btn--outline btn--s" href={`${INTAKE_URL}/review/`} target="_blank" rel="noopener">Review page</a>
+      </div>
+    </div>
+  </aside>
+
   <div class="wrap">
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <a href="/">Events</a><span aria-hidden="true">›</span>
@@ -205,6 +230,19 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
 </Layout>
 
 <script>
+  // Admin bar: only on devices where Charlie turned it on (?admin=on, see Layout.astro).
+  try {
+    const bar = document.querySelector('[data-admin-bar]');
+    if (bar && localStorage.getItem('lc-admin') === '1') {
+      bar.hidden = false;
+      const all = bar.querySelector('[data-admin-all]');
+      bar.querySelectorAll('[data-admin-act]').forEach((a) => a.addEventListener('click', () => {
+        const u = new URL(a.href);
+        if (all?.checked) u.searchParams.set('all', '1'); else u.searchParams.delete('all');
+        a.href = u.toString();
+      }));
+    }
+  } catch {}
   document.querySelectorAll('[data-share]').forEach((b) => {
     b.addEventListener('click', async () => {
       const data = { title: b.dataset.title, url: location.href };
@@ -217,6 +255,14 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
 </script>
 
 <style>
+  /* Admin bar (Charlie only). Quiet strip above the breadcrumb; wraps onto two lines on phones. */
+  .admin-bar { background: var(--bg-ultra-light); border-block-end: 1px solid var(--neutral-light); padding-block: var(--space-xs); }
+  .admin-bar[hidden] { display: none; }
+  .admin-bar__inner { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-s); }
+  .admin-bar__title { margin: 0; font-size: var(--text-s); font-weight: 700; display: flex; align-items: center; gap: var(--space-xs); }
+  .admin-bar__status { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 0.1875rem var(--space-xs); border-radius: 999px; background: var(--base); color: var(--white); }
+  .admin-bar__all { display: flex; align-items: center; gap: 0.375rem; font-size: var(--text-s); }
+  .admin-bar__actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-inline-start: auto; }
   .event-detail { display: grid; gap: var(--space-l); grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); padding-block-start: var(--space-m); padding-block-end: var(--space-xl); align-items: start; }
   @media (max-width: 860px) { .event-detail { grid-template-columns: 1fr; gap: 24px; } }
   .event-detail__media { position: sticky; top: 1.25rem; }
