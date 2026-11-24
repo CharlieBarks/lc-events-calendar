@@ -4,7 +4,9 @@
 // Mountains skyline (same as the Art Trail), so every card looks finished and tells you what it is.
 import { CATEGORIES } from '../lib/site.js';
 import { monthShort } from '../lib/time.js';
-const { event, height = 180, showDate = true, eager = false, compact = false } = Astro.props;
+// decorative: the picture sits beside the event's own name and details (list cards), so screen
+// readers skip it, name card text included, instead of reading the name twice (Nov 24, 2026).
+const { event, height = 180, showDate = true, eager = false, compact = false, decorative = false } = Astro.props;
 const cat = CATEGORIES[event.category];
 const icon = event.topic?.icon || cat.icon;
 const label = event.topic?.label || cat.name;
@@ -29,7 +31,7 @@ const len = event.title.length;
 const nameSize = height >= 300 ? (len > 60 ? 1.9 : len > 34 ? 2.3 : 2.8) : len > 60 ? 1.05 : len > 34 ? 1.25 : 1.5;
 const where = event.venue && !/^(las cruces|mesilla)(,? nm)?$/i.test(event.venue) ? event.venue : '';
 ---
-<div class="art" data-size={compact ? 'compact' : undefined} style={`--c:${cat.color};height:${height}px`}>
+<div class="art" aria-hidden={decorative ? 'true' : undefined} data-size={compact ? 'compact' : undefined} style={`--c:${cat.color};height:${height}px`}>
   {nameCard
     ? <>
         <svg class="art__pattern" aria-hidden="true" width="100%" height="100%">

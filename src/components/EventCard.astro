@@ -35,7 +35,7 @@ const when = event.ongoing ? event.series.when : timeRange(event.start, event.en
 const featured = event.featured && !event.sponsored;
 ---
 <li class="event-card" data-town={event.town || undefined} data-date={event.date} data-cat={event.category} data-for={event.audience?.length ? event.audience.join(' ') : undefined} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-card__link" data-layout={row ? 'row' : 'stack'} data-size={big ? 'big' : undefined} data-sponsored={event.sponsored ? '' : undefined} data-featured={featured ? '' : undefined} data-regular={regular ? '' : undefined} href={`/event/${event.slug}/`}>
-  <EventArt event={event} height={big ? 230 : row ? 128 : 170} eager={eager} showDate={!row && !event.ongoing} compact={row} />
+  <EventArt event={event} height={big ? 230 : row ? 128 : 170} eager={eager} showDate={!row && !event.ongoing} compact={row} decorative />
   {featured && <span class="event-card__star" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg></span>}
   {row ? (
   <div class="event-card__body">
