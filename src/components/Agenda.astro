@@ -42,53 +42,47 @@ const itemLevel = headingLevel + 1;
 <div class="agenda" data-agenda={fragment ? undefined : ''}>
   {!fragment && filters && (
     <div class="agenda__filters" role="group" aria-label="Filter events">
-      <div class="agenda__search" role="search" data-search>
-        <label class="sr-only" for="event-search">Search events</label>
-        <svg class="agenda__search-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input id="event-search" class="agenda__search-input" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search"
-          placeholder="Search events, venues, bands…" role="combobox" aria-expanded="false" aria-controls="event-suggest" aria-autocomplete="list" data-q />
-        <ul class="agenda__suggest" id="event-suggest" role="listbox" aria-label="Suggestions" hidden data-suggest></ul>
+      {/* One row: search and the category dropdown. Next row: dates and who it's for. (Charlie, Nov 24: the stuck bar was too tall.) */}
+      <div class="agenda__top">
+        <div class="agenda__search" role="search" data-search>
+          <label class="sr-only" for="event-search">Search events</label>
+          <svg class="agenda__search-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="event-search" class="agenda__search-input" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search"
+            placeholder="Search events, venues, bands…" role="combobox" aria-expanded="false" aria-controls="event-suggest" aria-autocomplete="list" data-q />
+          <ul class="agenda__suggest" id="event-suggest" role="listbox" aria-label="Suggestions" hidden data-suggest></ul>
+        </div>
+        {usedCats.length > 1 && (
+          <div class="agenda__cat-select">
+            <label class="sr-only" for="cat-select">Category</label>
+            <select id="cat-select" data-cat-select>
+              <option value="all">All categories</option>
+              {usedCats.map((k) => <option value={k}>{CATEGORIES[k].plural} ({count(k)})</option>)}
+            </select>
+          </div>
+        )}
+        <p class="agenda__status" aria-live="polite" data-status></p>
       </div>
       <p class="agenda__venue-chip" hidden data-venue-chip>
         <span>At <strong data-venue-name></strong></span>
         <button class="agenda__venue-clear" type="button" data-venue-clear aria-label="Clear venue">✕</button>
       </p>
-      <div class="agenda__filter-row" role="group" aria-label="When">
-        <button class="agenda__filter" type="button" data-when="all" aria-pressed="true">All upcoming</button>
-        <button class="agenda__filter" type="button" data-when="today" aria-pressed="false">Today</button>
-        <button class="agenda__filter" type="button" data-when="tomorrow" aria-pressed="false">Tomorrow</button>
-        <button class="agenda__filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
-        <button class="agenda__filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
-        {nearby > 0 && <a class="agenda__filter agenda__filter--link" href="/nearby/">Nearby towns <span class="agenda__count">{nearby}</span> →</a>}
+      <div class="agenda__quick">
+        <div class="agenda__filter-row" role="group" aria-label="When">
+          <button class="agenda__filter" type="button" data-when="all" aria-pressed="true">All upcoming</button>
+          <button class="agenda__filter" type="button" data-when="today" aria-pressed="false">Today</button>
+          <button class="agenda__filter" type="button" data-when="tomorrow" aria-pressed="false">Tomorrow</button>
+          <button class="agenda__filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
+          <button class="agenda__filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
+          {nearby > 0 && <a class="agenda__filter agenda__filter--link" href="/nearby/">Nearby towns <span class="agenda__count">{nearby}</span> →</a>}
+        </div>
+        {usedFor.length > 0 && (
+          <div class="agenda__filter-row" data-group="for" role="group" aria-label="Who it's for">
+            {usedFor.map((k) => (
+              <button class="agenda__filter" type="button" data-for={k} aria-pressed="false">{AUDIENCES[k]} <span class="agenda__count">{forCount(k)}</span></button>
+            ))}
+          </div>
+        )}
       </div>
-      {usedFor.length > 0 && (
-        <div class="agenda__filter-row" data-group="for" role="group" aria-label="Who it's for">
-          {usedFor.map((k) => (
-            <button class="agenda__filter" type="button" data-for={k} aria-pressed="false">{AUDIENCES[k]} <span class="agenda__count">{forCount(k)}</span></button>
-          ))}
-        </div>
-      )}
-      {usedCats.length > 1 && (
-        <div class="agenda__filter-row" data-group="category" role="group" aria-label="Category">
-          <button class="agenda__filter" type="button" data-cat="all" aria-pressed="true">Everything</button>
-          {usedCats.map((k) => (
-            <button class="agenda__filter" type="button" data-cat={k} aria-pressed="false">
-              <span class="dot" style={`background:${CATEGORIES[k].color}`} aria-hidden="true"></span>
-              {CATEGORIES[k].plural} <span class="agenda__count">{count(k)}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {usedCats.length > 1 && (
-        <div class="agenda__cat-select">
-          <label class="sr-only" for="cat-select">Category</label>
-          <select id="cat-select" data-cat-select>
-            <option value="all">All categories</option>
-            {usedCats.map((k) => <option value={k}>{CATEGORIES[k].plural} ({count(k)})</option>)}
-          </select>
-        </div>
-      )}
-      <p class="agenda__status" aria-live="polite" data-status></p>
     </div>
   )}
 
@@ -300,7 +294,7 @@ const itemLevel = headingLevel + 1;
       root.querySelectorAll('button[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === state.cat)));
       root.querySelectorAll('button[data-for]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.for === state.for)));
       const sel = root.querySelector('[data-cat-select]');
-      if (sel) sel.value = state.cat;
+      if (sel) { sel.value = state.cat; sel.toggleAttribute('data-on', state.cat !== 'all'); }
       root.toggleAttribute('data-searching', searching());
       if (empty) empty.hidden = shown > 0;
       if (moreWrap) moreWrap.hidden = expanded || searching() || state.when !== 'all' || state.cat !== 'all' || !!state.for;
@@ -477,9 +471,25 @@ const itemLevel = headingLevel + 1;
       background: var(--bg-light);
     }
 
+    /* Search, category dropdown and the "N events" line share one row; they stack on phones. */
+    .agenda__top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-xs) var(--space-s);
+    }
+
     .agenda__search {
       position: relative;
+      flex: 1 1 18rem;
       max-inline-size: 40rem;
+    }
+
+    /* Dates, then who it's for: stacked on phones, one line on wide screens. */
+    .agenda__quick {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
     }
 
     .agenda__search-icon {
@@ -582,10 +592,12 @@ const itemLevel = headingLevel + 1;
       &:hover { background: color-mix(in oklch, var(--text-light) 15%, transparent); }
     }
 
-    /* Phones: a dropdown replaces the category buttons (Charlie's call, Nov 10). */
+    /* Categories are a dropdown on every screen (phones since Nov 10; everywhere since Nov 24). */
     .agenda__cat-select {
       display: flex;
       flex-direction: column;
+      flex: 1 1 14rem;
+      max-inline-size: 20rem;
 
       & select {
         inline-size: 100%;
@@ -599,6 +611,14 @@ const itemLevel = headingLevel + 1;
         appearance: none;
 
         &:focus { border-color: var(--text-dark); }
+        /* A category is picked: looks pressed, like the buttons. */
+        &[data-on] {
+          background-color: var(--text-dark);
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FFFFFF' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+          border-color: var(--text-dark);
+          color: var(--text-light);
+          font-weight: 600;
+        }
       }
     }
 
@@ -608,7 +628,6 @@ const itemLevel = headingLevel + 1;
       overflow-x: auto;
       scrollbar-width: none;
 
-      &[data-group="category"] { display: none; flex-wrap: wrap; gap: 0 var(--space-s); overflow-x: visible; }
       &[data-group="for"] { flex-wrap: wrap; }
     }
 
@@ -635,24 +654,17 @@ const itemLevel = headingLevel + 1;
       }
     }
 
-    .agenda__filter-row[data-group="category"] .agenda__filter {
-      padding-inline: 0;
-      border: 0;
-      border-radius: 0;
-      color: var(--neutral-dark);
-      font-size: var(--text-s);
-      font-weight: 500;
-
-      &:hover { color: var(--primary); }
-      &[aria-pressed="true"] {
-        background: none;
-        color: var(--text-dark);
-        font-weight: 700;
-        text-decoration: underline;
-      }
-    }
-
     .agenda__status { color: var(--text-dark-muted); font-size: var(--text-s); }
+
+    /* Phones: search and categories share a row, and each button row slides sideways
+       instead of wrapping, so the stuck bar stays short. */
+    @media (max-width: 35rem) {
+      .agenda__search { flex: 1 1 0; min-inline-size: 0; }
+      .agenda__cat-select { flex: 0 0 9.5rem; }
+      .agenda__cat-select select { padding-inline-end: 2.25rem; text-overflow: ellipsis; }
+      .agenda__status { flex-basis: 100%; }
+      .agenda__filter-row[data-group="for"] { flex-wrap: nowrap; }
+    }
 
     .agenda__day {
       display: flex;
@@ -732,11 +744,6 @@ const itemLevel = headingLevel + 1;
       border-radius: var(--radius);
     }
 
-    @media (min-width: 35.0625rem) {
-      .agenda__filter-row[data-group="category"] { display: flex; }
-      .agenda__cat-select { display: none; }
-    }
-
     @media (min-width: 48rem) {
       .agenda__more-rows { margin-inline-start: calc(4.75rem + var(--space-s)); }
     }
@@ -745,6 +752,18 @@ const itemLevel = headingLevel + 1;
       .agenda__filter-row {
         flex-wrap: wrap;
         overflow-x: visible;
+      }
+
+      .agenda__quick {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: var(--space-xs);
+      }
+
+      /* A thin line between the date buttons and the who-it's-for buttons. */
+      .agenda__filter-row[data-group="for"] {
+        padding-inline-start: var(--space-xs);
+        border-inline-start: 1px solid var(--neutral-light);
       }
 
       .agenda__day { flex-direction: row; gap: var(--space-l); }
