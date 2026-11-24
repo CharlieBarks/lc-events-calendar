@@ -380,7 +380,7 @@ const showSearch = path !== '/' && !path.startsWith('/category/');
 
       .site-header__calendar {
         grid-template-columns: auto 1fr auto;
-        &:has(.header-search) { grid-template-columns: auto 1fr auto auto; }
+        &:has(.header-search) { grid-template-columns: auto auto minmax(0, 1fr) auto; }
         &:has(.header-search) .site-header__cta { grid-column: 4; }
         gap: var(--space-l);
         padding-block: var(--space-s);
