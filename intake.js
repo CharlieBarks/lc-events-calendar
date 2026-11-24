@@ -181,6 +181,70 @@ function mailCharlie(env, rec, what) {
   ]);
 }
 
+// ---------- "Something wrong with this listing?" reports (Nov 24, 2026) ----------
+// Visitors don't get the whole edit form (Charlie: confusing). They pick what's wrong, add a
+// comment, and leave their first name and email. Reports wait on the review page under Reports;
+// Charlie fixes, hides or dismisses each, and "Fixed" emails the visitor a thank-you.
+const REPORT_REASONS = { happened: 'Already happened', canceled: 'Canceled', time: 'Wrong date or time', place: 'Wrong place', other: 'Something else' };
+
+async function handleReport(request, env, origin, ctx) {
+  const ip = request.headers.get('cf-connecting-ip') || 'x';
+  if (env.LIMIT) {
+    const { success } = await env.LIMIT.limit({ key: `report:${ip}` });
+    if (!success) return json({ error: 'Too many in a row. Give it a minute and try again.' }, { status: 429 }, origin);
+  }
+  let b;
+  try { b = await request.json(); } catch { return json({ error: 'Bad request.' }, { status: 400 }, origin); }
+  if (b.website) return json({ ok: true }, {}, origin); // honeypot
+  if (!(await isHuman(env, b.human, ip, 'report'))) return json({ error: NOT_HUMAN }, { status: 403 }, origin);
+  const slug = /^[a-z0-9-]{3,140}$/.test(b.slug || '') ? b.slug : '';
+  const reason = REPORT_REASONS[b.reason] ? b.reason : '';
+  const name = clean(b.name, 60);
+  const email = clean(b.email, 160);
+  const comment = cleanText(b.comment, 1000);
+  const problems = [];
+  if (!reason) problems.push("what's wrong");
+  if (reason === 'other' && !comment) problems.push('a few words about it');
+  if (!name) problems.push('your first name');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) problems.push('your email');
+  if (!slug || problems.length) return json({ error: `Please add: ${problems.join(', ') || 'the event'}.` }, { status: 400 }, origin);
+  const rep = { id: newId(), slug, title: clean(b.title, 140), reason, comment, name, email, at: new Date().toISOString() };
+  await env.MEDIA.put(`reports/${rep.id}`, JSON.stringify(rep));
+  ctx.waitUntil(sendMail(env, env.NOTIFY_TO, `Report: ${REPORT_REASONS[reason]}: ${rep.title}`, [
+    `Someone says there's something wrong with a listing.`,
+    `${rep.title}\n${REPORT_REASONS[reason]}${comment ? `\n"${comment}"` : ''}\nFrom ${name} (${email})`,
+    { text: 'The listing:', href: `${LIVE_SITE}/event/${slug}/` },
+    { text: 'Fix, hide or dismiss it under Reports on the review page:', href: `${PUBLIC_ORIGIN}/review/` },
+  ]));
+  return json({ ok: true }, {}, origin);
+}
+
+function mailReportFixed(env, rep) {
+  return sendMail(env, rep.email, `Thanks! We fixed "${rep.title}"`, [
+    `Hi ${firstName(rep.name)},`,
+    `Thanks for letting us know about "${rep.title}". It's fixed on the calendar now. Heads-ups like yours are how this calendar stays right.`,
+    { text: 'The listing:', href: `${LIVE_SITE}/event/${rep.slug}/` },
+    SIGN_OFF,
+  ]);
+}
+
+// Charlie's full edit of a listing from a feed (CitySpark, the city, an organization's calendar):
+// read the listing from its event page and put it in the queue as his own suggested edit, ready to
+// change. Approve puts his version up and hides the feed's copy. No emails (he's the one editing).
+async function adoptListing(env, slug) {
+  if (!/^[a-z0-9-]{3,140}$/.test(slug || '')) return { error: "That doesn't look like an event address." };
+  const res = await fetch(`${LIVE_SITE}/event/${slug}/`, { headers: { 'user-agent': 'lc-events-intake' } });
+  if (!res.ok) return { error: `Couldn't open that event page (${res.status}).` };
+  const m = (await res.text()).match(/<script type="application\/json" id="event-data">([\s\S]*?)<\/script>/);
+  if (!m) return { error: "Couldn't read that event page." };
+  let d;
+  try { d = JSON.parse(m[1]); } catch { return { error: "Couldn't read that event page." }; }
+  const sub = onePicture(tidySubmission({ ...d, shows: [{ date: d.date, start: d.start, end: d.end }], suggests: slug, imageUrl: d.image, name: 'Charlie', email: env.NOTIFY_TO || '', source: 'admin' }));
+  const id = newId();
+  await env.MEDIA.put(`sub/pending/${id}`, JSON.stringify({ id, token: newToken(), status: 'pending', submittedAt: new Date().toISOString(), ip: 'review', site: LIVE_SITE, ...sub, adminEdit: true }));
+  return { ok: true, id };
+}
+
 // ---------- Trusted submitters (Nov 23, 2026) ----------
 // Emails Charlie trusts: their new events and their changes go live without review. Safety rails:
 // at most TRUSTED_PER_DAY a day each (the rest wait in the queue), paid Spotlight requests and
@@ -719,11 +783,24 @@ async function reviewApi(request, env, path, ctx) {
     return json({ pending: pending.map(({ token, ...r }) => r), approved: recent, trusted: [...trusted].reverse() });
   }
   if (request.method === 'GET' && path === 'venues') return venuesApi(request, env, path);
+  if (request.method === 'GET' && path === 'reports') {
+    const list = await env.MEDIA.list({ prefix: 'reports/' });
+    const reports = (await Promise.all(list.keys.map((k) => env.MEDIA.get(k.name, 'json')))).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at));
+    return json({ reports: reports.map((r) => ({ ...r, reasonText: REPORT_REASONS[r.reason] || r.reason })) }, { headers: { 'cache-control': 'no-store' } });
+  }
   if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse(), featured: (await getFeatured(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
   if (['venue', 'venue-undo', 'publish'].includes(path)) return venuesApi(request, env, path, body);
   if (path === 'feeds-refresh') return json({ ok: true, feeds: await refreshFeeds(env) });
+  if (path === 'adopt') { const r = await adoptListing(env, body.slug); return json(r, { status: r.ok ? 200 : 400 }); }
+  if (path === 'report-done') {
+    // "Fixed" (thank the visitor) or "Dismiss" (no email). Either way the report is cleared.
+    const rep = await env.MEDIA.get(`reports/${body.id}`, 'json');
+    if (rep && body.thank) ctx.waitUntil(mailReportFixed(env, rep));
+    await env.MEDIA.delete(`reports/${body.id}`);
+    return json({ ok: true });
+  }
   if (path === 'nopic' || path === 'pic') {
     if (!(await setHidden(env, body, path === 'nopic', 'nopic'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
     if (body.publish) await rebuild(env);
@@ -758,7 +835,7 @@ async function reviewApi(request, env, path, ctx) {
     await publishRecord(env, rec, edited);
     // Tell the submitter: the first time it goes live, and when a change they made is approved.
     // Not when Charlie reopened it himself to fix something.
-    if (!rec.change || rec.changedBy === 'organizer') ctx.waitUntil(mailApproved(env, edited, !!rec.change));
+    if (!rec.adminEdit && (!rec.change || rec.changedBy === 'organizer')) ctx.waitUntil(mailApproved(env, edited, !!rec.change));
     return json({ ok: true });
   }
   if (path === 'reopen') {
@@ -988,6 +1065,8 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 </style></head><body>
 <header><h1>Event submissions <a href="/review/venues/" style="font-size:.9rem;font-weight:400;margin-left:12px;color:var(--accent)">Venues</a></h1><div class="msg" id="count">Loading…</div></header>
 <main><div id="pending"></div>
+<h2>Reports</h2><p class="msg">Visitors who tapped "Something wrong with this listing?" on an event page. Fix it opens the listing for you to edit. Fixed emails them a thank-you; Dismiss just clears it.</p>
+<div id="reports"></div>
 <h2>Featured events</h2><p class="msg">Want an event to stand out? Paste its address from the event page. It's pinned to the top of its day with a Featured label and its own background, and goes into the homepage Spotlight. Works for any event, from any source.</p>
 <form id="feature" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><input type="hidden" name="title"><label><input type="checkbox" name="all"> Every date of it</label><label><input type="checkbox" name="sponsored"> Sponsored (paid)</label><label>until <input type="date" name="until" title="Leave empty to feature it until the event is over"></label><button>Feature</button><span class="msg" data-msg></span></form>
 <div id="featuredlist"></div>
@@ -1035,8 +1114,24 @@ async function loadHidden(){
   document.getElementById('nopiclist').innerHTML=(d.nopic||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+'</span><span class="apflags"><button data-showpic="'+esc(h.slug)+'">Show picture again</button></span></div>').join('')||'<div class="msg">No pictures hidden.</div>';
   document.getElementById('hidden').innerHTML=d.hidden.map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.reason?' · <span class="msg">'+esc(h.reason)+'</span>':'')+'</span><span class="apflags"><button data-unhide="'+esc(h.slug)+'">Show again</button></span></div>').join('')||'<div class="msg">Nothing hidden.</div>';
 }
+async function loadReports(){
+  const d=await fetch('/review/api/reports').then(r=>r.json()).catch(()=>({reports:[]}));
+  document.getElementById('reports').innerHTML=(d.reports||[]).map(r=>'<div class="ap" data-report="'+esc(r.id)+'" data-slug="'+esc(r.slug)+'" data-title="'+esc(r.title)+'"><span><a href="'+esc(SITE)+'/event/'+esc(r.slug)+'/" target="_blank" rel="noopener"><strong>'+esc(r.title||r.slug)+'</strong></a><span class="tag sp">'+esc(r.reasonText)+'</span>'+(r.comment?'<br>“'+esc(r.comment)+'”':'')+'<br><span class="msg">'+esc(r.name)+' · '+esc(r.email)+' · '+esc(r.at.slice(0,10))+'</span></span><span class="apflags"><button data-rfix>Fix it</button><button data-rhide>Hide listing</button><button data-rdone="1">Fixed: thank them</button><button data-rdone="0">Dismiss</button></span></div>').join('')||'<div class="msg">No reports.</div>';
+}
+// Full edit of a listing: an event from the form reopens (Edit under Recently approved); one from
+// a feed is copied into the queue as the reviewer's own edit. Then it's opened at the top.
+async function editListing(slug){
+  const row=[...document.querySelectorAll('#approved .ap')].find(r=>r.dataset.slug===slug||slug.startsWith(r.dataset.slug+'-'));
+  const re=row&&row.querySelector('[data-reopen]');
+  let id='';
+  if(re){id=re.dataset.reopen;await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id})})}
+  else{const r=await fetch('/review/api/adopt',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug})}).then(r=>r.json());if(!r.ok){alert(r.error||'Could not open it.');return}id=r.id}
+  await load();
+  const f=document.querySelector('form.sub[data-id="'+id+'"]');
+  if(f){f.style.outline='3px solid #e8c766';f.style.outlineOffset='4px';f.scrollIntoView({block:'start'})}
+}
 async function load(){
-  loadHidden();
+  loadHidden();loadReports();
   const d=await fetch('/review/api/list').then(r=>r.json());
   document.getElementById('count').textContent=d.pending.length?d.pending.length+' waiting for you':'All caught up';
   const p=document.getElementById('pending');
@@ -1047,6 +1142,9 @@ async function load(){
 }
 document.addEventListener('click',async e=>{
   const t=e.target;
+  if(t.matches('[data-rfix]')){t.textContent='Opening…';await editListing(t.closest('.ap').dataset.slug);return}
+  if(t.matches('[data-rhide]')){const row=t.closest('.ap');if(!confirm('Hide this listing from the calendar and send them a thank-you?'))return;t.textContent='Hiding…';await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,title:row.dataset.title,reason:'Reported by a visitor',publish:true})});await fetch('/review/api/report-done',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:row.dataset.report,thank:true})});loadReports();loadHidden();return}
+  if(t.matches('[data-rdone]')){const row=t.closest('.ap');await fetch('/review/api/report-done',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:row.dataset.report,thank:t.dataset.rdone==='1'})});loadReports();return}
   if(t.matches('[data-zoom]')){lb.querySelector('img').src=t.src;lb.style.display='grid';return}
   if(t.matches('[data-del]')){t.closest('.show').remove();return}
   if(t.matches('[data-add]')){t.previousElementSibling.insertAdjacentHTML('beforeend',showRow({}));return}
@@ -1089,6 +1187,7 @@ load();
     f.querySelector('[data-msg]').textContent='Filled in from the event page'+(q.get('title')?' ('+q.get('title')+')':'')+'. Check it, then tap '+b.textContent+'.';
     mark(f);b.focus({preventScroll:true});return;
   }
+  if(act==='adopt'){editListing(slug);return}
   if(act==='unfeature'){
     let n=0;const t=setInterval(()=>{
       const btn=[...document.querySelectorAll('#featuredlist [data-unfeature]')].find(x=>x.dataset.unfeature===slug||slug.startsWith(x.dataset.unfeature.replace(/-[0-9]{4}-[0-9]{2}-[0-9]{2}$/,'')+'-'));
@@ -1137,6 +1236,7 @@ export default {
       if (path === '/extract' && request.method === 'POST') return await handleExtract(request, env, origin);
       if (path === '/submit' && request.method === 'POST') return await handleSubmit(request, env, origin, ctx);
       if (path === '/update' && request.method === 'POST') return await handleUpdate(request, env, origin, ctx);
+      if (path === '/report' && request.method === 'POST') return await handleReport(request, env, origin, ctx);
       if (path === '/mine' && request.method === 'GET') return await handleMine(request, env, origin);
 
       if (path === '/feeds.json') {
