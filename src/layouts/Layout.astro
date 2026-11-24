@@ -53,6 +53,30 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
   <meta name="geo.placename" content="Las Cruces" />
   <link rel="sitemap" href="/sitemap-index.xml" />
   {jsonLd.map((obj) => <script type="application/ld+json" set:html={JSON.stringify(obj)} />)}
+  {/* Old CitySpark links (events.livelovelascruces.com/#/details/<name>/<id>/<date>), used in past
+      newsletters. The part after # never reaches the server, so _redirects can't see it: this finds
+      the event by name in /search.json and forwards to its page (the same date if it's still coming
+      up, otherwise the next date). No match (the event is over): the calendar searched for its name. */}
+  <script is:inline>
+    (function () {
+      var m = location.hash.match(/^#!?\/details\/([^/?#]+)(?:\/[^/?#]*)?(?:\/(\d{4}-\d{2}-\d{2}))?/);
+      if (!m) return;
+      var name = decodeURIComponent(m[1]).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      var day = m[2] || '';
+      var words = name.replace(/-/g, ' ');
+      var go = function (url) { location.replace(url); };
+      fetch('/search.json').then(function (r) { return r.json(); }).then(function (data) {
+        var base = function (slug) { return slug.replace(/-\d{4}-\d{2}-\d{2}(-\d+)?$/, ''); };
+        var short = name.slice(0, 60).replace(/-$/, '');
+        var hits = data.events.filter(function (e) { return base(e.id) === short; });
+        if (!hits.length) hits = data.events.filter(function (e) { var b = base(e.id); return b.length > 5 && (name.indexOf(b) === 0 || b.indexOf(short) === 0); });
+        if (!hits.length) return go('/?q=' + encodeURIComponent(words));
+        hits.sort(function (a, b) { return a.dt < b.dt ? -1 : a.dt > b.dt ? 1 : 0; });
+        var pick = hits.filter(function (e) { return e.dt >= day; })[0] || hits[0];
+        go('/event/' + pick.id + '/');
+      }).catch(function () { go('/?q=' + encodeURIComponent(words)); });
+    })();
+  </script>
   {ANALYTICS_TOKEN && !PREVIEW && <script is:inline defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({ token: ANALYTICS_TOKEN })}></script>}
 </head>
 <body>
