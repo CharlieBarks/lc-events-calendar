@@ -56,25 +56,40 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
   {/* Old CitySpark links (events.livelovelascruces.com/#/details/<name>/<id>/<date>), used in past
       newsletters. The part after # never reaches the server, so _redirects can't see it: this finds
       the event by name in /search.json and forwards to its page (the same date if it's still coming
-      up, otherwise the next date). No match (the event is over): the calendar searched for its name. */}
+      up, otherwise the next date). Names are compared without hyphens, so an apostrophe spelled
+      differently ("songwriters" / "songwriter-s") still matches. No match, an error, or no answer in
+      5 seconds: the calendar with a note (index.astro, ?old=1), searched for the name when some
+      upcoming event shares its words. */}
   <script is:inline>
     (function () {
       var m = location.hash.match(/^#!?\/details\/([^/?#]+)(?:\/[^/?#]*)?(?:\/(\d{4}-\d{2}-\d{2}))?/);
       if (!m) return;
       var name = decodeURIComponent(m[1]).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       var day = m[2] || '';
-      var words = name.replace(/-/g, ' ');
-      var go = function (url) { location.replace(url); };
+      var flat = function (s) { return s.replace(/-/g, ''); };
+      var key = flat(name);
+      var done = false;
+      var go = function (url) { if (!done) { done = true; location.replace(url); } };
+      var calendar = function () { go('/?old=1#calendar'); };
+      setTimeout(calendar, 5000);
       fetch('/search.json').then(function (r) { return r.json(); }).then(function (data) {
-        var base = function (slug) { return slug.replace(/-\d{4}-\d{2}-\d{2}(-\d+)?$/, ''); };
-        var short = name.slice(0, 60).replace(/-$/, '');
-        var hits = data.events.filter(function (e) { return base(e.id) === short; });
-        if (!hits.length) hits = data.events.filter(function (e) { var b = base(e.id); return b.length > 5 && (name.indexOf(b) === 0 || b.indexOf(short) === 0); });
-        if (!hits.length) return go('/?q=' + encodeURIComponent(words));
-        hits.sort(function (a, b) { return a.dt < b.dt ? -1 : a.dt > b.dt ? 1 : 0; });
-        var pick = hits.filter(function (e) { return e.dt >= day; })[0] || hits[0];
-        go('/event/' + pick.id + '/');
-      }).catch(function () { go('/?q=' + encodeURIComponent(words)); });
+        var base = function (slug) { return flat(slug.replace(/-\d{4}-\d{2}-\d{2}(-\d+)?$/, '')); };
+        // New slugs are cut at 60 characters, so a long name matches on its start.
+        var hits = data.events.filter(function (e) { var b = base(e.id); return b === key || (b.length > 20 && key.indexOf(b) === 0); });
+        if (hits.length) {
+          hits.sort(function (a, b) { return a.dt < b.dt ? -1 : a.dt > b.dt ? 1 : 0; });
+          var pick = hits.filter(function (e) { return e.dt >= day; })[0] || hits[0];
+          return go('/event/' + pick.id + '/');
+        }
+        // Over or renamed: search for its name only if something upcoming shares its words.
+        var words = name.split('-').filter(function (w) { return w.length > 3; });
+        var close = words.length && data.events.some(function (e) {
+          var t = (e.t || '').toLowerCase();
+          return words.every(function (w) { return t.indexOf(w) > -1; });
+        });
+        if (close) return go('/?q=' + encodeURIComponent(words.join(' ')) + '&old=1#calendar');
+        calendar();
+      }).catch(calendar);
     })();
   </script>
   {ANALYTICS_TOKEN && !PREVIEW && <script is:inline defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({ token: ANALYTICS_TOKEN })}></script>}

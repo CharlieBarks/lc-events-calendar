@@ -103,9 +103,23 @@ const jsonLd = [
           <p>Tap a day or a category to narrow it down. Regulars and city meetings are tucked into the short rows so the one-night-only stuff stands out.</p>
         </div>
       </div>
+      {/* Shown to readers forwarded from an old CitySpark link whose event wasn't found (Layout.astro). */}
+      <div class="old-link-note" data-old-link-note hidden>
+        <p><strong>Heads up: that event already happened, or it's on our new calendar under a slightly different name.</strong> <span data-old-link-more>Here's everything coming up in Las Cruces.</span> Looking for something specific? Try the search box below.</p>
+      </div>
       <Agenda events={events} ongoing={ongoing} initialDays={HOME_DAYS} rest="/more/home/" nearby={nearby.length} />
     </div>
   </section>
+  <script is:inline>
+    (function () {
+      var p = new URLSearchParams(location.search);
+      if (!p.has('old')) return;
+      var note = document.querySelector('[data-old-link-note]');
+      if (!note) return;
+      if (p.get('q')) note.querySelector('[data-old-link-more]').textContent = 'These are the closest matches we found.';
+      note.hidden = false;
+    })();
+  </script>
 
   {ongoing.length > 0 && (
     <section class="section">
@@ -183,6 +197,7 @@ const jsonLd = [
   /* Three show; the script picks which. Without JavaScript, the first three. */
   [data-picks] > :global(li:nth-child(n+4)) { display: none; }
   [data-picks].shuffled > :global(li) { display: flex; }
+  .old-link-note { margin-block-end: var(--space-m); padding: var(--space-m); border: 1px solid var(--neutral-light); border-inline-start: 4px solid var(--primary); border-radius: var(--radius-s); background: var(--bg-ultra-light); font-size: var(--text-m); }
   .spotlight-promo { display: flex; flex-wrap: wrap; gap: var(--space-m) var(--space-l); align-items: center; justify-content: space-between; padding: var(--space-m); border: 1.5px dashed var(--neutral-light); border-radius: var(--radius); background: var(--bg-light); }
   .spotlight-promo > div { flex: 1 1 26.25rem; display: flex; flex-direction: column; gap: 0.375rem; }
   .spotlight-promo h3 { font-size: 1.35rem; }
