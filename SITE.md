@@ -331,5 +331,7 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 - Never show an event that has ended. Today's events stay until they're over.
 - Times are always America/Denver.
 - Keep schema.org Event data, `.ics` feeds and Google Calendar links working on every event page.
+- **Event schema for Google (Nov 25, 2026, from Search Console's "Improve item appearance"):** every event has an `endDate` (no end time: a plain date for the same day; all-day events use plain dates); `offers` only when the price is known (Free = price 0, "$15" = 15, "$10 – $25" or "Free – $10" = a low/high range), with `validFrom` = the build day; `performer` only for real ones (Las Cruces Live acts, Art Trail artists). Library and city listings with no price or performer will keep those two warnings in Search Console, and that's fine: never fill them with guesses or the venue. In `src/pages/event/[slug].astro`.
+- **Sitemap holds upcoming events only** without extra work: past events aren't built, so they drop out of `sitemap-0.xml` on each nightly rebuild.
 - Weekly regulars and city meetings stay visually quieter than one-off events (except paid Spotlight events).
 - Paid placements always carry a visible **Sponsored** label.
