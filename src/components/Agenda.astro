@@ -16,7 +16,7 @@ import { dayLabel } from '../lib/time.js';
 //   only look at the first week.
 // fragment: render only the days after initialDays and nothing else. Used by that fragment page.
 // ongoing: exhibits and long runs. Not part of the day-by-day list, but shown when a search matches them.
-const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0, rest = '', fragment = false, nearby = 0 } = Astro.props;
+const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0, rest = '', fragment = false, nearby = 0, onNow = 0 } = Astro.props;
 
 const byDay = new Map();
 for (const e of events) {
@@ -74,6 +74,7 @@ const itemLevel = headingLevel + 1;
           <button class="agenda__filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
           <button class="agenda__filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
           {nearby > 0 && <a class="agenda__filter agenda__filter--link" href="/nearby/">Nearby towns <span class="agenda__count">{nearby}</span> →</a>}
+          {onNow > 0 && <a class="agenda__filter agenda__filter--link agenda__filter--exhibits" href="#on-now">Art exhibits and more <span class="agenda__count">{onNow}</span> ↓</a>}
         </div>
         {usedFor.length > 0 && (
           <div class="agenda__filter-row" data-group="for" role="group" aria-label="Who it's for">
@@ -111,7 +112,7 @@ const itemLevel = headingLevel + 1;
 
   {!fragment && ongoing.length > 0 && (
     <section class="agenda__day" data-ongoing-sec hidden aria-labelledby="d-ongoing">
-      <H class="agenda__day-head" id="d-ongoing"><span class="agenda__day-name">On view now</span> <span class="agenda__day-date">Any day</span></H>
+      <H class="agenda__day-head" id="d-ongoing"><span class="agenda__day-name">Art exhibits and more</span> <span class="agenda__day-date">Any day</span></H>
       <div class="agenda__day-list">
         <ul class="agenda__cards" role="list">{ongoing.map((e) => <EventCard event={e} headingLevel={itemLevel} layout="row" />)}</ul>
       </div>
@@ -778,4 +779,8 @@ const itemLevel = headingLevel + 1;
     }
   }
   .agenda__filter--link { text-decoration: none; color: inherit; display: inline-flex; align-items: center; }
+  /* Same look as the homepage's "Art exhibits and more" pill (index.astro). */
+  .agenda__filter.agenda__filter--exhibits { border: 2px solid var(--primary); background: var(--primary-ultra-light); color: var(--primary-dark); }
+  .agenda__filter.agenda__filter--exhibits:hover { background: var(--primary-light); }
+  .agenda__filter--exhibits .agenda__count { color: inherit; }
 </style>

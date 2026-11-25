@@ -133,11 +133,13 @@ Built Nov 15, 2026 (Charlie: Las Cruces is a retirement town; seniors and famili
 - **Topic photos (Nov 15, 2026):** an event with no picture of its own shows a stock photo of its topic (pickleball, yoga, farmers market…) instead of the drawn artwork, like CitySpark did. One photo per topic in `src/data/topic-photos.json`, all from Pexels (free to use, no credit needed). The build makes our own small copies like any event picture; if a photo can't be fetched, that event keeps the drawn artwork. To change a photo, replace its Pexels number in that file. Topics are matched in `src/lib/topics.js`.
 - **Thumbnails:** each build makes small copies of every event picture in three widths (`src/lib/thumbs.js`, served from `/thumbs/`). Lists use the small ones, event pages a 1200px one; tapping a flyer still opens the full-size original. A picture that can't be fetched or read keeps its original address, so nothing can break a build. A picture that no longer exists (404) is dropped and the event shows our artwork instead of a broken image. Skipped in offline builds and `astro dev`; `EVENTS_THUMBS=0` turns it off. Uses `sharp` (added to `package.json` with Charlie's OK, Nov 14).
 
+- **Finding them (Nov 25, 2026):** the section sits below the day list, so the homepage also has an "Art exhibits and more: N on now" pill under the hero buttons and an "Art exhibits and more N ↓" button in the date row (after Nearby towns, `onNow` prop on `Agenda.astro`), both jumping to `#on-now`.
+
 ## Event pages
 
 - **You might also like:** up to 4 events in the next 3 weeks that share the venue or category, one-offs with a picture first, each event once. Links to "More at <venue>" (the calendar filtered to that venue) and the category page.
 - **Duplicates:** two listings are one event only when the name and day match and nothing says they're in different places. Same name at two different venues stays as two events. If one event shows twice because its venue is spelled two ways, add the spelling to `src/data/venues.json`.
-- **Exhibits and long daily runs** ("On now") have an address without a date (`/event/lean-in/`) for the whole run. In the last days, when the run goes back to one listing per day, that address forwards to the next date.
+- **Exhibits and long daily runs** ("Art exhibits and more", called "On now" until Nov 25, 2026; Charlie's name) have an address without a date (`/event/lean-in/`) for the whole run. In the last days, when the run goes back to one listing per day, that address forwards to the next date.
 - Later: **While you're nearby** (local businesses near the venue) once the Business Directory exists.
 - Venue names come from `src/data/venues.json` via `src/lib/venues.js`. A room ("Munson Senior Center > Studio 2", "Boardroom at …") is kept next to the venue name, not as a separate venue.
 
