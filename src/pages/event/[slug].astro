@@ -6,7 +6,7 @@ import Lightbox from '../../components/Lightbox.astro';
 import Newsletter from '../../components/Newsletter.astro';
 import { SITE, CATEGORIES, SOURCES, PREVIEW, INTAKE_URL, TURNSTILE_SITEKEY, breadcrumbJsonLd, tagged } from '../../lib/site.js';
 import { getEvents, shortVenue, mapsLink, googleCalendarLink } from '../../lib/events.js';
-import { longDate, shortDate, timeRange, offsetIso, dateKey } from '../../lib/time.js';
+import { longDate, shortDate, timeRange, offsetIso, dateKey, todayWall } from '../../lib/time.js';
 
 export async function getStaticPaths() {
   const { allEvents: events, aliases } = await getEvents();
@@ -61,13 +61,39 @@ const suggestData = {
   date: event.date, start: hhmm(event.start), end: event.end && dateKey(event.end) === event.date ? hhmm(event.end) : '',
 };
 
+// Google's event details (Search Console "Improve item appearance", Nov 25, 2026):
+// - endDate: all-day events use plain dates; an event with no end time ends that same day
+//   (a plain date, so we never make up a time).
+// - offers: free events get price 0, events with a dollar price get it (a range becomes
+//   low/high), anything else gets no offers rather than a guess. validFrom is the build day,
+//   meaning "available now"; it's never later than the event.
+// - performer: only real ones: acts matched on Las Cruces Live, artists on the Art Trail.
+const isoDay = (w) => (w.allDay ? dateKey(w) : offsetIso(w));
+const startIso = isoDay(event.start);
+const endIso = event.end ? isoDay(event.end) : dateKey(event.start);
+const dollars = [...String(event.price || '').matchAll(/\$\s*(\d+(?:\.\d{1,2})?)/g)].map((m) => Number(m[1]));
+const today = dateKey(todayWall());
+const validFrom = today < event.date ? today : event.date;
+const offerBase = { '@type': 'Offer', priceCurrency: 'USD', availability: 'https://schema.org/InStock', validFrom, url: event.url || `${SITE.url}${path}` };
+const paidToo = dollars.filter((n) => n > 0);
+const offers = isFree && paidToo.length
+  ? { ...offerBase, '@type': 'AggregateOffer', lowPrice: 0, highPrice: Math.max(...paidToo) } // "Free – $10"
+  : isFree ? { ...offerBase, price: 0 }
+  : dollars.length === 1 ? { ...offerBase, price: dollars[0] }
+  : dollars.length > 1 ? { ...offerBase, '@type': 'AggregateOffer', lowPrice: Math.min(...dollars), highPrice: Math.max(...dollars) }
+  : null;
+const performers = [
+  ...(event.acts || []).map((a) => ({ '@type': 'MusicGroup', name: a.name, url: a.url })),
+  ...(event.artists || []).map((a) => ({ '@type': 'Person', name: a.name, ...(a.url ? { url: a.url } : {}) })),
+];
+
 const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': 'Event',
     name: event.title,
-    startDate: offsetIso(event.start),
-    ...(event.end ? { endDate: offsetIso(event.end) } : {}),
+    startDate: startIso,
+    endDate: endIso,
     eventStatus: 'https://schema.org/EventScheduled',
     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
     location: {
@@ -79,7 +105,9 @@ const jsonLd = [
     image: [event.image || `${SITE.url}/og/event/${event.slug}.png`],
     url: `${SITE.url}${path}`,
     organizer: { '@type': 'Organization', name: source.name, url: event.url || source.url },
-    ...(isFree ? { isAccessibleForFree: true, offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: event.url || `${SITE.url}${path}` } } : {}),
+    ...(isFree ? { isAccessibleForFree: true } : {}),
+    ...(offers ? { offers } : {}),
+    ...(performers.length ? { performer: performers.length === 1 ? performers[0] : performers } : {}),
   },
   breadcrumbJsonLd([
     { name: 'Events', path: '/' },
