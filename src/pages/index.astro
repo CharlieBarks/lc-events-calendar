@@ -5,8 +5,8 @@ import { HOME_DAYS } from '../lib/site.js';
 import EventCard from '../components/EventCard.astro';
 import Newsletter from '../components/Newsletter.astro';
 import { SITE, CATEGORIES, SPOTLIGHT, AUDIENCES } from '../lib/site.js';
-import { getEvents, shortVenue } from '../lib/events.js';
-import { dateKey, todayWall, addDays, shortDate, weekendRange } from '../lib/time.js';
+import { getEvents } from '../lib/events.js';
+import { dateKey, todayWall, addDays, weekendRange } from '../lib/time.js';
 
 const { events: all, dated: events, ongoing, series, nearby } = await getEvents();
 const today = todayWall();
@@ -29,11 +29,6 @@ const FOR_ICON = {
   outdoors: CATEGORIES.outdoors.icon,
 };
 const usedCats = Object.keys(CATEGORIES).filter((k) => all.some((e) => e.category === k));
-// Weekly regulars: the truly weekly ones first, then the rest, by next date. 12 is plenty.
-const regulars = [...series]
-  .sort((a, b) => (b.when.startsWith('Every ') - a.when.startsWith('Every ')) || a.next.date.localeCompare(b.next.date))
-  .slice(0, 12);
-
 const jsonLd = [
   {
     '@context': 'https://schema.org',
@@ -65,19 +60,6 @@ const jsonLd = [
         <a class="btn--primary" href="/this-weekend/">What's on this weekend</a>
         <a class="btn--base btn--outline" href="/submit/">Add your event</a>
       </div>
-      {/* Charlie, Nov 25: these two sections were at the bottom where nobody scrolled. Each has its own page now. */}
-      {(ongoing.length > 0 || series.length > 0) && (
-        <div class="home-hero__pages">
-          {ongoing.length > 0 && <a class="on-now-jump" href="/exhibits/">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>
-            Art exhibits and more: {ongoing.length} on now <span aria-hidden="true">→</span>
-          </a>}
-          {series.length > 0 && <a class="on-now-jump" data-variant="weekly" href="/weekly/">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 15h2"/></svg>
-            Weekly regulars: {series.length} <span aria-hidden="true">→</span>
-          </a>}
-        </div>
-      )}
     </div>
     <div class="home-hero__stats" aria-label="At a glance">
       <div><strong>{thisWeek}</strong><span>events in the next 7 days</span></div>
@@ -135,48 +117,6 @@ const jsonLd = [
     })();
   </script>
 
-  {ongoing.length > 0 && (
-    <section class="section on-now" id="on-now">
-      <div class="wrap">
-        <div class="section-head">
-          <div>
-            <h2>Art exhibits and more</h2>
-            <p>Gallery shows, museum exhibits and other things running for a while. Catch them any day you like, but don't sleep on them.</p>
-          </div>
-        </div>
-        <ul class="grid" role="list">{ongoing.slice(0, 4).map((e) => <EventCard event={e} />)}</ul>
-        <p class="see-all"><a class="btn--base btn--outline" href="/exhibits/">See all {ongoing.length} art exhibits and more →</a></p>
-      </div>
-    </section>
-  )}
-
-  {regulars.length > 0 && (
-    <section class="section section-white">
-      <div class="wrap">
-        <div class="section-head">
-          <div>
-            <h2>Weekly regulars</h2>
-            <p>The standing dates. Cheap, easy and a good way to meet your neighbors.</p>
-          </div>
-        </div>
-        <ul class="grid-tight regulars" role="list">
-          {regulars.slice(0, 6).map((s) => (
-            <li><a class="regulars__link" href={`/event/${s.next.slug}/`}>
-              <span class="dot" style={`background:${CATEGORIES[s.category].color}`} aria-hidden="true"></span>
-              <span>
-                <h3>{s.title}</h3>
-                <span class="regulars__when">{s.when} · {s.time}</span>
-                <span class="regulars__where">{shortVenue(s.next)}</span>
-                <span class="regulars__next">Next: {shortDate(s.next.start)}</span>
-              </span>
-            </a></li>
-          ))}
-        </ul>
-        <p class="see-all"><a class="btn--base btn--outline" href="/weekly/">See all {series.length} weekly regulars, day by day →</a></p>
-      </div>
-    </section>
-  )}
-
   <section class="section" id="browse">
     <div class="wrap">
       <div class="section-head">
@@ -220,27 +160,11 @@ const jsonLd = [
   .spotlight-promo p { color: var(--text-dark-muted); max-inline-size: 60ch; }
   .home-hero { display: flex; flex-wrap: wrap; gap: var(--space-l); align-items: flex-end; padding-block-start: var(--space-xl); padding-block-end: var(--space-xl); }
   .home-hero__copy { flex: 1 1 35rem; min-inline-size: 0; display: flex; flex-direction: column; gap: var(--space-m); }
-  .on-now-jump { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--space-xs); min-block-size: 2.75rem; padding: var(--space-xs) var(--space-m); border: 2px solid var(--primary); border-radius: 999px; background: var(--primary-ultra-light); color: var(--primary-dark); font-weight: 600; text-decoration: none; }
-  .on-now-jump:hover { background: var(--primary-light); }
-  .on-now-jump[data-variant="weekly"] { border-color: var(--secondary); background: var(--secondary-ultra-light); color: var(--secondary-dark); }
-  .on-now-jump[data-variant="weekly"]:hover { background: var(--secondary-light); }
-  .home-hero__pages { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
-  .see-all { margin-block-start: var(--space-m); }
-  .on-now-jump:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
-  .on-now { scroll-margin-block-start: 4.5rem; }
   .home-hero__stats { flex: 0 1 18.75rem; display: grid; gap: var(--space-s); }
   .home-hero__stats div { background: var(--bg-ultra-light); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); padding: var(--space-s) var(--space-s); display: flex; align-items: baseline; gap: var(--space-s); }
   .home-hero__stats strong { font-family: var(--heading-font-family); font-size: 2rem; font-weight: 800; color: var(--primary); }
   .home-hero__stats span { color: var(--text-dark-muted); }
 
-  .regulars li { display: flex; }
-  .regulars__link { flex: 1; display: flex; gap: var(--space-s); align-items: flex-start; padding: var(--space-s); background: var(--bg-light); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); text-decoration: none; color: var(--text-dark); }
-  .regulars__link:hover { border-color: var(--text-dark); color: var(--text-dark); }
-  .regulars__link .dot { margin-block-start: var(--space-xs); }
-  .regulars__link > span:last-child { display: flex; flex-direction: column; gap: 0.125rem; }
-  .regulars__link h3 { font-size: var(--text-l); }
-  .regulars__when { font-weight: 600; color: var(--secondary); }
-  .regulars__where, .regulars__next { color: var(--text-dark-muted); font-size: var(--text-s); }
 
   .vibes li { display: flex; }
   .vibes__link { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; padding: var(--space-m); border-radius: var(--radius); background: var(--c); color: var(--white); text-decoration: none; min-block-size: 8.75rem; position: relative; overflow: hidden; }
