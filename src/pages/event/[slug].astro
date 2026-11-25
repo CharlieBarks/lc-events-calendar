@@ -26,7 +26,9 @@ const known = SOURCES[event.source] || SOURCES.lllc;
 // Events found through Visit Las Cruces are credited to the organizer, linked to their own page.
 const source = known.url ? known : { name: event.venue || 'the organizer', url: event.url };
 const path = `/event/${event.slug}/`;
-const when = `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
+// An exhibit (Nov 25, 2026) says its open days and hours, not one date: the page stands for the whole run.
+const exhibit = !!(event.ongoing && event.series?.exhibit);
+const when = exhibit && event.series.hours ? event.series.hours : `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
 
 // Plain-text descriptions from feeds: split into paragraphs, never inject raw HTML.
 const paragraphs = event.description.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
@@ -69,8 +71,9 @@ const suggestData = {
 //   meaning "available now"; it's never later than the event.
 // - performer: only real ones: acts matched on Las Cruces Live, artists on the Art Trail.
 const isoDay = (w) => (w.allDay ? dateKey(w) : offsetIso(w));
-const startIso = isoDay(event.start);
-const endIso = event.end ? isoDay(event.end) : dateKey(event.start);
+// An exhibit's page stands for the whole run: its first and last days (plain dates).
+const startIso = exhibit && event.rule?.start ? event.rule.start : isoDay(event.start);
+const endIso = exhibit && event.rule?.until ? event.rule.until : event.end ? isoDay(event.end) : dateKey(event.start);
 const dollars = [...String(event.price || '').matchAll(/\$\s*(\d+(?:\.\d{1,2})?)/g)].map((m) => Number(m[1]));
 const today = dateKey(todayWall());
 const validFrom = today < event.date ? today : event.date;
@@ -183,7 +186,7 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
       <h1>{event.title}</h1>
 
       <dl class="event-facts">
-        <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="event-facts__sub">{event.series.when} · {event.series.time}</span>}</dd></div>
+        <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="event-facts__sub">{exhibit ? `${event.series.when} · Next open ${shortDate(event.start)}` : `${event.series.when} · ${event.series.time}`}</span>}</dd></div>
         <div><dt>Where</dt><dd>{event.venueKey && event.venue && venueCount > 0 ? <a href={`/venue/${event.venueKey}/`}>{shortVenue(event)}</a> : shortVenue(event)}{event.address && event.address !== event.venue && <span class="event-facts__sub">{event.address}</span>}</dd></div>
         {event.price && <div><dt>Cost</dt><dd>{event.price}</dd></div>}
         {event.acts && (

@@ -372,10 +372,16 @@ Read the flyer and return ONLY a JSON object, no other text:
   "price": "e.g. 'Free', 'No cover', '$10', '$15 advance / $20 door', or empty",
   "url": "ticket or info website if printed, else empty",
   "description": "1-2 plain sentences about the event using only what the flyer says",
-  "shows": [ { "date": "YYYY-MM-DD", "start": "HH:MM 24-hour or empty", "end": "HH:MM 24-hour or empty", "title": "only if this date has a different act than the main title, else empty" } ],
+  "shows": [ { "date": "YYYY-MM-DD", "weekday": "the weekday printed next to this date (e.g. 'Friday'), else empty", "start": "HH:MM 24-hour or empty", "end": "HH:MM 24-hour or empty", "title": "only if this date has a different act than the main title, else empty" } ],
+  "run": {
+    "until": "YYYY-MM-DD: the last day, only when this is an exhibit or show that runs over many days ('runs through December 13th', 'on view until', 'through Jan 5'), else empty",
+    "hours": [ { "days": ["Thursday", "Friday"], "start": "HH:MM", "end": "HH:MM" } ],
+    "reception": { "label": "Opening reception, Closing reception or Artist talk", "date": "YYYY-MM-DD", "start": "HH:MM", "end": "HH:MM" }
+  },
   "missing": ["fields you could not find on the flyer, from: date, start, venue, price"]
 }
-Rules: list every date on the flyer as its own show. If no year is printed, use the next upcoming date. "Every Friday in November" with dates listed means one show per listed date. Leave anything not on the flyer empty; never guess. Times like "7-10pm" mean start 19:00, end 22:00.`;
+Rules: list every date on the flyer as its own show. If no year is printed, use this year's date and copy the printed weekday exactly; the calendar works out the year. "Every Friday in November" with dates listed means one show per listed date. Leave anything not on the flyer empty; never guess. Times like "7-10pm" mean start 19:00, end 22:00.
+Exhibits and long runs: put the opening or first day as the only show (with the reception's times if there is one), the last day in run.until, the open days and hours in run.hours (one entry per group of days with the same hours; empty list if no hours are printed) and any reception in run.reception. Leave "run" out entirely for a one-time event.`;
 }
 
 function parseJSON(text) {
@@ -426,24 +432,93 @@ async function readFlyer(env, buf, type) {
   return { ...(parseJSON(out?.response) || {}), reader: 'workers-ai' };
 }
 
-// Flyers often say "Monday, Nov 11" with no year, and the model may pick the year that matches the
-// weekday. Events are always upcoming, so a date in the past moves to its next upcoming year.
-function upcoming(date) {
-  if (!isDate(date)) return '';
+// Flyers often say "Friday, Nov 6" with no year. Until Nov 25, 2026 any date already past simply
+// moved to next year, which put a gallery show that opened Nov 6 (and ran through Dec 13) on
+// Nov 6, 2027. Now, in order:
+//   1. A date still coming up this year (or next, for "Jan 10" read in December) stays.
+//   2. A run that's still going (its last day hasn't passed) keeps its first day, even in the past.
+//   3. A printed weekday picks the year it fits ("Friday, Nov 6" is 2026, not 2027).
+//   4. Otherwise the next upcoming date, flagged so the person checks the year.
+// Returns { date, check } where check says why a person should look at it.
+const WEEKDAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const weekdayOf = (key) => new Date(`${key}T12:00:00Z`).getUTCDay();
+function resolveYear(date, { weekday = '', runUntil = '' } = {}) {
+  if (!isDate(date)) return { date: '', check: '' };
   const today = todayLocal();
-  if (date >= today) return date;
-  let y = Number(today.slice(0, 4));
-  let d = `${y}${date.slice(4)}`;
-  if (d < today) d = `${y + 1}${date.slice(4)}`;
-  return d;
+  const y = Number(today.slice(0, 4));
+  const md = date.slice(4);
+  const options = [y - 1, y, y + 1].map((n) => `${n}${md}`).filter(isDate);
+  const wd = WEEKDAY_NAMES.findIndex((n) => String(weekday).toLowerCase().startsWith(n.slice(0, 3)) && String(weekday).trim().length >= 3);
+  const fits = (k) => wd < 0 || weekdayOf(k) === wd;
+  const next = options.find((k) => k >= today);
+  // A run still going: the latest first day on or before its last day.
+  if (runUntil && runUntil >= today) {
+    const start = options.filter((k) => k <= runUntil && fits(k)).pop() || options.filter((k) => k <= runUntil).pop();
+    if (start) return { date: start, check: '' };
+  }
+  if (wd >= 0) {
+    const match = options.filter(fits);
+    const upcomingMatch = match.find((k) => k >= today);
+    if (upcomingMatch && (upcomingMatch === next || !fits(next))) return { date: upcomingMatch, check: '' };
+    const pastMatch = match.filter((k) => k < today).pop();
+    if (pastMatch && !match.some((k) => k >= today)) return { date: pastMatch, check: 'past' };
+  }
+  if (date >= today) return { date, check: '' };
+  return { date: next || date, check: 'year' };
+}
+// Kept for anything else that reads one date: the next upcoming one.
+const upcoming = (date) => resolveYear(date).date;
+
+// "runs through Dec 13" on a flyer: the open days, each day's hours and any reception, as a repeat
+// rule the form fills in (Nov 25, 2026). Returns null when the flyer isn't for a run.
+function runRule(run, firstShow) {
+  if (!run || typeof run !== 'object' || !firstShow?.date) return null;
+  const until = resolveYear(run.until).date;
+  if (!until || until < firstShow.date) return null;
+  const hours = {};
+  const days = new Set();
+  for (const h of Array.isArray(run.hours) ? run.hours : []) {
+    for (const name of Array.isArray(h?.days) ? h.days : []) {
+      const d = WEEKDAY_NAMES.findIndex((n) => String(name).toLowerCase().startsWith(n.slice(0, 3)));
+      if (d < 0) continue;
+      days.add(d);
+      if (isTime(h.start)) hours[d] = { start: h.start, end: isTime(h.end) ? h.end : '' };
+    }
+  }
+  // No open days printed: every day from the first to the last.
+  const list = days.size ? [...days] : [0, 1, 2, 3, 4, 5, 6];
+  const rc = run.reception && isDate(run.reception.date) ? run.reception : null;
+  return tidyRepeat({
+    freq: 'weekly', every: 1, days: list, start: firstShow.date, until, exhibit: true, hours,
+    reception: rc ? { date: resolveYear(rc.date, { runUntil: until }).date, start: rc.start, end: rc.end, label: rc.label } : null,
+  });
 }
 
 function tidyExtract(x = {}) {
+  const runUntil = x.run && isDate(x.run.until) ? resolveYear(x.run.until).date : '';
+  const checks = [];
   const shows = (Array.isArray(x.shows) ? x.shows : [])
-    .map((s) => ({ date: upcoming(s?.date), start: isTime(s?.start) ? s.start : '', end: isTime(s?.end) ? s.end : '', title: clean(s?.title, 120) }))
+    .map((s) => {
+      const { date, check } = resolveYear(s?.date, { weekday: s?.weekday, runUntil });
+      if (check) checks.push(check);
+      return { date, start: isTime(s?.start) ? s.start : '', end: isTime(s?.end) ? s.end : '', title: clean(s?.title, 120) };
+    })
     .filter((s) => s.date || s.start)
     .slice(0, 20);
+  const repeat = runRule(x.run, shows[0]);
+  // A run: one date row (the first day), its times from that day's open hours when it has them.
+  if (repeat) {
+    const own = repeat.hours?.[weekdayOf(shows[0].date)];
+    shows.splice(0, shows.length, { ...shows[0], ...(own ? { start: own.start, end: own.end } : {}), title: '' });
+  }
   return {
+    ...(repeat ? { repeat } : {}),
+    // Things the person should look at, shown above the form.
+    notes: [
+      ...(checks.includes('past') ? ['The date on this flyer has already passed this year. Check the date (or, if it\'s a show that runs for a while, tick "It\'s an exhibit" and add its last day).'] : []),
+      ...(checks.includes('year') ? ['The flyer doesn\'t say the year. Check that the date is right.'] : []),
+      ...(repeat ? ['This looks like a show that runs for a while, so I set it up as an exhibit with its open days and hours. Check them below.'] : []),
+    ],
     title: clean(x.title, 140),
     performers: clean(x.performers, 300),
     venue: clean(x.venue, 140),
