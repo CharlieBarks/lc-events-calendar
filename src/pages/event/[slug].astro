@@ -29,6 +29,8 @@ const path = `/event/${event.slug}/`;
 // An exhibit (Nov 25, 2026) says its open days and hours, not one date: the page stands for the whole run.
 const exhibit = !!(event.ongoing && event.series?.exhibit);
 const when = exhibit && event.series.hours ? event.series.hours : `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
+// Open days we couldn't read ("Open during events only"): no "Next open" date.
+const nextOpen = exhibit && !(event.rule?.hoursNote && !event.rule?.hours) ? ` · Next open ${shortDate(event.start)}` : '';
 
 // Plain-text descriptions from feeds: split into paragraphs, never inject raw HTML.
 const paragraphs = event.description.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
@@ -186,7 +188,7 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
       <h1>{event.title}</h1>
 
       <dl class="event-facts">
-        <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="event-facts__sub">{exhibit ? `${event.series.when} · Next open ${shortDate(event.start)}` : `${event.series.when} · ${event.series.time}`}</span>}</dd></div>
+        <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="event-facts__sub">{exhibit ? `${event.series.when}${nextOpen}` : `${event.series.when} · ${event.series.time}`}</span>}</dd></div>
         <div><dt>Where</dt><dd>{event.venueKey && event.venue && venueCount > 0 ? <a href={`/venue/${event.venueKey}/`}>{shortVenue(event)}</a> : shortVenue(event)}{event.address && event.address !== event.venue && <span class="event-facts__sub">{event.address}</span>}</dd></div>
         {event.price && <div><dt>Cost</dt><dd>{event.price}</dd></div>}
         {event.acts && (

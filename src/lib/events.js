@@ -24,7 +24,7 @@ import { topicFor } from './topics.js';
 import { resolveVenue, fold, venueKey, venueInfo, venueList } from './venues.js';
 import { addThumbs } from './thumbs.js';
 import { areaOf, townOf } from './areas.js';
-import { addSisterLinks } from './sisters.js';
+import { addSisterLinks, artTrailShows } from './sisters.js';
 import spotlightList from '../data/spotlight.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
@@ -279,7 +279,17 @@ export async function getEvents() {
     const subIndex = index(subs);
     // Next: the organizations' own calendars (library, museums...). Their copy links straight to
     // their page, so it beats CitySpark's copy of the same event.
-    const direct = feedsRaw.filter((e) => !e.finder).flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => shown(e) && !dupOf(subIndex, e));
+    // Galleries' current shows from the Las Cruces Art Trail (Nov 25, 2026): exhibits like any feed.
+    // They give way to the same show from our form or from the venue's own calendar (the Museums'
+    // calendar lists theirs): same place and day, and one title contains the other.
+    const shows = await artTrailShows(today);
+    const feedsOnly = feedsRaw.filter((e) => !e.finder).flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => shown(e) && !dupOf(subIndex, e));
+    const byDay = new Map();
+    for (const e of [...subs, ...feedsOnly]) byDay.set(e.date, [...(byDay.get(e.date) || []), e]);
+    const t = (e) => e.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const sameShow = (e) => (byDay.get(e.date) || []).some((x) => samePlace(x, e) && Math.min(t(x).length, t(e).length) >= 8 && (t(x).includes(t(e)) || t(e).includes(t(x))));
+    const fromTrail = shows.flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => shown(e) && !sameShow(e));
+    const direct = [...feedsOnly, ...fromTrail];
     const directIndex = index(direct);
     const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => shown(e) && !dupOf(subIndex, e) && !dupOf(directIndex, e));
     // Between CitySpark and the city feed, keep the CitySpark copy (it has a photo).

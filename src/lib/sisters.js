@@ -7,13 +7,18 @@
 // These links are extras: if a directory can't be read, the build simply goes without them.
 import fs from 'node:fs';
 import { resolveVenue, fold } from './venues.js';
+import { parseHours } from './hours.js';
+import { tidyRepeat } from './repeat.js';
 
 const DIRECTORIES = {
   live: 'https://lascruceslive.com/directory.json',
   art: 'https://lascrucesarttrail.com/directory.json',
 };
 
-async function load(key) {
+// Each directory is read once per build: the Art Trail's is used twice (its shows, then the links).
+const loaded = {};
+const load = (key) => (loaded[key] ||= readDirectory(key));
+async function readDirectory(key) {
   // Local testing: EVENTS_DIRECTORY_<KEY>=path/to/directory.json
   const file = process.env[`EVENTS_DIRECTORY_${key.toUpperCase()}`];
   if (file) return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -69,3 +74,63 @@ export async function addSisterLinks(events) {
 
 // "Americana, Country": the genres of the acts on a listing (first two).
 export const genreLine = (e) => [...new Set((e.acts || []).flatMap((a) => a.genres))].slice(0, 2).join(', ');
+
+// ---------- Art Trail shows on the calendar (Nov 25, 2026) ----------
+// Galleries enter their current show once, on the Art Trail (Notion Art Venues, the venue form or
+// their private edit link). Its /directory.json lists them under "exhibitions"; each becomes an
+// exhibit here (see "Exhibits and shows that run for a while" in SITE.md): listed once under On now
+// for the whole run, its open days and hours read from the gallery's hours (src/lib/hours.js), and
+// its reception as its own listing. They arrive like a feed (`feed: 'arttrail'`), so a show the
+// organizer also sent through our form shows once, as the form's copy.
+export async function artTrailShows(today) {
+  const art = await load('art');
+  const shows = Array.isArray(art?.exhibitions) ? art.exhibitions : [];
+  const out = [];
+  for (const s of shows) {
+    if (!s?.title || !s.venue || !isDate(s.start)) continue;
+    if (s.end && (!isDate(s.end) || s.end < today)) continue;
+    const read = parseHours(s.hours);
+    const reception = s.reception && isDate(s.reception.date) ? receptionOf(s.reception) : null;
+    const repeat = tidyRepeat({
+      freq: 'weekly', every: 1, start: s.start, until: s.end || '', exhibit: true,
+      days: read ? read.days : [0, 1, 2, 3, 4, 5, 6],
+      hours: read ? read.hours : {},
+      hoursNote: read ? read.skipped.join('; ') : String(s.hours || ''),
+      reception,
+    });
+    if (!repeat) continue;
+    const artists = (s.artists || []).filter(Boolean);
+    out.push({
+      feed: 'arttrail',
+      title: s.title,
+      start: s.start,
+      end: '',
+      venue: s.venue,
+      address: s.address || '',
+      tags: ['Art', 'Exhibit'],
+      price: /^free/i.test(s.admission || '') ? 'Free' : '',
+      description: [s.description, artists.length ? `Art Trail artists in this show: ${artists.join(', ')}.` : ''].filter(Boolean).join('\n\n'),
+      url: s.url || '',
+      image: s.image || '',
+      repeat,
+      // spread() names each date after this, and the exhibit's page after the title.
+      slug: slugify(s.title),
+    });
+  }
+  if (shows.length) console.log(`Art Trail: ${out.length} of ${shows.length} shows on the calendar`);
+  return out;
+}
+
+const isDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-$/, '');
+// "4–8pm" -> 16:00–20:00 through the same reader as gallery hours (it needs a day, so give it one).
+function receptionOf(r) {
+  const read = parseHours(`Mon ${r.time || ''}`);
+  let t = read?.hours?.[1];
+  if (!t) {
+    // A start time alone: "2pm", "6:30 pm", "noon".
+    const m = String(r.time || '').toLowerCase().replace('noon', '12pm').match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/);
+    if (m && Number(m[1]) <= 12) t = { start: `${String((Number(m[1]) % 12) + (m[3] === 'pm' ? 12 : 0)).padStart(2, '0')}:${m[2] || '00'}`, end: '' };
+  }
+  return { date: r.date, start: t?.start || '', end: t?.end || '', label: r.label || 'Opening reception' };
+}
