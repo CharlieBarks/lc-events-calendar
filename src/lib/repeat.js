@@ -12,7 +12,13 @@
 //     by: 'weekday' | 'date',    // monthly only: "the 2nd Tuesday" or "the 17th"
 //     start: '2026-11-17',       // first date (also sets the weekday / day of month)
 //     until: '2027-01-16',       // last possible date, '' = no end
-//     skip: ['2026-12-22'] }     // single dates taken out
+//     skip: ['2026-12-22'],      // single dates taken out
+//     // Exhibits and shows that run for a while (Nov 25, 2026). Only kept when set:
+//     exhibit: true,             // listed once under "On now" for the whole run, not on every open day
+//     hours: { 4: { start: '17:00', end: '20:00' }, 6: { start: '12:00', end: '16:00' } },
+//                                // weekly only: each open weekday's own hours (missing = the first date's times)
+//     reception: { date: '2026-11-06', start: '17:00', end: '20:00', label: 'Opening reception' } }
+//                                // one evening with its own listing on its day
 //
 // Everything is plain calendar dates (YYYY-MM-DD) in Las Cruces. No clock times and no time
 // zones are involved, so daylight saving time can't move a date.
@@ -39,7 +45,7 @@ export function tidyRepeat(r) {
   const startDay = parts(r.start).w;
   let days = [...new Set((Array.isArray(r.days) ? r.days : []).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
   if (freq === 'weekly' && !days.length) days = [startDay];
-  return {
+  const out = {
     freq, every,
     days: freq === 'weekly' ? days : [],
     by: freq === 'monthly' ? (r.by === 'date' ? 'date' : 'weekday') : '',
@@ -47,6 +53,72 @@ export function tidyRepeat(r) {
     until: isDate(r.until) && r.until >= r.start ? r.until : '',
     skip: [...new Set((Array.isArray(r.skip) ? r.skip : []).filter(isDate))].sort().slice(0, 200),
   };
+  // Exhibit extras, only when set, so ordinary rules stay exactly as they were.
+  if (r.exhibit && freq === 'weekly') out.exhibit = true;
+  if (freq === 'weekly' && r.hours && typeof r.hours === 'object') {
+    const hours = {};
+    for (const d of days) {
+      const h = r.hours[d] || r.hours[String(d)];
+      if (h && isTime(h.start)) hours[d] = { start: h.start, end: isTime(h.end) ? h.end : '' };
+    }
+    if (Object.keys(hours).length) out.hours = hours;
+  }
+  const rc = r.reception;
+  if (rc && isDate(rc.date)) {
+    out.reception = {
+      date: rc.date,
+      start: isTime(rc.start) ? rc.start : '',
+      end: isTime(rc.end) ? rc.end : '',
+      label: String(rc.label || '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Opening reception',
+    };
+  }
+  return out;
+}
+
+const isTime = (s) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+
+// A rule's hours for one date: that weekday's own hours, or null (use the first date's times).
+export function hoursOn(rule, key) {
+  const r = tidyRepeat(rule);
+  if (!r || !r.hours || !isDate(key)) return null;
+  return r.hours[parts(key).w] || null;
+}
+
+// "5 PM", "4:30 PM", "noon", "5–8 PM", "noon–4 PM", "10 AM–2 PM".
+const clock = (t) => {
+  const [H, M] = t.split(':').map(Number);
+  if (H === 12 && M === 0) return { text: 'noon', ap: '' };
+  return { text: `${H % 12 || 12}${M ? `:${String(M).padStart(2, '0')}` : ''}`, ap: H < 12 ? 'AM' : 'PM' };
+};
+export function timeSpan(start, end) {
+  if (!isTime(start)) return '';
+  const a = clock(start);
+  if (!isTime(end)) return a.ap ? `${a.text} ${a.ap}` : a.text;
+  const b = clock(end);
+  const left = a.ap && a.ap === b.ap ? a.text : a.ap ? `${a.text} ${a.ap}` : a.text;
+  return `${left}–${b.ap ? `${b.text} ${b.ap}` : b.text}`;
+}
+
+// When an exhibit is open, in words: "Thursday and Friday 5–8 PM, Saturday and Sunday noon–4 PM".
+// Days with the same hours go together, Monday first; three or more days in a row read "Thursday to Sunday".
+export function openHours(rule, fallback = {}) {
+  const r = tidyRepeat(rule);
+  if (!r || r.freq !== 'weekly') return '';
+  const order = [1, 2, 3, 4, 5, 6, 0].filter((d) => r.days.includes(d));
+  const span = (d) => { const h = (r.hours && r.hours[d]) || fallback; return timeSpan(h.start, h.end); };
+  const groups = [];
+  for (const d of order) {
+    const s = span(d);
+    const last = groups[groups.length - 1];
+    if (last && last.s === s) last.days.push(d); else groups.push({ s, days: [d] });
+  }
+  const names = (ds) => {
+    const pos = ds.map((d) => order.indexOf(d));
+    const together = ds.length >= 3 && pos.every((p, i) => i === 0 || p === pos[i - 1] + 1) && ds.every((d, i) => i === 0 || (d === 0 ? 7 : d) === (ds[i - 1] === 0 ? 7 : ds[i - 1]) + 1);
+    return together ? `${WEEKDAYS[ds[0]]} to ${WEEKDAYS[ds[ds.length - 1]]}` : list(ds.map((d) => WEEKDAYS[d]));
+  };
+  if (order.length === 7 && groups.length === 1) return `Every day${groups[0].s ? ` ${groups[0].s}` : ''}`;
+  return groups.map((g) => `${names(g.days)}${g.s ? ` ${g.s}` : ''}`).join(', ');
 }
 
 function matches(rule, key, start) {
@@ -89,6 +161,13 @@ export function describe(rule) {
   if (!r) return '';
   const start = parts(r.start);
   let text;
+  if (r.exhibit) {
+    // "Exhibit, open Thursday and Friday 5–8 PM, Saturday and Sunday noon–4 PM until Dec 13 (opening reception Nov 6, 5–8 PM)"
+    text = `Exhibit, open ${openHours(r)}`;
+    if (r.until) { const u = parts(r.until); text += ` until ${MONTHS[u.m]} ${u.d}${u.y !== start.y ? `, ${u.y}` : ''}`; }
+    if (r.reception) { const p = parts(r.reception.date); const t = timeSpan(r.reception.start, r.reception.end); text += ` (${r.reception.label.toLowerCase()} ${MONTHS[p.m]} ${p.d}${t ? `, ${t}` : ''})`; }
+    return text;
+  }
   if (r.freq === 'weekly') {
     const names = list(r.days.map((d) => WEEKDAYS[d]));
     text = r.days.length === 7 && r.every === 1 ? 'Every day'

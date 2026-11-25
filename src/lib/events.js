@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import lllcEvents from '../data/events.json';
 import { CATEGORIES, categoryKey, categoryFromTags, audienceOf, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL, REPEAT_DAYS } from './site.js';
-import { expand, describe, addDaysKey } from './repeat.js';
+import { expand, describe, addDaysKey, hoursOn, openHours } from './repeat.js';
 import { topicFor } from './topics.js';
 import { resolveVenue, fold, venueKey, venueInfo, venueList } from './venues.js';
 import { addThumbs } from './thumbs.js';
@@ -106,15 +106,29 @@ async function loadCity() {
 function spread(e, today) {
   if (!e.repeat) return [e];
   const time = (iso) => (String(iso || '').match(/T(\d\d:\d\d)/) || [])[1] || '';
-  const startTime = time(e.start), endTime = time(e.end);
-  const overnight = startTime && endTime && endTime < startTime;
-  return expand(e.repeat, today, addDaysKey(today, REPEAT_DAYS)).map((date) => ({
-    ...e,
-    slug: `${e.slug}-${date}`,
-    start: startTime ? `${date}T${startTime}:00` : date,
-    end: endTime ? `${overnight ? addDaysKey(date, 1) : date}T${endTime}:00` : '',
-    seriesKey: e.slug,
-  }));
+  const at = (date, s, t) => {
+    const overnight = s && t && t < s;
+    return { start: s ? `${date}T${s}:00` : date, end: t ? `${overnight ? addDaysKey(date, 1) : date}T${t}:00` : '' };
+  };
+  // An exhibit can keep different hours on different days (Thu–Fri evenings, weekend afternoons).
+  // Open days without their own hours use the first date's times; filling them in here lets the
+  // event page say every open day's hours.
+  let rule = e.repeat;
+  if (rule.exhibit && time(e.start)) {
+    const hours = { ...(rule.hours || {}) };
+    for (const d of rule.days || []) if (!hours[d]) hours[d] = { start: time(e.start), end: time(e.end) };
+    rule = { ...rule, hours };
+  }
+  const dates = expand(rule, today, addDaysKey(today, REPEAT_DAYS)).map((date) => {
+    const own = hoursOn(rule, date);
+    return { ...e, repeat: rule, slug: `${e.slug}-${date}`, ...at(date, own ? own.start : time(e.start), own ? own.end : time(e.end)), seriesKey: e.slug };
+  });
+  // An exhibit's opening (or closing) reception: its own listing on its night, like any one-off event.
+  const rc = rule.reception;
+  if (rc && rc.date >= today) {
+    dates.push({ ...e, repeat: null, seriesKey: '', slug: `${e.slug}-${slugify(rc.label || 'reception')}-${rc.date}`, title: `${rc.label || 'Opening reception'}: ${e.title}`, ...at(rc.date, rc.start, rc.end) });
+  }
+  return dates;
 }
 
 const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -362,7 +376,10 @@ export async function getEvents() {
       }
       s.when = describe(first.rule);
       s.ruled = true;
-      s.ongoing = false; // a rule is a schedule, not an exhibit that is simply open every day
+      // A rule is a schedule, not an exhibit that is simply open every day, unless the organizer
+      // said it's an exhibit (Nov 25, 2026): then it's listed once under "On now" for the whole run.
+      s.ongoing = !!first.rule.exhibit;
+      s.exhibit = !!first.rule.exhibit;
       list.forEach((e) => { e.series = s; });
     }
 
@@ -392,6 +409,17 @@ export async function getEvents() {
     for (const x of ongoing) {
       x.next.ongoing = true;
       x.when = `${x.category === 'arts-culture' ? 'On view' : 'Daily'} through ${monthShort(x.until.start)} ${x.until.start.d}`;
+      if (x.exhibit) {
+        // The organizer's own last day (it can be past the 90-day window) and open days and hours.
+        const rule = x.next.rule;
+        const day = (key) => { const w = wall(key); return `${monthShort(w)} ${w.d}`; };
+        const until = rule.until ? `through ${day(rule.until)}` : 'ongoing';
+        x.when = `${x.category === 'arts-culture' ? 'On view' : 'Open'} ${until}`;
+        // "Thursday and Friday 5–8 PM, Saturday and Sunday noon–4 PM" (spread() filled in every open day's hours).
+        x.hours = openHours(rule);
+        // Not open yet: say when it opens.
+        if (rule.start > dateKey(todayWall())) x.when = `Opens ${day(rule.start)}, ${until}`;
+      }
       x.dates = [x.next];
     }
 
