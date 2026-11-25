@@ -115,7 +115,7 @@ const jsonLd = [
       <div class="old-link-note" data-old-link-note hidden>
         <p><strong>Heads up: that event already happened, or it's on our new calendar under a slightly different name.</strong> <span data-old-link-more>Here's everything coming up in Las Cruces.</span> Looking for something specific? Try the search box below.</p>
       </div>
-      <Agenda events={events} ongoing={ongoing} initialDays={HOME_DAYS} rest="/more/home/" nearby={nearby.length} />
+      <Agenda events={events} ongoing={ongoing} initialDays={HOME_DAYS} rest="/more/home/" nearby={nearby.length} onNow={ongoing.length} />
     </div>
   </section>
   <script is:inline>

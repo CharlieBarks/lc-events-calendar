@@ -16,7 +16,7 @@ import { dayLabel } from '../lib/time.js';
 //   only look at the first week.
 // fragment: render only the days after initialDays and nothing else. Used by that fragment page.
 // ongoing: exhibits and long runs. Not part of the day-by-day list, but shown when a search matches them.
-const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0, rest = '', fragment = false, nearby = 0 } = Astro.props;
+const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0, rest = '', fragment = false, nearby = 0, onNow = 0 } = Astro.props;
 
 const byDay = new Map();
 for (const e of events) {
@@ -74,6 +74,7 @@ const itemLevel = headingLevel + 1;
           <button class="agenda__filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
           <button class="agenda__filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
           {nearby > 0 && <a class="agenda__filter agenda__filter--link" href="/nearby/">Nearby towns <span class="agenda__count">{nearby}</span> →</a>}
+          {onNow > 0 && <a class="agenda__filter agenda__filter--link" href="#on-now">On now <span class="agenda__count">{onNow}</span> ↓</a>}
         </div>
         {usedFor.length > 0 && (
           <div class="agenda__filter-row" data-group="for" role="group" aria-label="Who it's for">
