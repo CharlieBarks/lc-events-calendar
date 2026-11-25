@@ -74,7 +74,7 @@ const itemLevel = headingLevel + 1;
           <button class="agenda__filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
           <button class="agenda__filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
           {nearby > 0 && <a class="agenda__filter agenda__filter--link" href="/nearby/">Nearby towns <span class="agenda__count">{nearby}</span> →</a>}
-          {onNow > 0 && <a class="agenda__filter agenda__filter--link" href="#on-now">On now <span class="agenda__count">{onNow}</span> ↓</a>}
+          {onNow > 0 && <a class="agenda__filter agenda__filter--link" href="#on-now">Art exhibits and more <span class="agenda__count">{onNow}</span> ↓</a>}
         </div>
         {usedFor.length > 0 && (
           <div class="agenda__filter-row" data-group="for" role="group" aria-label="Who it's for">
@@ -112,7 +112,7 @@ const itemLevel = headingLevel + 1;
 
   {!fragment && ongoing.length > 0 && (
     <section class="agenda__day" data-ongoing-sec hidden aria-labelledby="d-ongoing">
-      <H class="agenda__day-head" id="d-ongoing"><span class="agenda__day-name">On view now</span> <span class="agenda__day-date">Any day</span></H>
+      <H class="agenda__day-head" id="d-ongoing"><span class="agenda__day-name">Art exhibits and more</span> <span class="agenda__day-date">Any day</span></H>
       <div class="agenda__day-list">
         <ul class="agenda__cards" role="list">{ongoing.map((e) => <EventCard event={e} headingLevel={itemLevel} layout="row" />)}</ul>
       </div>

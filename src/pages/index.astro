@@ -68,7 +68,7 @@ const jsonLd = [
       {ongoing.length > 0 && (
         <a class="on-now-jump" href="#on-now">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>
-          On now: {ongoing.length} {ongoing.length === 1 ? 'exhibit or show' : 'exhibits and shows'}
+          Art exhibits and more: {ongoing.length} on now
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
         </a>
       )}
@@ -134,8 +134,8 @@ const jsonLd = [
       <div class="wrap">
         <div class="section-head">
           <div>
-            <h2>On now, any day you like</h2>
-            <p>Exhibits and long runs you can catch whenever it suits you. No rush, but don't sleep on them.</p>
+            <h2>Art exhibits and more</h2>
+            <p>Gallery shows, museum exhibits and other things running for a while. Catch them any day you like, but don't sleep on them.</p>
           </div>
         </div>
         <ul class="grid" role="list">{ongoing.map((e) => <EventCard event={e} />)}</ul>
