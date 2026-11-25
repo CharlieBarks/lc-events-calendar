@@ -16,7 +16,13 @@ import { dayLabel } from '../lib/time.js';
 //   only look at the first week.
 // fragment: render only the days after initialDays and nothing else. Used by that fragment page.
 // ongoing: exhibits and long runs. Not part of the day-by-day list, but shown when a search matches them.
-const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0, rest = '', fragment = false, nearby = 0, onNow = 0 } = Astro.props;
+const { events, ongoing = [], filters = true, headingLevel = 3, days: maxDays = 120, initialDays = 0, rest = '', fragment = false, nearby = 0, onNow = 0, weekly = 0 } = Astro.props;
+// "Popular" searches under the filters (Charlie, Nov 25: trivia is popular, but a search box can't
+// advertise it). One tap runs the search. Only words with at least 2 upcoming events show, up to 5.
+const POPULAR = ['Trivia', 'Karaoke', 'Bingo', 'Open mic', 'Line dancing', 'Comedy', 'Salsa'];
+const popular = POPULAR
+  .map((w) => ({ w, n: events.filter((e) => new RegExp(`\\b${w.replace(' ', '\\s*')}\\b`, 'i').test(`${e.title} ${(e.tags || []).join(' ')}`)).length }))
+  .filter((p) => p.n >= 2).slice(0, 5);
 
 const byDay = new Map();
 for (const e of events) {
@@ -74,7 +80,8 @@ const itemLevel = headingLevel + 1;
           <button class="agenda__filter" type="button" data-when="weekend" aria-pressed="false">This weekend</button>
           <button class="agenda__filter" type="button" data-when="week" aria-pressed="false">Next 7 days</button>
           {nearby > 0 && <a class="agenda__filter agenda__filter--link" href="/nearby/">Nearby towns <span class="agenda__count">{nearby}</span> →</a>}
-          {onNow > 0 && <a class="agenda__filter agenda__filter--link agenda__filter--exhibits" href="#on-now">Art exhibits and more <span class="agenda__count">{onNow}</span> ↓</a>}
+          {onNow > 0 && <a class="agenda__filter agenda__filter--link agenda__filter--exhibits" href="/exhibits/">Art exhibits and more <span class="agenda__count">{onNow}</span> →</a>}
+          {weekly > 0 && <a class="agenda__filter agenda__filter--link agenda__filter--weekly" href="/weekly/">Weekly regulars <span class="agenda__count">{weekly}</span> →</a>}
         </div>
         {usedFor.length > 0 && (
           <div class="agenda__filter-row" data-group="for" role="group" aria-label="Who it's for">
@@ -85,6 +92,12 @@ const itemLevel = headingLevel + 1;
         )}
       </div>
     </div>
+  )}
+  {!fragment && filters && popular.length > 0 && (
+    <p class="agenda__popular">
+      <span class="agenda__popular-label">Popular:</span>
+      {popular.map((p) => <button class="agenda__popular-pick" type="button" data-q={p.w.toLowerCase()}>{p.w} <span class="agenda__count">{p.n}</span></button>)}
+    </p>
   )}
 
   {days.map(([date, list], i) => {
@@ -304,7 +317,7 @@ const itemLevel = headingLevel + 1;
         chip.querySelector('[data-venue-name]').textContent = venueName || state.venue;
       }
       if (status) {
-        const who = { free: 'free ', kids: 'kid-friendly ', seniors: 'senior ', outdoors: 'outdoor ' }[state.for] || '';
+        const who = { free: 'free ', kids: 'kid-friendly ', seniors: 'senior ', outdoors: 'outdoor ', dogs: 'dog-friendly ' }[state.for] || '';
         const what = `${shown} ${who}event${shown === 1 ? '' : 's'}`;
         const q = matches && state.q ? ` matching “${state.q}”` : '';
         const at = state.venue ? ` at ${venueName || 'that venue'}` : '';
@@ -422,6 +435,13 @@ const itemLevel = headingLevel + 1;
         sec.setAttribute('data-rows-open', '');
         apply(false);
         sec.querySelectorAll('[data-row-list] > li:not([hidden]) a')[ROWS_SHOWN]?.focus();
+        return;
+      }
+      // A "Popular" word: runs it as a search, as if typed.
+      if (b.dataset.q) {
+        state.q = b.dataset.q; state.venue = ''; venueName = '';
+        if (input) input.value = b.dataset.q;
+        runSearch(true, false).then(toTop);
         return;
       }
       if (b.dataset.when) state.when = b.dataset.when;
@@ -782,5 +802,13 @@ const itemLevel = headingLevel + 1;
   /* Same look as the homepage's "Art exhibits and more" pill (index.astro). */
   .agenda__filter.agenda__filter--exhibits { border: 2px solid var(--primary); background: var(--primary-ultra-light); color: var(--primary-dark); }
   .agenda__filter.agenda__filter--exhibits:hover { background: var(--primary-light); }
+  /* Weekly regulars: agave green, like the regulars' tint in the list. */
+  .agenda__filter.agenda__filter--weekly { border: 2px solid var(--secondary); background: var(--secondary-ultra-light); color: var(--secondary-dark); }
+  .agenda__filter.agenda__filter--weekly:hover { background: var(--secondary-light); }
+  .agenda__filter--weekly .agenda__count { color: inherit; }
+  .agenda__popular { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); margin-block: var(--space-s) 0; font-size: var(--text-s); }
+  .agenda__popular-label { color: var(--text-dark-muted); font-weight: 600; }
+  .agenda__popular-pick { font: inherit; font-weight: 600; min-block-size: 2.25rem; padding-inline: var(--space-s); border: 1px solid var(--neutral-light); border-radius: 999px; background: var(--bg-ultra-light); color: var(--text-dark); cursor: pointer; }
+  .agenda__popular-pick:hover { border-color: var(--text-dark); }
   .agenda__filter--exhibits .agenda__count { color: inherit; }
 </style>

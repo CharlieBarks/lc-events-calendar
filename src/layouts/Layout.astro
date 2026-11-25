@@ -102,6 +102,21 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
     <slot />
   </main>
   <Footer />
+  {/* Back to top (Charlie, Nov 25): shows after scrolling down about a screen. */}
+  <button class="to-top" type="button" aria-label="Back to top" hidden data-to-top>
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+  </button>
+  <script is:inline>
+    (function () {
+      var b = document.querySelector('[data-to-top]');
+      if (!b) return;
+      var on = false;
+      function check() { var s = scrollY > innerHeight; if (s !== on) { on = s; b.hidden = !s; } }
+      addEventListener('scroll', check, { passive: true });
+      check();
+      b.addEventListener('click', function () { scrollTo({ top: 0 }); var h = document.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } });
+    })();
+  </script>
   {/* Admin bar switch (Charlie only): ?admin=on on any page turns on the admin bar on event pages
       for this device, ?admin=off turns it off. It's only shortcuts to the review page, which stays
       behind the Cloudflare Access login, so anyone else who tries it gets nothing they can use. */}
@@ -124,3 +139,9 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
   </script>
 </body>
 </html>
+<style>
+  .to-top { position: fixed; inset-block-end: max(1rem, env(safe-area-inset-bottom)); inset-inline-end: 1rem; z-index: 20; inline-size: 3rem; block-size: 3rem; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--base); color: var(--white); cursor: pointer; box-shadow: 0 2px 8px rgb(0 0 0 / .2); }
+  .to-top[hidden] { display: none; }
+  .to-top:hover { background: var(--base-dark); }
+  .to-top:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+</style>

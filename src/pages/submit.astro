@@ -130,6 +130,7 @@ const venueList = await getVenues();
             <p class="submit-form__hint" data-rp-hint hidden>Not happening on one of these? Tap a date to take it out.</p>
           </div>
           <label class="submit-form__check"><input type="checkbox" data-annual /> This is an annual event (same time every year)</label>
+          <label class="submit-form__check"><input type="checkbox" data-dogs /> Dogs are welcome (it shows under Dog friendly)</label>
         </div>
 
         <div class="submit-form__pair">
@@ -643,6 +644,7 @@ const venueList = await getVenues();
       (x.shows?.length ? x.shows : [{}]).forEach(addShow);
       applyRepeat(x.repeat);
       $<HTMLInputElement>('[data-annual]').checked = !!x.annual;
+      $<HTMLInputElement>('[data-dogs]').checked = !!x.dogs;
       syncRepeat();
       // The pictures it already has, ready to keep, remove or change (Charlie, Nov 23).
       imageId = x.imageId || ''; photoIds = (x.photoIds || []).slice(0, MAX_PHOTOS); mainId = x.main || '';
@@ -996,6 +998,7 @@ const venueList = await getVenues();
       boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
       repeat: repeatRule(),
       annual: $<HTMLInputElement>('[data-annual]').checked,
+      dogs: $<HTMLInputElement>('[data-dogs]').checked,
       ...(suggest ? { suggests: suggest, imageUrl: imageId ? '' : suggestImage } : {}),
       ...(dupeOf && !suggest ? { possibleDuplicate: dupeOf.id, possibleDuplicateTitle: dupeOf.title } : {}),
     };

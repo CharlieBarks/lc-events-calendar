@@ -103,6 +103,14 @@ Built Nov 15, 2026 (Charlie: Las Cruces is a retirement town; seniors and famili
 - **Not events:** closures ("Libraries Closed for Thanksgiving") and canceled or postponed listings are dropped from every source (`NOT_AN_EVENT` in `src/lib/events.js`).
 - **Topic words match whole words** (`src/lib/topics.js`): "Grave" isn't a rave, "Discussion" isn't disco, "Makerspace" isn't space, "Trails West" isn't hiking, "Santa Fe" isn't Christmas. Check a new word for this before adding it.
 
+## Dog friendly, Popular searches, back to top (Nov 25, 2026)
+
+Ideas from fromboise.com/events. Date night was considered and held for later (Charlie).
+
+- **Dog friendly** is a who-it's-for button (`dogs` in `AUDIENCES`, `?for=dogs`). An event counts when: the organizer ticked "Dogs are welcome" on `/submit/` (`dogs` on the submission, passed through by the submissions Worker), its venue is ticked **Dogs welcome** on the Venues screen (stored with the venue edit, `dogs` in `venue-merge.js`; every event at that venue counts, applied in `src/lib/events.js`), or its wording says so (`DOGS` in `src/lib/site.js`: "dog friendly", "dogs welcome", "yappy hour", "pups & pints", "pet adoption", "paws"…; phrases only, so "Hot Dog" and "Charlie Barks" don't count). It starts thin until venues are ticked.
+- **Popular searches:** a "Popular: Trivia · Karaoke · Bingo…" line just under the filters (not in the sticky bar, so the bar stays slim). One tap runs the search. Words in `POPULAR` in `Agenda.astro`; each shows only with 2 or more upcoming events, up to 5, with its count. Charlie's call: trivia as a popular search rather than its own button.
+- **Back to top:** a round night-blue button, bottom right, on every page once you've scrolled about a screen (`.to-top` in `Layout.astro`).
+
 ## Search
 
 - One search box at the top of the calendar's filters (homepage and category pages). It narrows the same day-by-day list and works together with the date and category filters.
@@ -133,7 +141,7 @@ Built Nov 15, 2026 (Charlie: Las Cruces is a retirement town; seniors and famili
 - **Topic photos (Nov 15, 2026):** an event with no picture of its own shows a stock photo of its topic (pickleball, yoga, farmers market…) instead of the drawn artwork, like CitySpark did. One photo per topic in `src/data/topic-photos.json`, all from Pexels (free to use, no credit needed). The build makes our own small copies like any event picture; if a photo can't be fetched, that event keeps the drawn artwork. To change a photo, replace its Pexels number in that file. Topics are matched in `src/lib/topics.js`.
 - **Thumbnails:** each build makes small copies of every event picture in three widths (`src/lib/thumbs.js`, served from `/thumbs/`). Lists use the small ones, event pages a 1200px one; tapping a flyer still opens the full-size original. A picture that can't be fetched or read keeps its original address, so nothing can break a build. A picture that no longer exists (404) is dropped and the event shows our artwork instead of a broken image. Skipped in offline builds and `astro dev`; `EVENTS_THUMBS=0` turns it off. Uses `sharp` (added to `package.json` with Charlie's OK, Nov 14).
 
-- **Finding them (Nov 25, 2026):** the section sits below the day list, so the homepage also has an "Art exhibits and more: N on now" pill under the hero buttons and an "Art exhibits and more N ↓" button in the date row (after Nearby towns, `onNow` prop on `Agenda.astro`), both jumping to `#on-now`.
+- **Own pages (Nov 25, 2026):** Art exhibits and more and Weekly regulars were sections at the bottom of the homepage that nobody scrolled to. Now `/exhibits/` (every exhibit and long run, art first, closing soonest first, `runUntil` set in `src/lib/events.js`) and `/weekly/` (every regular grouped Monday to Sunday by the days it happens in the next four weeks, with day buttons and "Today") have them all. The homepage keeps a teaser (4 exhibits, 6 regulars, each with "See all"), two pills under the hero buttons (red for exhibits, agave green for regulars), and two buttons at the end of the date row (`onNow` and `weekly` props on `Agenda.astro`). Both pages are also in the This weekend / Live music bar (`calendarLinks` in `Header.astro`). The homepage section keeps `id="on-now"` so old jump links still land.
 
 ## Event pages
 

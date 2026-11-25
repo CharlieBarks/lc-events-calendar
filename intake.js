@@ -589,6 +589,7 @@ function tidySubmission(b) {
   return {
     repeat,
     annual: !!b.annual,
+    dogs: !!b.dogs,
     title: clean(b.title, 140),
     performers: clean(b.performers, 300),
     venue: clean(b.venue, 140),
@@ -723,7 +724,7 @@ async function handleMine(request, env, origin) {
   return json({
     status: rec.status === 'approved' && !rec.change ? 'live' : rec.change ? 'change-waiting' : 'waiting',
     title: rec.title, venue: rec.venue, address: rec.address, category: rec.category, price: rec.price, url: rec.url,
-    description: rec.description, shows: rec.shows, repeat: rec.repeat || null, annual: !!rec.annual,
+    description: rec.description, shows: rec.shows, repeat: rec.repeat || null, annual: !!rec.annual, dogs: !!rec.dogs,
     imageId: rec.imageId || '', imageUrl: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : '',
     photoIds: photosOf(rec), main: mainOf(rec), imgBase: `${PUBLIC_ORIGIN}/img/`,
     // Trusted submitters' changes go live as soon as they save (paid Spotlight events still wait).
@@ -815,6 +816,7 @@ function toCalendarEvents(rec) {
       submissionId: rec.id,
       ...(rec.repeat ? { repeat: rec.repeat } : {}),
       ...(rec.annual ? { annual: true } : {}),
+      ...(rec.dogs ? { dogs: true } : {}),
     };
   });
 }
@@ -1032,6 +1034,8 @@ function tidyVenue(b) {
     address: clean(b.address, 200),
     website: /^https?:\/\//i.test(b.website || '') ? clean(b.website, 400) : '',
     about: clean(b.about, 600),
+    // "Dogs welcome" (Nov 25, 2026): every event here gets the Dog friendly button on the calendar.
+    dogs: !!b.dogs,
     aliases,
     was: clean(b.was, 140),
   };
@@ -1041,7 +1045,7 @@ async function venuesApi(request, env, path, body) {
   const edits = await getVenueEdits(env);
   if (path === 'venues') {
     const venues = mergeVenues(venueData.venues, edits).map((v) => ({
-      key: v.key, pageKey: venueKey(v.name), name: v.name, address: v.address || '', website: v.website || '', about: v.about || '',
+      key: v.key, pageKey: venueKey(v.name), name: v.name, address: v.address || '', website: v.website || '', about: v.about || '', dogs: !!v.dogs,
       aliases: v.aliases.filter((a) => typeof a === 'string'),
       rooms: v.aliases.filter((a) => typeof a !== 'string').length,
       edited: !!v.edited, builtin: venueData.venues.some((x) => venueKey(x.name) === v.key),
@@ -1087,6 +1091,7 @@ label{display:block;font-size:.8rem;color:var(--muted);margin:10px 0 2px}input,t
 button{font:inherit;font-weight:600;padding:8px 16px;border-radius:999px;border:1px solid var(--ink);background:#fff;cursor:pointer}.save{background:var(--ok);border-color:var(--ok);color:#fff}.undo{color:var(--accent);border-color:var(--accent)}
 .note{font-size:.9rem;color:var(--muted);margin:0 0 14px}.msg{font-size:.9rem;color:var(--muted)}.trustrow{margin:8px 0;font-size:.95rem}.trustrow button{padding:4px 12px;font-size:.85rem}.err{color:var(--accent)}
 #q{max-width:320px}
+label.dogs{display:flex;gap:8px;align-items:center;font-size:.95rem;color:var(--ink);margin:12px 0 2px}label.dogs input{width:auto}
 .v{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px}
 .v summary{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:10px 14px;cursor:pointer;list-style:none}.v summary::-webkit-details-marker{display:none}
 .v summary strong{font-size:1rem}.v summary span{font-size:.85rem;color:var(--muted)}
@@ -1107,6 +1112,7 @@ function form(v){
   return '<form data-key="'+esc(v.key||'')+'" data-was="'+esc(v.was||'')+'">'+
   '<div class="row"><div><label>Name (how it shows on the calendar)</label><input name="name" required value="'+esc(v.name)+'"></div><div><label>Address</label><input name="address" value="'+esc(v.address)+'" placeholder="'+esc(v.listedAddress?'From listings: '+v.listedAddress:'Street, city')+'"></div></div>'+
   '<div class="row"><div><label>Website</label><input name="website" type="url" value="'+esc(v.website)+'" placeholder="https://"></div><div><label>Short description (shown on the venue page)</label><input name="about" value="'+esc(v.about)+'"></div></div>'+
+  '<label class="dogs"><input type="checkbox" name="dogs"'+(v.dogs?' checked':'')+'> Dogs welcome (every event here shows under Dog friendly on the calendar)</label>'+
   '<label>Also known as (other spellings, one per line)</label><textarea name="aliases" rows="'+Math.max(3,(v.aliases||[]).length+1)+'">'+esc((v.aliases||[]).join('\n'))+'</textarea>'+
   (v.rooms?'<div class="msg">Plus '+v.rooms+' room rule'+(v.rooms===1?'':'s')+' kept from the built-in list.</div>':'')+
   '<div class="btns"><button class="save" type="submit">Save</button>'+
@@ -1118,7 +1124,7 @@ function row(v){
   return '<details class="v" data-find="'+esc((v.name+' '+(v.aliases||[]).join(' ')+' '+(v.address||v.listedAddress||'')).toLowerCase())+'"><summary><strong>'+esc(v.name)+'</strong>'+
   '<span>'+esc(v.address||v.listedAddress||'No address yet')+'</span>'+
   (v.count?'<span>'+v.count+' upcoming</span>':'')+
-  (v.unlisted?'<span class="tag new">From the feeds</span>':'')+(v.edited?'<span class="tag ed">Edited</span>':'')+
+  (v.unlisted?'<span class="tag new">From the feeds</span>':'')+(v.edited?'<span class="tag ed">Edited</span>':'')+(v.dogs?'<span class="tag">Dogs welcome</span>':'')+
   '</summary>'+form(v)+'</details>';
 }
 async function load(keepOpen){
@@ -1143,7 +1149,7 @@ document.getElementById('add').onclick=()=>{const n=document.getElementById('new
 document.getElementById('publish').onclick=async e=>{const s=document.getElementById('status');e.target.disabled=true;s.textContent='Starting the rebuild…';const r=await fetch('/review/api/publish',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}).then(r=>r.json()).catch(()=>({}));s.textContent=r.ok?'Rebuild started. The calendar updates in a few minutes.':"Couldn't start the rebuild. Try again.";e.target.disabled=false};
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target,msg=f.querySelector('[data-msg]');msg.className='msg';msg.textContent='Saving…';
-  const body={key:f.dataset.key,was:f.dataset.was,name:f.name.value,address:f.address.value,website:f.website.value,about:f.about.value,aliases:f.aliases.value.split('\n')};
+  const body={key:f.dataset.key,was:f.dataset.was,name:f.name.value,address:f.address.value,website:f.website.value,about:f.about.value,dogs:f.dogs.checked,aliases:f.aliases.value.split('\n')};
   const r=await fetch('/review/api/venue',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).catch(()=>({error:'Could not save. Try again.'}));
   if(r.error){msg.className='msg err';msg.textContent=r.error;return}
   document.getElementById('new').innerHTML='';await load(r.key);
@@ -1309,6 +1315,7 @@ function card(r){
   (r.change?'<div class="boost"><strong>'+(r.changedBy==='charlie'?'You reopened this to edit it.':'Changed by the organizer.')+'</strong> The calendar keeps the current version until you approve. Reject = keep the current version.'+diffSum(r)+'</div>':'')+
   (r.repeat?'<div class="boost" data-repeat><strong>Repeats: '+esc(r.repeatText)+'.</strong> The first date above sets the start and the times. Next dates: '+esc((r.repeatDates||[]).join(', ')||'none in the next 90 days')+'<div class="row"><div><label>Stops after (empty = keeps going)</label><input type="date" name="repeatUntil" value="'+esc(r.repeat.until||'')+'"></div><div><label>Dates to leave out (YYYY-MM-DD, commas)</label><input name="repeatSkip" value="'+esc((r.repeat.skip||[]).join(', '))+'"></div></div></div>':'')+
   (r.annual?'<div class="boost"><strong>Annual event.</strong> The organizer says this happens every year.</div>':'')+
+  (r.dogs?'<div class="boost"><strong>Dog friendly.</strong> The organizer says dogs are welcome.</div>':'')+
   (r.possibleDuplicate&&!r.suggests?'<div class="boost dupe"><strong>Possible duplicate</strong> of <a href="'+esc(SITE)+'/event/'+esc(r.possibleDuplicate)+'/" target="_blank" rel="noopener">'+esc(r.possibleDuplicateTitle||'this listing')+'</a>. The form asked and the organizer said theirs is a different event. Same event after all? Tick the box below to replace that listing, or use <em>Reject: already listed</em>.<label><input type="checkbox" name="replaceDuplicate"> Same event: approve this and hide the other listing</label></div>':'')+
   (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.'+diffSum(r)+'</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
