@@ -65,6 +65,13 @@ const jsonLd = [
         <a class="btn--primary" href="/this-weekend/">What's on this weekend</a>
         <a class="btn--base btn--outline" href="/submit/">Add your event</a>
       </div>
+      {ongoing.length > 0 && (
+        <a class="on-now-jump" href="#on-now">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>
+          On now: {ongoing.length} {ongoing.length === 1 ? 'exhibit or show' : 'exhibits and shows'}
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+        </a>
+      )}
     </div>
     <div class="home-hero__stats" aria-label="At a glance">
       <div><strong>{thisWeek}</strong><span>events in the next 7 days</span></div>
@@ -123,7 +130,7 @@ const jsonLd = [
   </script>
 
   {ongoing.length > 0 && (
-    <section class="section">
+    <section class="section on-now" id="on-now">
       <div class="wrap">
         <div class="section-head">
           <div>
@@ -205,6 +212,10 @@ const jsonLd = [
   .spotlight-promo p { color: var(--text-dark-muted); max-inline-size: 60ch; }
   .home-hero { display: flex; flex-wrap: wrap; gap: var(--space-l); align-items: flex-end; padding-block-start: var(--space-xl); padding-block-end: var(--space-xl); }
   .home-hero__copy { flex: 1 1 35rem; min-inline-size: 0; display: flex; flex-direction: column; gap: var(--space-m); }
+  .on-now-jump { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--space-xs); min-block-size: 2.75rem; padding: var(--space-xs) var(--space-m); border: 2px solid var(--primary); border-radius: 999px; background: var(--primary-ultra-light); color: var(--primary-dark); font-weight: 600; text-decoration: none; }
+  .on-now-jump:hover { background: var(--primary-light); }
+  .on-now-jump:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+  .on-now { scroll-margin-block-start: 4.5rem; }
   .home-hero__stats { flex: 0 1 18.75rem; display: grid; gap: var(--space-s); }
   .home-hero__stats div { background: var(--bg-ultra-light); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); padding: var(--space-s) var(--space-s); display: flex; align-items: baseline; gap: var(--space-s); }
   .home-hero__stats strong { font-family: var(--heading-font-family); font-size: 2rem; font-weight: 800; color: var(--primary); }
