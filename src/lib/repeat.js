@@ -63,6 +63,10 @@ export function tidyRepeat(r) {
     }
     if (Object.keys(hours).length) out.hours = hours;
   }
+  // The venue's own words for anything the open days and hours can't say ("Open during events only",
+  // "First Fridays until 7pm"). Art Trail shows, Nov 25, 2026.
+  const note = String(r.hoursNote || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  if (note && freq === 'weekly') out.hoursNote = note;
   const rc = r.reception;
   if (rc && isDate(rc.date)) {
     out.reception = {
@@ -104,6 +108,12 @@ export function timeSpan(start, end) {
 export function openHours(rule, fallback = {}) {
   const r = tidyRepeat(rule);
   if (!r || r.freq !== 'weekly') return '';
+  // Hours that couldn't be read into days and times: the venue's own words.
+  if (r.hoursNote && !r.hours && !fallback.start) return r.hoursNote;
+  const said = daysAndHours(r, fallback);
+  return r.hoursNote ? `${said}. Also: ${r.hoursNote}` : said;
+}
+function daysAndHours(r, fallback) {
   const order = [1, 2, 3, 4, 5, 6, 0].filter((d) => r.days.includes(d));
   const span = (d) => { const h = (r.hours && r.hours[d]) || fallback; return timeSpan(h.start, h.end); };
   const groups = [];

@@ -192,6 +192,8 @@ export const SOURCES = {
   audubon: { name: 'Mesilla Valley Audubon Society', url: 'https://mvasaudubon.org/my-calendar/' },
   mesilla: { name: 'Town of Mesilla', url: 'https://www.mesillanm.gov/events/' },
   newsletter: { name: 'Live Love Las Cruces', url: 'https://livelovelascruces.com/local-events' },
+  // Galleries' current shows, entered once on the Art Trail (src/lib/sisters.js, Nov 25, 2026)
+  arttrail: { name: 'Las Cruces Art Trail', url: 'https://lascrucesarttrail.com/on-view-now/' },
 };
 
 export function breadcrumbJsonLd(items) {
