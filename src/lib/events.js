@@ -411,13 +411,16 @@ export async function getEvents() {
       const stable = dateless(x);
       if (stable) { taken.delete(x.next.slug); x.next.slug = stable; taken.add(stable); }
     }
-    // In its last days a long run has too few dates left to count as "ongoing" and goes back to one
-    // listing per day. The dateless address then forwards to the next date, so the link still works.
+    // Every repeating series also gets a dateless address (/event/crochet-at-munson/) that shows its
+    // next date. Each dated page points Google there with rel=canonical, so the series is one strong
+    // page in search instead of 27 near-copies Google won't index (Search Console, Nov 26, 2026:
+    // 497 "crawled, not indexed" event pages were only 188 different events).
+    // Long runs in their last days (too few dates left to count as "ongoing") use the same address.
     const aliases = [];
     for (const x of series) {
-      if (x.ongoing || x.gap > 1) continue;
+      if (x.ongoing) continue;
       const stable = dateless(x);
-      if (stable) { taken.add(stable); aliases.push({ slug: stable, to: x.next.slug }); }
+      if (stable) { taken.add(stable); x.home = stable; aliases.push({ slug: stable, to: x.next.slug }); }
     }
     for (const x of ongoing) {
       x.next.ongoing = true;
@@ -481,6 +484,9 @@ export async function getEvents() {
     // The main calendar is the Las Cruces area. Nearby towns' events are listed on /nearby/ and
     // still get their own event pages (allEvents).
     const local = kept.filter((e) => !e.town);
+    // Dated pages of a series point to the series page (rel=canonical), so they stay out of the
+    // sitemap: astro.config.mjs reads this list when it writes sitemap-index.xml (Nov 26, 2026).
+    globalThis.__lcNotInSitemap = new Set(kept.filter((e) => e.series?.home).map((e) => `/event/${e.slug}/`));
     return {
       events: local,
       allEvents: kept,
@@ -489,7 +495,7 @@ export async function getEvents() {
       dated: local.filter((e) => !e.ongoing),
       ongoing: ongoing.map((x) => x.next).filter((e) => !e.town),
       series: series.filter((x) => !x.ongoing && !x.next.town),
-      // Dateless addresses that forward to an event page: [{ slug, to }]
+      // Dateless series addresses and the dated page they show: [{ slug, to }]
       aliases,
     };
   })();

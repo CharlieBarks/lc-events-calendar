@@ -3,5 +3,7 @@
 # X-Robots-Tag: noindex header in _headers, not here.
 User-agent: *
 Allow: /
+# "Add to calendar" files: downloads, not pages (Search Console, Nov 26, 2026).
+Disallow: /*.ics$
 
 Sitemap: https://events.livelovelascruces.com/sitemap-index.xml

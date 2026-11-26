@@ -12,20 +12,25 @@ export async function getStaticPaths() {
   const { allEvents: events, aliases } = await getEvents();
   return [
     ...events.map((event) => ({ params: { slug: event.slug }, props: { event } })),
-    // Dateless addresses of long runs in their last days: forward to the next date.
-    ...aliases.map((a) => ({ params: { slug: a.slug }, props: { forwardTo: `/event/${a.to}/` } })),
+    // Dateless series addresses (/event/crochet-at-munson/): the series' own page, showing its next
+    // date. Every dated page of the series names this one as canonical (Nov 26, 2026).
+    ...aliases.flatMap((a) => {
+      const next = events.find((e) => e.slug === a.to);
+      return next ? [{ params: { slug: a.slug }, props: { event: next, home: a.slug } }] : [];
+    }),
   ];
 }
 
-if (Astro.props.forwardTo) return Astro.redirect(Astro.props.forwardTo);
-
-const { event } = Astro.props;
+const { event, home } = Astro.props;
+// The series' dateless page is the one Google should index; dated pages point to it.
+const seriesHome = home || event.series?.home;
+const canonicalPath = seriesHome ? `/event/${seriesHome}/` : undefined;
 const { allEvents: events } = await getEvents();
 const cat = CATEGORIES[event.category];
 const known = SOURCES[event.source] || SOURCES.lllc;
 // Events found through Visit Las Cruces are credited to the organizer, linked to their own page.
 const source = known.url ? known : { name: event.venue || 'the organizer', url: event.url };
-const path = `/event/${event.slug}/`;
+const path = home ? `/event/${home}/` : `/event/${event.slug}/`;
 // An exhibit (Nov 25, 2026) says its open days and hours, not one date: the page stands for the whole run.
 const exhibit = !!(event.ongoing && event.series?.exhibit);
 const when = exhibit && event.series.hours ? event.series.hours : `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
@@ -140,7 +145,7 @@ const status = event.sponsored ? 'Sponsored (paid)' : event.featured ? 'Featured
 const mainImage = event.flyer || event.image;
 const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
 ---
-<Layout title={`${event.title}, ${shortDate(event.start)}`} description={description} jsonLd={jsonLd} ogType="article" ogImage={event.image || `/og/event/${event.slug}.png`}>
+<Layout title={home ? `${event.title}${event.series?.when ? `, ${event.series.when}` : ''}` : `${event.title}, ${shortDate(event.start)}`} description={description} jsonLd={jsonLd} canonicalPath={canonicalPath} ogType="article" ogImage={event.image || `/og/event/${event.slug}.png`}>
   <aside class="admin-bar" data-admin-bar hidden aria-label="Admin">
     <div class="wrap admin-bar__inner">
       <p class="admin-bar__title">Admin{status && <span class="admin-bar__status">{status}{event.spotlightUntil && ` until ${event.spotlightUntil}`}</span>}</p>
@@ -215,7 +220,7 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
           <summary class="btn--base btn--outline">Add to calendar</summary>
           <div class="event-actions__menu">
             <a href={googleCalendarLink(event, { offsetIso })} rel="noopener">Google Calendar</a>
-            <a href={`/event/${event.slug}.ics`} download>Apple / Outlook (.ics)</a>
+            <a href={`/event/${event.slug}.ics`} download rel="nofollow">Apple / Outlook (.ics)</a>
           </div>
         </details>
         {event.venue && <a class="btn--base btn--outline" href={mapsLink(event)} rel="noopener">Directions</a>}
