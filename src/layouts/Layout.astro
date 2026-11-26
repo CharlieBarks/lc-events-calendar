@@ -12,7 +12,8 @@ import { SITE, PREVIEW, ANALYTICS_TOKEN } from '../lib/site.js';
 
 // ogImage: path to this page's share image, e.g. /og/event/first-friday-ramble.png
 // ogImage may also be a full URL (an event's own flyer); then the 1200x630 size tags are left off.
-const { title, description, jsonLd = [], ogType = 'website', ogImage: ogImagePath = '/og/default.png' } = Astro.props;
+// canonicalPath: the address Google should index instead of this one (dated pages of a repeating series).
+const { title, description, jsonLd = [], ogType = 'website', ogImage: ogImagePath = '/og/default.png', canonicalPath } = Astro.props;
 const generated = !/^https?:/.test(ogImagePath);
 // Google shows roughly 155 characters, so trim longer descriptions on a word boundary.
 function trimDescription(text = '', max = 155) {
@@ -22,7 +23,7 @@ function trimDescription(text = '', max = 155) {
   return cut.slice(0, cut.lastIndexOf(' ')).replace(/[\s,;:.–—-]+$/, '') + '…';
 }
 const metaDescription = trimDescription(description);
-const canonical = new URL(Astro.url.pathname, SITE.url).href;
+const canonical = new URL(canonicalPath || Astro.url.pathname, SITE.url).href;
 const fullTitle = title === SITE.name ? `Things to Do in Las Cruces, NM | ${SITE.name}` : `${title} | ${SITE.name}`;
 const ogImage = new URL(ogImagePath, SITE.url).href;
 ---
