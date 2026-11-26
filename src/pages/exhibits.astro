@@ -1,0 +1,43 @@
+---
+// Art exhibits and more (Charlie, Nov 25, 2026): gallery and museum shows, plus anything else that runs
+// for a while (holiday markets, light displays, a play's run). The homepage shows a few; this page
+// has them all, with an address to share in the newsletter.
+import Layout from '../layouts/Layout.astro';
+import EventCard from '../components/EventCard.astro';
+import Newsletter from '../components/Newsletter.astro';
+import { SITE, breadcrumbJsonLd } from '../lib/site.js';
+import { getEvents } from '../lib/events.js';
+
+const { ongoing } = await getEvents();
+// Art first (exhibits and shows), then the rest; each group by which closes soonest.
+const ends = (e) => e.runUntil || '9999';
+const list = [...ongoing].sort((a, b) => (b.category === 'arts-culture') - (a.category === 'arts-culture') || ends(a).localeCompare(ends(b)));
+const jsonLd = [
+  { '@context': 'https://schema.org', '@type': 'ItemList', name: 'Art exhibits and more in Las Cruces',
+    itemListElement: list.map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })) },
+  breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Art exhibits and more', path: '/exhibits/' }]),
+];
+---
+<Layout title="Art Exhibits and Gallery Shows in Las Cruces, NM" description="Gallery shows, museum exhibits and other things running for a while in Las Cruces and Mesilla: hours, closing dates and opening receptions." jsonLd={jsonLd}>
+  <section class="page-hero wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">Art exhibits and more</span></nav>
+    <p class="eyebrow">Catch them any day</p>
+    <h1>Art exhibits and more</h1>
+    <p class="lede">Gallery shows, museum exhibits and other things running for a while in Las Cruces and Mesilla. No rush, but don't sleep on them: they close.</p>
+    <p class="page-hero__count">{list.length} on now or opening soon</p>
+  </section>
+  <section class="wrap page-body">
+    {list.length
+      ? <ul class="grid" role="list">{list.map((e, i) => <EventCard event={e} eager={i < 3} />)}</ul>
+      : <div class="notice">Nothing running right now. Gallery with a show coming up? <a href="/submit/">Add it</a>.</div>}
+    <p class="page-note">Galleries and museums: add your show once on the <a href="https://lascrucesarttrail.com/list-your-art/">Las Cruces Art Trail</a> and it shows up here too, or <a href="/submit/">add it here</a> and tick "It's an exhibit or a show that runs for a while".</p>
+  </section>
+  <Newsletter />
+</Layout>
+<style>
+  .page-hero { display: flex; flex-direction: column; gap: var(--space-s); padding-block: var(--space-l); }
+  .page-hero h1 { margin-block-start: var(--space-s); }
+  .page-hero__count { color: var(--text-dark-muted); font-weight: 600; }
+  .page-body { padding-block-end: var(--space-xl); display: flex; flex-direction: column; gap: var(--space-l); }
+  .page-note { color: var(--text-dark-muted); max-inline-size: 70ch; }
+</style>

@@ -52,6 +52,7 @@ for (const v of venueList) {
   info.set(v.name, {
     aliases: [...(had?.aliases || []), ...names], keywords: [...(had?.keywords || []), ...(v.keywords || [])],
     address: had?.address || v.address || '', website: had?.website || v.website || '', about: had?.about || v.about || '',
+    dogs: !!(had?.dogs || v.dogs),
     // The address it had before a rename, so /venue/<old>/ can forward to the new page.
     oldKeys: [...(had?.oldKeys || []), ...(v.key !== venueKey(v.name) ? [v.key] : [])],
   });
@@ -76,4 +77,4 @@ export function resolveVenue(raw = '') {
 }
 
 // Other spellings and search words for a venue (used by search).
-export const venueInfo = (name) => info.get(name) || { aliases: [], keywords: [], address: '', website: '', about: '', oldKeys: [] };
+export const venueInfo = (name) => info.get(name) || { aliases: [], keywords: [], address: '', website: '', about: '', dogs: false, oldKeys: [] };

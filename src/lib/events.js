@@ -204,6 +204,7 @@ function normalize(e, source) {
     rule: e.repeat || null,
     seriesKey: e.seriesKey || '',
     annual: !!e.annual,
+    dogs: !!e.dogs,
     source,
   };
   // An organizer who sent a flyer and a photo: the photo is the picture on the calendar and in
@@ -221,6 +222,8 @@ function normalize(e, source) {
   // Stock topic photos were turned off on Nov 18 (Charlie): one photo per topic was often wrong for
   // the event (a rock crowd for a jazz concert). Events without a picture show their name card.
   out.audience = audienceOf(out);
+  // A venue marked "Dogs welcome" on the Venues screen makes every event there dog friendly.
+  if (venueInfo(out.venue).dogs && !out.audience.includes('dogs')) out.audience.push('dogs');
   out.town = townOf(out);
   out.area = out.town || areaOf(out);
   return out;
@@ -418,6 +421,8 @@ export async function getEvents() {
     }
     for (const x of ongoing) {
       x.next.ongoing = true;
+      // Its last day, for sorting the Art exhibits and more page (closing soonest first).
+      x.next.runUntil = x.exhibit ? (x.next.rule?.until || '') : x.until.date;
       x.when = `${x.category === 'arts-culture' ? 'On view' : 'Daily'} through ${monthShort(x.until.start)} ${x.until.start.d}`;
       if (x.exhibit) {
         // The organizer's own last day (it can be past the 90-day window) and open days and hours.

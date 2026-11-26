@@ -232,6 +232,10 @@ const SENIOR = /\bseniors?\b|55\+|50\+|older adults?|retirees?|medicare|\baarp\b
 // center, not a trail, so "trail" alone doesn't count.
 const OUTDOOR = /\b(hikes?|hiking|hikers?|trail ?(runs?|running|walks?|rides?|work|days?)|fun ?run|color run|turkey trot|\d{1,2}k (run|walk|race)|\d{1,2}k\b|half[- ]marathon|marathon (run|race)|bataan|run(ning)? club|bird ?walks?|birding|nature walks?|star ?part(y|ies)|stargazing|kayak(ing)?|paddle|camp(ing|out)|bike rides?|group rides?|mountain bik(e|ing)|(park|river|trail|litter|arroyo|desert) clean-?up|organ mountains|dripping springs|soledad canyon|la llorona park|rio grande bosque|bosque walk)\b/i;
 const KIDS = /\bkids?\b|child|children|family|families|teens?\b|youth|toddler|story ?time|homeschool|\bpre-?k\b|ages \d+ ?(-|–|to) ?1[0-7]\b|stay and play|baby|babies|tween/i;
+// Dog friendly (Charlie, Nov 25, idea from fromboise.com/events): the organizer ticked it on the form,
+// the venue is marked "Dogs welcome" on the Venues screen (events.js), or the listing says so. Phrases
+// only: "hot dog", "Dog Days" or "Charlie Barks" must not count.
+const DOGS = /\b(dog|pet)[- ]friendly\b|\bdogs? (are )?welcome\b|\bleashed dogs?\b|\byappy hour\b|\bbring (your|the) (dogs?|pups?|pooch|furry)|\b(dog|pup|puppy|pet) (adoptions?|parade|costume|walk|meet-?up|social|days? at|park)\b|\bpups? (and|&|n) (pints|brews|beer)|\bpaws\b|\bdoggie\b|\bwoofstock\b/i;
 export function audienceOf(e) {
   const tags = (e.tags || []).join(' | ');
   const text = `${e.title} | ${tags}`;
@@ -240,7 +244,8 @@ export function audienceOf(e) {
     || /\b(free (admission|entry|event|and open|to (the public|attend|all))|admission is free|no cost|no charge)\b/i.test(e.description || '')) out.push('free');
   if (e.category === 'family' || KIDS.test(text)) out.push('kids');
   if (e.category === 'outdoors' || OUTDOOR.test(text)) out.push('outdoors');
+  if (e.dogs || DOGS.test(`${text} | ${(e.description || '').slice(0, 600)}`)) out.push('dogs');
   if (SENIOR.test(`${text} | ${e.venue || ''} | ${(e.description || '').slice(0, 400)}`)) out.push('seniors');
   return out;
 }
-export const AUDIENCES = { free: 'Free', kids: 'Kids & Family', seniors: 'Seniors', outdoors: 'Outdoors' };
+export const AUDIENCES = { free: 'Free', kids: 'Kids & Family', seniors: 'Seniors', outdoors: 'Outdoors', dogs: 'Dog friendly' };
