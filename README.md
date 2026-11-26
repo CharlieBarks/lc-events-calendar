@@ -57,3 +57,17 @@ category artwork (color + icon + Organ Mountains skyline), and every event gets 
 - Daily automatic rebuild: done (nightly, from the `lc-events-intake` Worker's schedule; no longer tied to CitySpark)
 - Connect `/submit/` to an approval queue (Notion or D1), with flyer text read automatically
 - More feeds (venues, Eventbrite, Bandsintown)
+
+## Keys and tokens
+
+Names only. The values live in Cloudflare and are never committed. Added Nov 26, 2026. Everything is in the Live Love Las Cruces Cloudflare account (Cf2).
+
+| Where | Name | What it's for / what breaks without it |
+|---|---|---|
+| Worker > Settings > Builds > API token | Workers Builds token | Lets Cloudflare deploy from GitHub. One per account, shared with the Art Trail and Las Cruces Live. Without it every build fails before it starts. Fix: create a new token there and point each Worker at it. Replaced Nov 26, 2026. |
+| `lc-events-intake` secrets | `DEPLOY_HOOKS`, `TURNSTILE_SECRET` | Nightly and on-demand rebuilds, feeds, submissions, the person check. Settings like `NOTIFY_TO` and `TURNSTILE_ENFORCE` are in `wrangler.intake.jsonc`. |
+| `cityspark-export` secret (deployed by hand, not from this repo) | `DEPLOY_HOOKS` | Rebuild after the daily CitySpark copy. |
+| Deploy hooks "Daily CitySpark refresh" on `lc-events-calendar`, "Event submission approvals" on `lc-events-preview` | used in `DEPLOY_HOOKS` | If one is ever recreated, update `DEPLOY_HOOKS` on both Workers above. |
+| `lc-events-proxy` (deployed by hand) | none | City of Las Cruces feed. |
+
+**Banner "Update wrangler.jsonc … lc-events-intake":** a false alarm. Cloudflare checks `wrangler.jsonc` (the calendar's file), but this Worker deploys with `wrangler.intake.jsonc`, which already has that name. Dismiss it, and **close without merging** any Cloudflare pull request that renames the calendar in `wrangler.jsonc`: it would break events.livelovelascruces.com.
