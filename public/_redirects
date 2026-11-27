@@ -82,6 +82,10 @@
 /opt-out-preferences   https://livelovelascruces.com/   301
 /opt-out-preferences/  https://livelovelascruces.com/   301
 
+# Someone trimming an event's venue address back to /venue/ gets the list of venues (audit, Nov 27, 2026)
+/venue      /venues/   301
+/venue/     /venues/   301
+
 # Sitemaps: the old WordPress (Yoast) address and its parts point to the new sitemap (Nov 23, 2026)
 /sitemap_index.xml   /sitemap-index.xml   301
 /sitemap.xml         /sitemap-index.xml   301

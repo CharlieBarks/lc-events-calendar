@@ -24,7 +24,8 @@ import { SITE } from '../lib/site.js';
   .signup__box h2 { font-size: clamp(1.6rem, 3vw, 2rem); }
   .signup__box[data-variant="newsletter"] { background: var(--primary); color: var(--white); }
   .signup__badge { display: inline-flex; align-items: center; justify-content: center; inline-size: 2.75rem; block-size: 2.75rem; border-radius: 999px; background: var(--white); }
-  .signup__box[data-variant="newsletter"] p { color: var(--primary-ultra-light); }
+  /* White, not the pale pink: the pink came in under the 4.5:1 contrast target on red (audit, Nov 27, 2026). */
+  .signup__box[data-variant="newsletter"] p { color: var(--white); }
   .signup__box[data-variant="submit"] { background: var(--bg-ultra-light); border: 1px solid var(--neutral-light); }
   .signup__box[data-variant="submit"] p { color: var(--text-dark-muted); }
 </style>

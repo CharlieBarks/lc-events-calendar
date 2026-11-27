@@ -164,11 +164,20 @@ export const offVisitLC = (url = '') => {
   try { return VISIT_LC.test(new URL(url).hostname) ? '' : url; } catch { return url || ''; }
 };
 
+// A web address typed into the Venue box (NMSU Giving Tuesday, an online event, showed its link as
+// the venue on its Spotlight card; audit, Nov 27, 2026): not a place. It becomes the event's link
+// when it has none, and the listing shows no venue.
+const IS_URL = /^\s*(https?:\/\/|www\.)\S+\s*$/i;
+
 function normalize(e, source) {
   if (NOT_AN_EVENT.test(e.title || '')) return null;
   const start = wall(e.start);
   if (!start) return null;
   const end = wall(e.end);
+  if (IS_URL.test(e.venue || '')) {
+    const link = e.venue.trim();
+    e = { ...e, venue: '', url: e.url || (/^www\./i.test(link) ? `https://${link}` : link) };
+  }
   // Feeds we read ourselves (feeds.js) keep venue and address apart already, even when the address is empty.
   const place = e.address || e.feed ? { venue: e.venue || e.city || '', address: e.address || '' } : cleanVenue(e.venue);
   const category = e.tags ? categoryFromTags(e.tags, e.title) : categoryKey(e.category);

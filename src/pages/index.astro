@@ -42,13 +42,17 @@ const jsonLd = [
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: 'Upcoming events in Las Cruces, NM',
-    itemListElement: all.slice(0, 30).map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })),
+    // Each event once, at the address Google indexes: a repeating series' dateless page, not a dated
+    // copy (audit, Nov 27, 2026). Events that started earlier and are still running stay in.
+    itemListElement: [...new Map(all.map((e) => [`/event/${e.series?.home || e.slug}/`, e])).entries()]
+      .slice(0, 30)
+      .map(([path, e], i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}${path}`, name: e.title })),
   },
 ];
 ---
 <Layout
   title={SITE.name}
-  description="What's happening in Las Cruces, NM this week: live music, markets, art walks, family days and city events, hand-checked by a local and updated every morning."
+  description="What's happening in Las Cruces, NM this week: live music, markets, art walks, family days and city events, checked by a local and updated daily."
   jsonLd={jsonLd}
 >
   <section class="home-hero wrap">

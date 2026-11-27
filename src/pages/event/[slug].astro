@@ -58,9 +58,11 @@ const related = events
 const venueCount = events.filter((e) => e.venueKey && e.venueKey === event.venueKey).length;
 
 const isFree = /free/i.test(event.price) || /\$0\b/.test(event.description);
+// No venue on the listing (an online event): leave "at …" out rather than say "at Location on the original listing".
+const atVenue = event.venue ? ` at ${shortVenue(event)}` : '';
 const description = event.description
-  ? `${shortDate(event.start)} at ${shortVenue(event)}. ${event.description}`
-  : `${event.title}: ${shortDate(event.start)}, ${timeRange(event.start, event.end)} at ${shortVenue(event)} in Las Cruces, NM.`;
+  ? `${shortDate(event.start)}${atVenue}. ${event.description}`
+  : `${event.title}: ${shortDate(event.start)}, ${timeRange(event.start, event.end)}${atVenue} in Las Cruces, NM.`;
 
 // What the form needs to open this listing for "Suggest an edit" (read by /submit/?suggest=<slug>).
 const hhmm = (w) => (w && !w.allDay ? `${String(w.H).padStart(2, '0')}:${String(w.M).padStart(2, '0')}` : '');
@@ -97,6 +99,11 @@ const performers = [
   ...(event.artists || []).map((a) => ({ '@type': 'Person', name: a.name, ...(a.url ? { url: a.url } : {}) })),
 ];
 
+const NOT_ORGANIZER = new Set(['cityspark', 'lllc', 'newsletter', 'visit-las-cruces', 'markets']);
+const organizer = event.source === 'arttrail'
+  ? (event.venue ? { '@type': 'Organization', name: event.venue, ...(event.url ? { url: event.url } : {}) } : null)
+  : SOURCES[event.source] && !NOT_ORGANIZER.has(event.source) && known.url ?{ '@type': 'Organization', name: known.name, url: known.url } : null;
+
 const jsonLd = [
   {
     '@context': 'https://schema.org',
@@ -113,8 +120,12 @@ const jsonLd = [
     },
     description: event.description || description,
     image: [event.image || `${SITE.url}/og/event/${event.slug}.png`],
-    url: `${SITE.url}${path}`,
-    organizer: { '@type': 'Organization', name: source.name, url: event.url || source.url },
+    // The same address Google is told to index (canonical), not the dated copy (audit, Nov 27, 2026).
+    url: `${SITE.url}${canonicalPath || path}`,
+    // Organizer only when we know it: an organization's own calendar (library, city, museums...) or the
+    // venue for a gallery show. Copies (CitySpark, the form, the newsletter, Visit Las Cruces, markets)
+    // used to name "Live Love Las Cruces" as the organizer of everything; now they leave it out.
+    ...(organizer ? { organizer } : {}),
     ...(isFree ? { isAccessibleForFree: true } : {}),
     ...(offers ? { offers } : {}),
     ...(performers.length ? { performer: performers.length === 1 ? performers[0] : performers } : {}),
