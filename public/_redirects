@@ -89,3 +89,7 @@
 # Sitemaps: the old WordPress (Yoast) address and its parts point to the new sitemap (Nov 23, 2026)
 /sitemap_index.xml   /sitemap-index.xml   301
 /sitemap.xml         /sitemap-index.xml   301
+
+# Renamed listings (Nov 27, 2026): Rio Grande Winery corrections
+/event/live-music-mack-henry-2026-11-27/ /event/live-music-mac-henry-2026-11-27/ 301
+/event/book-sip-s-was-2026-11-29/ /event/book-sip-n-swap-2026-11-29/ 301
