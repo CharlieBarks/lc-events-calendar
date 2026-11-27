@@ -36,8 +36,14 @@ export const longDate = (w) => fmt(w, { weekday: 'long', month: 'long', day: 'nu
 export const monthShort = (w) => fmt(w, { month: 'short' });
 export const timeLabel = (w) => (w.allDay ? 'All day' : fmt(w, { hour: 'numeric', minute: '2-digit' }).replace(':00', ''));
 
+// Midnight to 11:59 PM (or later) on one day is an all-day listing sent with times (NMSU Giving
+// Tuesday showed "12 AM – 11:59 PM"; audit, Nov 27, 2026). So is a midnight start with no end.
+const midnight = (w) => !w.allDay && w.H === 0 && w.M === 0;
+export const looksAllDay = (start, end) => start.allDay
+  || (midnight(start) && (!end || (dateKey(end) === dateKey(start) && end.H === 23 && end.M >= 45)));
+
 export function timeRange(start, end) {
-  if (start.allDay) return 'All day';
+  if (looksAllDay(start, end)) return 'All day';
   if (!end || dateKey(end) !== dateKey(start)) return timeLabel(start);
   const a = timeLabel(start), b = timeLabel(end);
   // "6 – 8:30 PM" instead of "6 PM – 8:30 PM"

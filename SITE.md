@@ -347,6 +347,20 @@ This is the first site to move to ACSS: it's the test bed for the workflow. Sepa
 - Footer: leave as it is for now. Charlie will decide later whether it should match livelovelascruces.com's link groups.
 - Subscribe button: Charlie chose the bright LLLC red to match livelovelascruces.com (Nov 9, 2026), knowing its text contrast is about 4:1, under the 4.5:1 target.
 
+## Audit fixes (Nov 27, 2026)
+
+From an outside audit of the live site (Charlie's Polar Browser review).
+
+- **A web address in the Venue box** is not a place: it becomes the event's link (when it has none) and the listing shows no venue (`IS_URL` in `normalize()`, `src/lib/events.js`). NMSU Giving Tuesday's Spotlight card showed its link as the venue.
+- **"All day":** midnight to 11:45 PM or later on one day, or midnight with no end, shows "All day" (`looksAllDay()` in `src/lib/time.js`). Schema and calendar files keep the real times.
+- **Meta descriptions** end at the last full sentence that fits in 155 characters (when that keeps 70+), otherwise on a word with "…" (`trimDescription()` in `Layout.astro`). "a.m."/"p.m." aren't sentence ends.
+- **Share tags:** every page has `twitter:title`, `twitter:description`, `twitter:image` (same picture as `og:image`).
+- **Event schema:** `url` is the canonical address (the series page for dated copies). `organizer` only when it's known: an organization's own calendar (city, library, museums…) or the gallery for an Art Trail show. CitySpark, form, newsletter, Visit Las Cruces and market listings leave it out (it used to say Live Love Las Cruces for everything).
+- **Homepage ItemList:** each event once, at its series page when it repeats. Multi-day events that started earlier and are still running stay in on purpose (the audit flagged `skate-don-a-ana-2026-11-24` as past; it's still running).
+- `/venue/` forwards to `/venues/`. The 404 page is `noindex` (`noindex` prop on `Layout.astro`).
+- Newsletter band text is white on red (the pale pink was under 4.5:1). The header Subscribe button's bright red stays: Charlie's choice (Nov 9).
+- Already in place before the audit (no change): labeled navs, search and category labels, `aria-pressed` on filters, an `aria-live` result count, empty alt on list pictures, start times with time zone, offers and performers in schema. The 1×1 iframe isn't in our code (Cloudflare's analytics or Turnstile).
+
 ## Site-specific rules
 
 - Never show an event that has ended. Today's events stay until they're over.

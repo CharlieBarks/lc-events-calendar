@@ -13,14 +13,21 @@ import { SITE, PREVIEW, ANALYTICS_TOKEN } from '../lib/site.js';
 // ogImage: path to this page's share image, e.g. /og/event/first-friday-ramble.png
 // ogImage may also be a full URL (an event's own flyer); then the 1200x630 size tags are left off.
 // canonicalPath: the address Google should index instead of this one (dated pages of a repeating series).
-const { title, description, jsonLd = [], ogType = 'website', ogImage: ogImagePath = '/og/default.png', canonicalPath } = Astro.props;
+// noindex: keep this page out of search (the 404 page).
+const { title, description, jsonLd = [], ogType = 'website', ogImage: ogImagePath = '/og/default.png', canonicalPath, noindex = false } = Astro.props;
 const generated = !/^https?:/.test(ogImagePath);
-// Google shows roughly 155 characters, so trim longer descriptions on a word boundary.
+// Google shows roughly 155 characters. Longer descriptions end at the last full sentence that fits
+// (when that keeps at least 70 characters), otherwise on a word boundary with "…" (audit, Nov 27, 2026:
+// they were cut mid-sentence). "a.m." and "p.m." don't count as the end of a sentence.
 function trimDescription(text = '', max = 155) {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
-  const cut = clean.slice(0, max - 1);
-  return cut.slice(0, cut.lastIndexOf(' ')).replace(/[\s,;:.–—-]+$/, '') + '…';
+  const cut = clean.slice(0, max);
+  const ends = [...cut.matchAll(/[.!?](?=\s)/g)].map((m) => m.index).filter((i) => !/\b[ap]\.m$/i.test(cut.slice(Math.max(0, i - 3), i)));
+  const last = ends.length ? ends[ends.length - 1] : -1;
+  if (last >= 69) return cut.slice(0, last + 1);
+  const words = cut.slice(0, max - 1);
+  return words.slice(0, words.lastIndexOf(' ')).replace(/[\s,;:.–—-]+$/, '') + '…';
 }
 const metaDescription = trimDescription(description);
 const canonical = new URL(canonicalPath || Astro.url.pathname, SITE.url).href;
@@ -32,7 +39,7 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  {PREVIEW && <meta name="robots" content="noindex, nofollow" />}
+  {PREVIEW ? <meta name="robots" content="noindex, nofollow" /> : noindex && <meta name="robots" content="noindex" />}
   <title>{fullTitle}</title>
   <meta name="description" content={metaDescription} />
   <link rel="canonical" href={canonical} />
@@ -50,6 +57,10 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
   <meta property="og:image:alt" content={fullTitle} />
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={fullTitle} />
+  <meta name="twitter:description" content={metaDescription} />
+  <meta name="twitter:image" content={ogImage} />
+  <meta name="twitter:image:alt" content={fullTitle} />
   <meta name="geo.region" content="US-NM" />
   <meta name="geo.placename" content="Las Cruces" />
   <link rel="sitemap" href="/sitemap-index.xml" />
