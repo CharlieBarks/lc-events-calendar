@@ -275,7 +275,8 @@ export function addPictures(events, pictures = []) {
       const pv = t(p.venue);
       return !pv || !ev || ev.includes(pv) || pv.includes(ev);
     });
-    if (p) { e.image = p.image; n++; }
+    // "about": an optional one-sentence summary saved with the picture, for a listing with no words of its own.
+    if (p) { e.image = p.image; if (p.about && !e.summary && !e.description) e.summary = String(p.about).slice(0, 200); n++; }
   }
   if (n) console.log(`Added ${n} pictures from pictures.json`);
   return n;

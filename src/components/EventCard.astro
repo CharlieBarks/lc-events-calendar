@@ -25,14 +25,17 @@ const firstSentence = (t) => {
   const line = m ? m[1] : clean.slice(0, 140);
   return line.length < clean.length && !m ? `${line.replace(/\s+\S*$/, '')}…` : line;
 };
-const about = row ? firstSentence(event.summary || event.description) : '';
+// Featured: Charlie's pick (free for now). Paid ones say Sponsored instead, never both.
+const featured = event.featured && !event.sponsored;
+// Big cards (homepage Spotlight, You might also like) show the line too, but only for Featured and
+// Sponsored events, so those stand out and other cards stay compact (Charlie, Nov 28, 2026).
+const spotlit = !row && (featured || event.sponsored);
+const about = row || spotlit ? firstSentence(event.summary || event.description) : '';
 const aboutLine = about && about.toLowerCase() !== event.title.toLowerCase() ? about : '';
 const audience = event.audience || [];
 const isFree = audience.includes('free');
 const catName = CATEGORIES[event.category]?.name || '';
 const when = event.ongoing ? event.series.when : timeRange(event.start, event.end);
-// Featured: Charlie's pick (free for now). Paid ones say Sponsored instead, never both.
-const featured = event.featured && !event.sponsored;
 ---
 <li class="event-card" data-town={event.town || undefined} data-date={event.date} data-cat={event.category} data-for={event.audience?.length ? event.audience.join(' ') : undefined} data-slug={event.slug} data-venue={event.venueKey} data-ongoing={event.ongoing ? '' : undefined}><a class="event-card__link" data-layout={row ? 'row' : 'stack'} data-size={big ? 'big' : undefined} data-sponsored={event.sponsored ? '' : undefined} data-featured={featured ? '' : undefined} data-regular={regular ? '' : undefined} href={`/event/${event.slug}/`}>
   <EventArt event={event} height={big ? 230 : row ? 128 : 170} eager={eager} showDate={!row && !event.ongoing} compact={row} decorative />
@@ -50,12 +53,14 @@ const featured = event.featured && !event.sponsored;
     <p class="event-card__when">{event.ongoing ? event.series.when : row ? timeRange(event.start, event.end) : `${shortDate(event.start)} · ${timeRange(event.start, event.end)}`}</p>
     <Heading class="event-card__name">{event.title}</Heading>
     <p class="event-card__where">{shortVenue(event)}{genre && ` · ${genre}`}{rowNote && ` · ${rowNote}`}</p>
+    {spotlit && aboutLine && <p class="event-card__about">{aboutLine}</p>}
     {(showPrice || event.sponsored || featured || (PREVIEW && event.sample)) && (
       <p class="event-card__foot">
         {event.sponsored && <span class="event-card__sponsored">Sponsored</span>}
         {featured && <span class="event-card__featured"><svg class="event-card__star-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>Featured</span>}
         {showPrice && <span class="event-card__price">{event.price}</span>}
         {PREVIEW && event.sample && <span class="sample-tag">Sample</span>}
+        {spotlit && <span class="event-card__see">See details</span>}
       </p>
     )}
   </div>
@@ -125,6 +130,23 @@ const featured = event.featured && !event.sponsored;
     }
 
     .event-card__where { color: var(--text-dark-muted); font-size: var(--text-s); }
+
+    /* Featured and Sponsored big cards: one line about the event, up to two lines tall. */
+    .event-card__link[data-layout="stack"] .event-card__about {
+      color: var(--text-dark);
+      font-size: var(--text-m);
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .event-card__link[data-layout="stack"] .event-card__see {
+      margin-inline-start: auto;
+      color: var(--text-dark-muted);
+      font-size: var(--text-s);
+      font-weight: 600;
+    }
 
     .event-card__foot {
       display: flex;
