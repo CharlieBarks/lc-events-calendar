@@ -15,7 +15,7 @@
 //   { feed, title, start, end, venue, address, tags, price, description, url, image, slug?, repeat? }
 // Times are Las Cruces wall-clock times, as the organizations publish them.
 
-import { tidyRepeat } from './src/lib/repeat.js';
+import { tidyRepeat, expand } from './src/lib/repeat.js';
 
 const TZ = 'America/Denver';
 const UA = 'Mozilla/5.0 (compatible; LiveLoveLasCruces-Events/1.0; +https://livelovelascruces.com)';
@@ -37,6 +37,13 @@ export const FEEDS = [
   // Town of Mesilla (The Events Calendar). Empty when checked on Nov 15, but it's their official calendar.
   { id: 'mesilla', reader: 'tribe', url: 'https://www.mesillanm.gov', venue: 'Mesilla Plaza', tags: [] },
   { id: 'audubon', reader: 'ical', url: 'https://mvasaudubon.org/feed/my-calendar-ics', venue: '', tags: ['Outdoor Recreation', 'Bird Walk'] },
+  // Rio Grande Winery's own Google Calendar (sent by their event coordinator, Nov 27, 2026).
+  // google: Google's times are real UTC, all-day ends are the next day, and moved or cancelled
+  // dates of a repeating event come as separate entries (see readIcal). Its events have no links of
+  // their own, so they link to the winery's event page (link). Pictures come from the winery's weekly graphics email
+  // (SITE.md, "Pictures for feed listings").
+  { id: 'rio-grande-winery', reader: 'ical', google: true, url: 'https://calendar.google.com/calendar/ical/c_fqmurm4ejupbrm8ck3uaofaqjc%40group.calendar.google.com/public/basic.ics',
+    venue: 'Rio Grande Winery', link: 'https://riograndewinery.com/pages/event-calendar', tags: [] },
   // Events from Charlie's own newsletter issues that no other source had. Not read here: a scheduled
   // Claude task writes feeds/newsletter.json after each issue (see SITE.md, "Newsletter check").
   // Each event links to the organizer's page, like every other feed.
@@ -145,6 +152,9 @@ export function readLibcal(data, feed) {
 
 // iCalendar (.ics). Times are read as written (wall-clock), whatever time zone label the file carries:
 // small calendar plugins often label local times as UTC.
+// Google Calendar (feed.google) is different: its "Z" times really are UTC, so they're turned into
+// Las Cruces time; an all-day event's end is the day after; a repeating event's left-out dates are
+// EXDATE lines; and a moved or cancelled date is its own entry with RECURRENCE-ID (same UID).
 export function readIcal(text, feed) {
   const lines = String(text).replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
   const out = [];
@@ -161,8 +171,10 @@ export function readIcal(text, feed) {
     const i = line.indexOf(':');
     if (i < 0) continue;
     const name = line.slice(0, i).split(';')[0].toUpperCase();
-    cur[name] = line.slice(i + 1);
+    if (name === 'EXDATE') cur.EXDATES = [...(cur.EXDATES || []), ...line.slice(i + 1).split(',')];
+    else cur[name] = line.slice(i + 1);
   }
+  if (feed.google) return googleIcal(out, feed);
   const DAY = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
   return out.map((e) => {
     const start = when(e.DTSTART);
@@ -201,6 +213,86 @@ export function readIcal(text, feed) {
     }
     return item;
   });
+}
+
+// Google Calendar's export (see readIcal). Same output as readIcal.
+function googleIcal(raw, feed) {
+  const unesc = (s) => s.replace(/\\n/gi, '\n').replace(/\\([,;\\])/g, '$1');
+  const when = (v) => {
+    const m = String(v || '').match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/);
+    if (!m) return '';
+    if (!m[4]) return `${m[1]}-${m[2]}-${m[3]}`;
+    if (m[7]) return toLocal(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0))));
+    return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00`;
+  };
+  const DAY = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
+  // Dates taken out of each repeating event (UID): left-out dates, and dates moved or cancelled.
+  const skips = new Map();
+  const skip = (uid, day) => { if (uid && day) skips.set(uid, [...(skips.get(uid) || []), day.slice(0, 10)]); };
+  for (const e of raw) {
+    for (const x of e.EXDATES || []) skip(e.UID, when(x));
+    if (e['RECURRENCE-ID']) skip(e.UID, when(e['RECURRENCE-ID']));
+  }
+  const out = [];
+  for (const e of raw) {
+    if (String(e.STATUS || '').toUpperCase() === 'CANCELLED') continue;
+    const start = when(e.DTSTART);
+    const title = oneLine(unesc(e.SUMMARY || ''));
+    let end = when(e.DTEND);
+    // All-day: Google's end is the next morning.
+    if (start && !start.includes('T') && end && !end.includes('T')) {
+      end = addDays(end, -1);
+      if (end <= start) end = '';
+    }
+    // "Rio Grande Winery, 5321 NM-28, Las Cruces, NM 88005, USA": the feed's venue, then the street.
+    const loc = unesc(e.LOCATION || '').trim().replace(/,?\s*(USA|United States)$/i, '').replace(/\s+/g, ' ');
+    const cut = loc.search(/\s\d{2,5}\s+[A-Za-z]/);
+    const placeName = (cut > 0 ? loc.slice(0, cut) : loc).replace(/,\s*$/, '').trim();
+    const item = {
+      title,
+      start,
+      end,
+      venue: feed.venue || placeName,
+      address: cut > 0 ? loc.slice(cut).trim() : '',
+      tags: String(e.CATEGORIES || '').split(',').map((c) => oneLine(unesc(c))).filter(Boolean),
+      price: '',
+      description: plain(unesc(e.DESCRIPTION || '')),
+      url: http(e.URL) || http(feed.link),
+      image: '',
+    };
+    const rule = Object.fromEntries(String(e.RRULE || '').split(';').filter(Boolean).map((p) => p.split('=')));
+    if (rule.FREQ && start) {
+      const date = start.slice(0, 10);
+      const every = Number(rule.INTERVAL) || 1;
+      let repeat = null;
+      if (rule.FREQ === 'WEEKLY') {
+        const days = String(rule.BYDAY || '').split(',').map((d) => DAY[d]).filter((d) => d !== undefined);
+        repeat = { freq: 'weekly', every, days: days.length ? days : [new Date(`${date}T12:00:00Z`).getUTCDay()], start: date };
+      } else if (rule.FREQ === 'MONTHLY' && !String(rule.BYDAY || '').includes(',')) {
+        repeat = { freq: 'monthly', every, by: rule.BYDAY ? 'weekday' : 'date', start: date };
+      } else if (rule.FREQ === 'DAILY' && every === 1) {
+        repeat = { freq: 'weekly', every: 1, days: [0, 1, 2, 3, 4, 5, 6], start: date };
+      }
+      if (repeat) {
+        repeat.until = when(rule.UNTIL).slice(0, 10);
+        repeat.skip = skips.get(e.UID) || [];
+        // "COUNT=8": the last of those dates is the end.
+        if (rule.COUNT && !repeat.until) {
+          const n = Number(rule.COUNT);
+          const dates = expand({ ...repeat, skip: [] }, date, addDays(date, 1100), n);
+          if (dates.length) repeat.until = dates[dates.length - 1];
+        }
+      }
+      const tidy = repeat && tidyRepeat(repeat);
+      // A repeating event we can't express (every other day, several weekdays a month) is left out
+      // rather than shown on its first date only.
+      if (!tidy) continue;
+      item.repeat = tidy;
+      item.slug = slugify(`${title} ${feed.id}`);
+    }
+    out.push(item);
+  }
+  return out;
 }
 
 // Wild Apricot's events RSS. An item has a title, a link, the start time (as pubDate) and a

@@ -17,7 +17,7 @@ The Live Love Las Cruces events calendar, replacing CitySpark at events.livelove
 |---|---|---|
 | CitySpark listings and photos | `cityspark-export` Worker into KV, daily | No |
 | City of Las Cruces events | City feed through `lc-events-proxy` | No |
-| Other organizations' calendars (library, museums, Cruces Creatives, Convention Center, Farm & Ranch Museum, Organ Mountains-Desert Peaks, Audubon, Visit Las Cruces as a finder) | Read nightly by the `lc-events-intake` Worker (`feeds.js`) | No |
+| Other organizations' calendars (library, museums, Cruces Creatives, Convention Center, Farm & Ranch Museum, Organ Mountains-Desert Peaks, Audubon, Rio Grande Winery, Visit Las Cruces as a finder) | Read nightly by the `lc-events-intake` Worker (`feeds.js`) | No |
 | `src/data/events.json` | Events we add ourselves | **Yes** (`featured: true` = Featured; `sponsored: true` = paid Spotlight; `sample: true` = preview only) |
 | `src/data/spotlight.json` | Spotlight for events that didn't come through the form (CitySpark, city), matched by name | **Yes** |
 | `src/data/city-snapshot.json` | Offline copy of the city feed | No |
@@ -55,6 +55,19 @@ Built Nov 15, 2026. Charlie's rule: **no review step for feeds.** They publish a
 - **Visit Las Cruces is a finder only** (Charlie, Nov 15): read through the same search their calendar page uses (Simpleview, with a short-lived token). An event is kept only when it links to the organizer's own site, and it links there, never to Visit Las Cruces. It loses to every other source (`finder: true` in `FEEDS`), so it only adds events nobody else has. Its "Listed by" line credits the venue.
 - **No visitlascruces.com links from any source (Nov 24, 2026):** a CitySpark copy of the Mesilla Mercado linked to a Visit Las Cruces page that had gone 404. `offVisitLC()` in `src/lib/events.js` now blanks any visitlascruces.com address on every listing (CitySpark, newsletter, submissions, feeds) at build time. If Visit Las Cruces' own copy of the same event links to the organizer, that link is borrowed; otherwise the event shows no "Event details" button.
 - Source research: project doc `event-sources-feed-check-2026-11-15.md`.
+
+## Rio Grande Winery's calendar, and pictures for feed listings
+
+Built Nov 28, 2026. The winery's event coordinator sent their Google Calendar link (Nov 27), and emails Charlie the week's graphics every Wednesday.
+
+- **The feed:** `rio-grande-winery` in `FEEDS` (`reader: 'ical'`, `google: true`), read nightly like the others. Its address is the calendar's public iCal export (`…/calendar/ical/<calendar id>/public/basic.ics`; the id is the `cid=` part of the share link, base64-decoded). The calendar must stay public in Google, or the feed run fails and last night's copy stays.
+- **Google calendars are different from the other iCal feeds** (`googleIcal()` in `feeds.js`): their "Z" times are real UTC (turned into Las Cruces time; the other iCal feeds keep times as written because small plugins mislabel local times as UTC), an all-day event's end is the next day, left-out dates of a repeating event are `EXDATE` lines, and a moved or cancelled date is its own entry with `RECURRENCE-ID`. A repeating event it can't express is left out rather than shown once. Any other Google calendar can use `google: true` too.
+- Its events have no links of their own, so they link to the winery's event page (`link` in `FEEDS`). "Listed by Rio Grande Winery" (`SOURCES`). Their copy beats CitySpark's, like every organization's own calendar.
+- **Pictures for feed listings:** KV `pictures.json` (`{ pictures: [{ id, title, date | all (+ from, until), venue, image, source, at }] }`), sent to the build inside `/approved.json` (`pictures`). `addPictures()` in `src/lib/events.js` puts each on a listing with no picture of its own: same day (or every date with `all`), same name or one containing the other, same venue. Hidden pictures still win. The review page lists them under **Added pictures** with **Remove** (starts a rebuild).
+- **Weekly task:** scheduled Claude task "Rio Grande Winery graphics", Wednesdays 2:17 PM Las Cruces time. It reads the newest email from the winery's events address in Charlie's charlie@ inbox, looks at each graphic, matches it to the winery's events in `feeds/rio-grande-winery.json` by the band or event name and the date on the artwork, uploads it to Charlie's Google Drive folder **Calendar pictures** (shared "anyone with the link can view", once, by Charlie), adds it to `pictures.json` with `https://lh3.googleusercontent.com/d/<file id>`, drops entries more than a week past, rebuilds the live site and sends Charlie a short note. Graphics that aren't for one event (menu specials, party packages) are skipped unless an event matches them.
+- **When the live site shows it:** the feed's events after the 11:40 PM feed run and the 12:10 AM rebuild; the pictures within a few minutes of the Wednesday task (it starts a rebuild).
+- **If something fails:** a feed that can't be read shows `ok: false` in `/feeds.json` (the health check reads it) and keeps last night's copy. A picture the build can't fetch keeps its address (the browser loads it from Drive); one that's gone (404) leaves the name card. The task's note says what it couldn't match or upload. No email from the winery that week: the task sends nothing.
+- No new keys or Workers. Nothing on the other sites depends on it.
 
 ## Newsletter check
 

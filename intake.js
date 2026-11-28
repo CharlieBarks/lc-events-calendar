@@ -858,6 +858,18 @@ async function getNoPic(env) {
   return (await env.MEDIA.get('nopic.json', 'json'))?.nopic || [];
 }
 
+// ---------- Pictures for feed listings ----------
+// Pictures for listings that arrive without one (Rio Grande Winery's Google Calendar has none; the
+// winery emails its graphics every week). Written by a weekly Claude task straight into KV pictures.json:
+//   { pictures: [{ id, title, date | all (+ from, until), venue, image, source, at }] }
+// image: any public https address. The task puts the graphics in Charlie's Google Drive folder
+// "Calendar pictures" (shared by link) and uses https://lh3.googleusercontent.com/d/<file id>. The
+// site build matches each one to a listing with no picture (addPictures in src/lib/events.js) and
+// makes its own small copies like any picture. Removed from the review page ("Added pictures").
+async function getPictures(env) {
+  return (await env.MEDIA.get('pictures.json', 'json'))?.pictures || [];
+}
+
 // ---------- Featured events ----------
 // Charlie's own picks from any source (feeds, CitySpark, newsletter, submissions): pinned to the top
 // of their day with a Featured label and their own background, and in the homepage Spotlight.
@@ -908,7 +920,7 @@ async function reviewApi(request, env, path, ctx) {
     const reports = (await Promise.all(list.keys.map((k) => env.MEDIA.get(k.name, 'json')))).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at));
     return json({ reports: reports.map((r) => ({ ...r, reasonText: REPORT_REASONS[r.reason] || r.reason })) }, { headers: { 'cache-control': 'no-store' } });
   }
-  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse(), featured: (await getFeatured(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
+  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse(), featured: (await getFeatured(env)).reverse(), pictures: (await getPictures(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
   if (['venue', 'venue-undo', 'publish'].includes(path)) return venuesApi(request, env, path, body);
@@ -923,6 +935,14 @@ async function reviewApi(request, env, path, ctx) {
   }
   if (path === 'nopic' || path === 'pic') {
     if (!(await setHidden(env, body, path === 'nopic', 'nopic'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
+    if (body.publish) await rebuild(env);
+    return json({ ok: true });
+  }
+  if (path === 'unpicture') {
+    const list = await getPictures(env);
+    const keep = list.filter((p) => p.id !== body.id);
+    if (keep.length === list.length) return json({ error: 'Already removed.' }, { status: 404 });
+    await env.MEDIA.put('pictures.json', JSON.stringify({ pictures: keep }));
     if (body.publish) await rebuild(env);
     return json({ ok: true });
   }
@@ -1204,7 +1224,9 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 <div id="hidden"></div>
 <h2>Hidden pictures</h2><p class="msg">A listing whose picture doesn't fit (wrong event, a random stock photo)? Paste its address. It keeps its listing but shows its name card instead of the picture.</p>
 <form id="nopic" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><input type="hidden" name="title"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide picture</button><span class="msg" data-msg></span></form>
-<div id="nopiclist"></div></main>
+<div id="nopiclist"></div>
+<h2>Added pictures</h2><p class="msg">Graphics from venues' weekly emails (Rio Grande Winery), put on their listings that came without a picture. Remove one that's on the wrong event; the listing goes back to its name card.</p>
+<div id="piclist"></div></main>
 <div id="lb"><img alt=""></div>
 <script>
 const CATS='${cats.replace(/'/g, "\\'")}';
@@ -1328,6 +1350,7 @@ async function loadHidden(){
   const d=await fetch('/review/api/hidden').then(r=>r.json());
   document.getElementById('featuredlist').innerHTML=(d.featured||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.sponsored?'<span class="tag sp">Sponsored</span>':'')+(h.all?'<span class="tag">Every date</span>':'')+(h.until?'<span class="tag">until '+esc(h.until)+'</span>':'')+'</span><span class="apflags"><a href="'+esc(SITE)+'/event/'+esc(h.slug)+'/" target="_blank" rel="noopener">View</a><button data-unfeature="'+esc(h.slug)+'">Stop featuring</button></span></div>').join('')||'<div class="msg">Nothing featured right now.</div>';
   document.getElementById('nopiclist').innerHTML=(d.nopic||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+'</span><span class="apflags"><button data-showpic="'+esc(h.slug)+'">Show picture again</button></span></div>').join('')||'<div class="msg">No pictures hidden.</div>';
+  document.getElementById('piclist').innerHTML=(d.pictures||[]).map(p=>'<div class="ap"><span><img src="'+esc(p.image)+'" alt="" style="width:48px;height:48px;object-fit:cover;vertical-align:middle;margin-right:8px;border-radius:6px">'+esc(p.title)+' · '+esc(p.all?'every date'+(p.until?' until '+p.until:''):p.date)+(p.venue?' · <span class="msg">'+esc(p.venue)+'</span>':'')+'</span><span class="apflags"><button data-unpicture="'+esc(p.id)+'">Remove</button></span></div>').join('')||'<div class="msg">No pictures added.</div>';
   document.getElementById('hidden').innerHTML=d.hidden.map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.reason?' · <span class="msg">'+esc(h.reason)+'</span>':'')+'</span><span class="apflags"><button data-unhide="'+esc(h.slug)+'">Show again</button></span></div>').join('')||'<div class="msg">Nothing hidden.</div>';
 }
 async function loadReports(){
@@ -1368,6 +1391,7 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-reject]')){const f=t.closest('form');if(!confirm('Reject this submission?'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id})});load();return}
   if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
   if(t.matches('[data-reopen]')){t.textContent='Opening…';await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.reopen})});await load();window.scrollTo({top:0,behavior:'smooth'});return}
+  if(t.matches('[data-unpicture]')){await fetch('/review/api/unpicture',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.unpicture,publish:true})});loadHidden();return}
   if(t.matches('[data-showpic]')){await fetch('/review/api/pic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.showpic,publish:true})});loadHidden();return}
   if(t.matches('[data-unfeature]')){await fetch('/review/api/unfeature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unfeature,publish:true})});loadHidden();return}
   if(t.matches('[data-unhide]')){await fetch('/review/api/unhide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unhide,publish:true})});loadHidden();return}
@@ -1467,8 +1491,8 @@ export default {
       if (path === '/approved.json') {
         // "feeds": events read from other organizations' calendars. They ride along here so the site
         // build makes one request for both (each extra request is one more chance of a failed build).
-        const [approved, feeds, hidden, nopic, featured] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env), getNoPic(env), getFeatured(env)]);
-        return json({ count: approved.length, events: approved, feeds, hidden, nopic, featured }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+        const [approved, feeds, hidden, nopic, featured, pictures] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env), getNoPic(env), getFeatured(env), getPictures(env)]);
+        return json({ count: approved.length, events: approved, feeds, hidden, nopic, featured, pictures }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
       }
 
       if (path.startsWith('/img/')) {
