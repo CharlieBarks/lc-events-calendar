@@ -189,9 +189,11 @@ const jsonLd = [
       if (li.dataset.date < today && !li.hasAttribute('data-ongoing')) { li.remove(); return false; }
       return true;
     });
-    const paid = shuffle(items.filter((li) => li.querySelector('[data-sponsored]')));
+    // Sponsored (paid) first, then Spotlight (free), then Featured; shuffled within each (Charlie, Nov 28).
+    const paid = shuffle(items.filter((li) => li.querySelector('[data-paid]')));
+    const spot = shuffle(items.filter((li) => li.querySelector('[data-sponsored]') && !li.querySelector('[data-paid]')));
     const free = shuffle(items.filter((li) => !li.querySelector('[data-sponsored]')));
-    const show = [...paid, ...free].slice(0, 3);
+    const show = [...paid, ...spot, ...free].slice(0, 3);
     items.forEach((li) => { if (!show.includes(li)) li.remove(); });
     show.forEach((li) => list.append(li));
     list.classList.add('shuffled');

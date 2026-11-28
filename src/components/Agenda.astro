@@ -101,8 +101,8 @@ const itemLevel = headingLevel + 1;
   )}
 
   {days.map(([date, list], i) => {
-    // Sponsored (paid) events are pinned to the top of their day, then Featured ones.
-    const rank = (e) => (e.sponsored ? 2 : e.featured ? 1 : 0);
+    // Pinned to the top of their day: Sponsored (paid), then Spotlight (free), then Featured (Charlie, Nov 28).
+    const rank = (e) => (e.sponsored && !e.freeSpotlight ? 3 : e.sponsored ? 2 : e.featured ? 1 : 0);
     const cards = list.filter((e) => !e.compact).sort((a, b) => rank(b) - rank(a));
     const rows = list.filter((e) => e.compact);
     const [weekday, monthDay] = dayLabel(list[0].start).split(', ');
