@@ -5,61 +5,54 @@ import Layout from '../layouts/Layout.astro';
 import Newsletter from '../components/Newsletter.astro';
 import { SITE, CATEGORIES, breadcrumbJsonLd } from '../lib/site.js';
 import { getEvents, shortVenue } from '../lib/events.js';
-import { shortDate, todayWall, dateKey, addDays } from '../lib/time.js';
+import { todayWall, dateKey, addDays, weekday, dayLabel, timeLabel } from '../lib/time.js';
 
 const { series } = await getEvents();
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const dayOf = (key) => (new Date(`${key}T12:00:00Z`).getUTCDay() + 6) % 7; // Monday = 0
-// Which weekdays each regular happens on, from its dates in the next four weeks.
-const horizon = dateKey(addDays(todayWall(), 27));
-const groups = DAYS.map(() => []);
-for (const s of series) {
-  const soon = s.dates.filter((d) => d.date <= horizon);
-  const seen = new Set();
-  for (const d of soon.length ? soon : [s.next]) {
-    const w = dayOf(d.date);
-    if (seen.has(w)) continue;
-    seen.add(w);
-    groups[w].push({ s, next: d });
-  }
-}
-// Within a day (Charlie, Nov 28, 2026): soonest date first, so this Saturday's regulars come before ones
-// that are weeks out, then by start time, then name.
-for (const g of groups) g.sort((a, b) => a.next.date.localeCompare(b.next.date) || a.next.start.H * 60 + a.next.start.M - (b.next.start.H * 60 + b.next.start.M) || a.s.title.localeCompare(b.s.title));
-const today = dayOf(dateKey(todayWall()));
+// The next 7 days, starting today (Charlie, Nov 28, 2026): each regular under the dates it actually
+// happens this week, so nothing weeks out gets mixed in. The main calendar shows the same regulars
+// folded under each day; this page is the quick "what's on Tuesday night?" view.
+const start = todayWall();
+const days = Array.from({ length: 7 }, (_, i) => {
+  const w = addDays(start, i);
+  return { key: dateKey(w), id: weekday(w).toLowerCase(), name: weekday(w), label: dayLabel(w), today: i === 0, items: [] };
+});
+const byKey = new Map(days.map((d) => [d.key, d]));
+for (const s of series) for (const d of s.dates) byKey.get(d.date)?.items.push({ s, next: d });
+// Within a day: by start time, then name.
+for (const d of days) d.items.sort((a, b) => a.next.start.H * 60 + a.next.start.M - (b.next.start.H * 60 + b.next.start.M) || a.s.title.localeCompare(b.s.title));
+const shown = days.filter((d) => d.items.length > 0);
 const jsonLd = [breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Weekly regulars', path: '/weekly/' }])];
 ---
-<Layout title="Weekly Events in Las Cruces: Trivia, Karaoke, Markets and More, Day by Day" description="Every standing date in Las Cruces and Mesilla, by day of the week: trivia nights, karaoke, open mics, markets, dance nights, clubs and classes." jsonLd={jsonLd}>
+<Layout title="Weekly Events in Las Cruces: Trivia, Karaoke, Markets and More, Day by Day" description="The next 7 days of standing dates in Las Cruces and Mesilla, day by day: trivia nights, karaoke, open mics, markets, dance nights, clubs and classes." jsonLd={jsonLd}>
   <section class="page-hero wrap">
     <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Events</a><span aria-hidden="true">›</span><span aria-current="page">Weekly regulars</span></nav>
     <p class="eyebrow">The standing dates</p>
     <h1>Weekly regulars</h1>
-    <p class="lede">Trivia, karaoke, open mics, markets, clubs and classes that happen every week (or every month). Cheap, easy and a good way to meet your neighbors.</p>
-    <nav class="weekdays" aria-label="Jump to a day">
-      <a class="weekdays__day" href="#all" data-day="all">All days</a>
-      {DAYS.map((d, i) => groups[i].length > 0 && <a class="weekdays__day" href={`#${d.toLowerCase()}`} data-day={d.toLowerCase()} aria-current={i === today ? 'date' : undefined}>{d.slice(0, 3)}</a>)}
+    <p class="lede">Trivia, karaoke, open mics, markets, clubs and classes coming up in the next 7 days. Cheap, easy and a good way to meet your neighbors.</p>
+    <nav class="weekdays" aria-label="Pick a day">
+      <a class="weekdays__day" href="#all" data-day="all">Next 7 days</a>
+      {shown.map((d) => <a class="weekdays__day" href={`#${d.id}`} data-day={d.id} aria-current={d.today ? 'date' : undefined}>{d.today ? 'Today' : d.name.slice(0, 3)}</a>)}
     </nav>
   </section>
   <section class="wrap page-body">
-    {DAYS.map((d, i) => groups[i].length > 0 && (
-      <div class="weekday" id={d.toLowerCase()}>
-        <h2>{d}{i === today && <span class="weekday__today">Today</span>}<span class="weekday__count">{groups[i].length} {groups[i].length === 1 ? 'regular' : 'regulars'}</span></h2>
+    {shown.map((d) => (
+      <div class="weekday" id={d.id}>
+        <h2>{d.today ? `Today, ${d.label.replace(/^\w+, /, '')}` : d.label}<span class="weekday__count">{d.items.length} {d.items.length === 1 ? 'regular' : 'regulars'}</span></h2>
         <ul class="grid-tight regulars" role="list">
-          {groups[i].map(({ s, next }) => (
+          {d.items.map(({ s, next }) => (
             <li><a class="regulars__link" href={`/event/${next.slug}/`}>
               <span class="dot" style={`background:${CATEGORIES[s.category]?.color || 'var(--neutral)'}`} aria-hidden="true"></span>
               <span>
                 <h3>{s.title}</h3>
-                <span class="regulars__when">{s.when} · {s.time}</span>
+                <span class="regulars__when">{timeLabel(next.start)} · {s.when}</span>
                 <span class="regulars__where">{shortVenue(next)}</span>
-                <span class="regulars__next">Next: {shortDate(next.start)}</span>
               </span>
             </a></li>
           ))}
         </ul>
       </div>
     ))}
-    {series.length === 0 && <div class="notice">No regulars listed right now. Run a weekly night? <a href="/submit/">Add it</a> and tick "This repeats".</div>}
+    {shown.length === 0 && <div class="notice">No regulars this week. Run a weekly night? <a href="/submit/">Add it</a> and tick "This repeats".</div>}
     <p class="page-note">Run a weekly trivia, open mic or club? <a href="/submit/">Add it once</a> and tick "This repeats": it stays on the calendar every week.</p>
   </section>
   <Newsletter />
@@ -82,7 +75,6 @@ const jsonLd = [breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Weekly
   .page-hero h1 { margin-block-start: var(--space-s); }
   .weekdays { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-block-start: var(--space-s); }
   .weekdays__day { display: inline-flex; align-items: center; gap: 0.35rem; min-block-size: 2.75rem; padding-inline: var(--space-m); border: 1.5px solid var(--neutral-light); border-radius: 999px; background: var(--bg-ultra-light); color: var(--text-dark); font-weight: 600; text-decoration: none; }
-  .weekdays__day[aria-current]::after { content: '· Today'; font-weight: 500; }
   .weekdays__day.is-picked { border-color: var(--secondary); background: var(--secondary); color: var(--white); }
   .weekday[hidden] { display: none; }
   .weekday__count { margin-inline-start: auto; font-size: var(--text-m); font-weight: 500; color: var(--text-dark-muted); }
@@ -98,5 +90,5 @@ const jsonLd = [breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Weekly
   .regulars__link > span:last-child { display: flex; flex-direction: column; gap: 0.125rem; }
   .regulars__link h3 { font-size: var(--text-l); }
   .regulars__when { font-weight: 600; color: var(--secondary); }
-  .regulars__where, .regulars__next { color: var(--text-dark-muted); font-size: var(--text-s); }
+  .regulars__where { color: var(--text-dark-muted); font-size: var(--text-s); }
 </style>
