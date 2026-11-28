@@ -23,8 +23,9 @@ for (const s of series) {
     groups[w].push({ s, next: d });
   }
 }
-// Within a day: by start time, then name.
-for (const g of groups) g.sort((a, b) => a.next.start.H * 60 + a.next.start.M - (b.next.start.H * 60 + b.next.start.M) || a.s.title.localeCompare(b.s.title));
+// Within a day (Charlie, Nov 28, 2026): soonest date first, so this Saturday's regulars come before ones
+// that are weeks out, then by start time, then name.
+for (const g of groups) g.sort((a, b) => a.next.date.localeCompare(b.next.date) || a.next.start.H * 60 + a.next.start.M - (b.next.start.H * 60 + b.next.start.M) || a.s.title.localeCompare(b.s.title));
 const today = dayOf(dateKey(todayWall()));
 const jsonLd = [breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Weekly regulars', path: '/weekly/' }])];
 ---
@@ -35,13 +36,14 @@ const jsonLd = [breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Weekly
     <h1>Weekly regulars</h1>
     <p class="lede">Trivia, karaoke, open mics, markets, clubs and classes that happen every week (or every month). Cheap, easy and a good way to meet your neighbors.</p>
     <nav class="weekdays" aria-label="Jump to a day">
-      {DAYS.map((d, i) => groups[i].length > 0 && <a class="weekdays__day" href={`#${d.toLowerCase()}`} aria-current={i === today ? 'date' : undefined}>{d.slice(0, 3)} <span>{groups[i].length}</span></a>)}
+      <a class="weekdays__day" href="#all" data-day="all">All days</a>
+      {DAYS.map((d, i) => groups[i].length > 0 && <a class="weekdays__day" href={`#${d.toLowerCase()}`} data-day={d.toLowerCase()} aria-current={i === today ? 'date' : undefined}>{d.slice(0, 3)}</a>)}
     </nav>
   </section>
   <section class="wrap page-body">
     {DAYS.map((d, i) => groups[i].length > 0 && (
       <div class="weekday" id={d.toLowerCase()}>
-        <h2>{d}{i === today && <span class="weekday__today">Today</span>}</h2>
+        <h2>{d}{i === today && <span class="weekday__today">Today</span>}<span class="weekday__count">{groups[i].length} {groups[i].length === 1 ? 'regular' : 'regulars'}</span></h2>
         <ul class="grid-tight regulars" role="list">
           {groups[i].map(({ s, next }) => (
             <li><a class="regulars__link" href={`/event/${next.slug}/`}>
@@ -62,13 +64,28 @@ const jsonLd = [breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Weekly
   </section>
   <Newsletter />
 </Layout>
+<script>
+  // Day buttons show just that day (Charlie, Nov 28, 2026); "All days" shows the whole week. Uses the
+  // #hash, so links like /weekly/#saturday still work. Without JavaScript they just jump down the page.
+  const show = () => {
+    const day = location.hash.slice(1).toLowerCase();
+    const days = document.querySelectorAll('.weekday');
+    const match = [...days].some((el) => el.id === day);
+    days.forEach((el) => { el.hidden = match && el.id !== day; });
+    document.querySelectorAll('.weekdays__day').forEach((a) => a.classList.toggle('is-picked', match ? a.dataset.day === day : a.dataset.day === 'all'));
+  };
+  show();
+  addEventListener('hashchange', show);
+</script>
 <style>
   .page-hero { display: flex; flex-direction: column; gap: var(--space-s); padding-block: var(--space-l); }
   .page-hero h1 { margin-block-start: var(--space-s); }
   .weekdays { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-block-start: var(--space-s); }
   .weekdays__day { display: inline-flex; align-items: center; gap: 0.35rem; min-block-size: 2.75rem; padding-inline: var(--space-m); border: 1.5px solid var(--neutral-light); border-radius: 999px; background: var(--bg-ultra-light); color: var(--text-dark); font-weight: 600; text-decoration: none; }
-  .weekdays__day span { color: var(--text-dark-muted); font-weight: 500; }
-  .weekdays__day[aria-current] { border-color: var(--secondary); background: var(--secondary-ultra-light); color: var(--secondary-dark); }
+  .weekdays__day[aria-current]::after { content: '· Today'; font-weight: 500; }
+  .weekdays__day.is-picked { border-color: var(--secondary); background: var(--secondary); color: var(--white); }
+  .weekday[hidden] { display: none; }
+  .weekday__count { margin-inline-start: auto; font-size: var(--text-m); font-weight: 500; color: var(--text-dark-muted); }
   .page-body { padding-block-end: var(--space-xl); display: flex; flex-direction: column; gap: var(--space-xl); }
   .weekday { scroll-margin-block-start: 4.5rem; }
   .weekday h2 { display: flex; align-items: center; gap: var(--space-s); margin-block-end: var(--space-m); padding-block-end: var(--space-xs); border-block-end: 2px solid var(--text-dark); }
