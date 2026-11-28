@@ -193,6 +193,8 @@ Decided by Charlie, Nov 10, 2026. Modeled on SFV Local's "Boosted Event". "Charl
 - **Homepage section:** only events marked Spotlight or Sponsored, never filled automatically and never CitySpark's old picks. Three at random on each visit, Sponsored first. Nothing marked: a "Your event could be right here" box selling Spotlight.
 - Sponsored events always get a full card (even if they repeat) and are first in their day.
 - Later (Charlie): longer-running packages.
+- **All Spotlight events page (`/spotlight/events/`, Nov 28, 2026):** the homepage shows only three at random, so Charlie wanted a page with all of them. Same picks as the homepage section (Sponsored, Spotlight (free) and Featured, each event once at its next date), in that order, soonest first within each, with a "Want your event here?" box linking to `/spotlight/`. The homepage's **See all Spotlight events →** link (top right of the Spotlight section) only shows when there are more than 3 upcoming picks, so it never leads to the same three cards. The `/spotlight/` sales page links to it too ("See what's in the Spotlight right now"). Past events drop off in the browser between rebuilds, like the homepage.
+  - When the live site shows a change: same as the homepage Spotlight (marking or unmarking an event starts a rebuild; the page updates within a few minutes). No new keys, Workers or schedules; nothing on the other sites depends on it.
 
 ## Featured events
 

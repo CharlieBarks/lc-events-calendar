@@ -79,6 +79,7 @@ const jsonLd = [
           <h2>Spotlight</h2>
           <p>Don't sleep on these. Hand-picked events and the local folks who help keep this calendar free.</p>
         </div>
+        <a class="see-all" href="/spotlight/events/" data-see-all hidden>See all Spotlight events <span aria-hidden="true">→</span></a>
       </div>
       {picks.length > 0 && (
         <ul class="grid" role="list" data-picks>
@@ -158,6 +159,9 @@ const jsonLd = [
   [data-picks] > :global(li:nth-child(n+4)) { display: none; }
   [data-picks].shuffled > :global(li) { display: flex; }
   .old-link-note { margin-block-end: var(--space-m); padding: var(--space-m); border: 1px solid var(--neutral-light); border-inline-start: 4px solid var(--primary); border-radius: var(--radius-s); background: var(--bg-ultra-light); font-size: var(--text-m); }
+  .see-all { font-weight: 600; color: var(--primary); text-decoration: none; white-space: nowrap; }
+  .see-all:hover { text-decoration: underline; }
+  .see-all[hidden] { display: none; }
   .spotlight-promo { display: flex; flex-wrap: wrap; gap: var(--space-m) var(--space-l); align-items: center; justify-content: space-between; padding: var(--space-m); border: 1.5px dashed var(--neutral-light); border-radius: var(--radius); background: var(--bg-light); }
   .spotlight-promo > div { flex: 1 1 26.25rem; display: flex; flex-direction: column; gap: 0.375rem; }
   .spotlight-promo h3 { font-size: 1.35rem; }
@@ -193,6 +197,8 @@ const jsonLd = [
     const paid = shuffle(items.filter((li) => li.querySelector('[data-paid]')));
     const spot = shuffle(items.filter((li) => li.querySelector('[data-sponsored]') && !li.querySelector('[data-paid]')));
     const free = shuffle(items.filter((li) => !li.querySelector('[data-sponsored]')));
+    // "See all Spotlight events" only when there's more than these three to see (Charlie, Nov 28).
+    if (items.length > 3) document.querySelector('[data-see-all]')?.removeAttribute('hidden');
     const show = [...paid, ...spot, ...free].slice(0, 3);
     items.forEach((li) => { if (!show.includes(li)) li.remove(); });
     show.forEach((li) => list.append(li));
