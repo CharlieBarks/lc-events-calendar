@@ -57,7 +57,7 @@ async function loadCitySpark() {
 }
 
 async function loadSubmissions() {
-  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [], hidden: [], nopic: [], featured: [] };
+  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [], hidden: [], nopic: [], featured: [], pictures: [] };
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetch(`${INTAKE_URL}/approved.json`, { signal: AbortSignal.timeout(20000) });
@@ -66,7 +66,7 @@ async function loadSubmissions() {
       // "feeds": events the Worker read from other organizations' calendars (feeds.js). Same request,
       // so they can't be missing while submissions are present.
       console.log(`Loaded ${data.events.length} approved submissions and ${(data.feeds || []).length} events from other calendars`);
-      return { events: data.events, feeds: data.feeds || [], hidden: data.hidden || [], nopic: data.nopic || [], featured: data.featured || [] };
+      return { events: data.events, feeds: data.feeds || [], hidden: data.hidden || [], nopic: data.nopic || [], featured: data.featured || [], pictures: data.pictures || [] };
     } catch (err) {
       console.warn(`Submissions attempt ${attempt} failed: ${err.message}`);
       await new Promise((r) => setTimeout(r, 2000 * attempt));
@@ -256,11 +256,36 @@ function samePlace(a, b) {
   return close && a.start.H === b.start.H && a.start.M === b.start.M;
 }
 
+// A picture for a listing that has none of its own: same day (or every date when "all" is set,
+// optionally until a day), the same name or one containing the other, and the same venue when one
+// is given. Only https pictures. SITE.md, "Pictures for feed listings".
+export function addPictures(events, pictures = []) {
+  const t = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const list = (Array.isArray(pictures) ? pictures : []).filter((p) => /^https:\/\//.test(p?.image || '') && t(p.title));
+  if (!list.length) return 0;
+  let n = 0;
+  for (const e of events) {
+    if (e.image || e.flyer) continue;
+    const et = t(e.title);
+    const ev = t(e.venue);
+    const p = list.find((p) => {
+      if (p.all ? (p.until && e.date > p.until) || (p.from && e.date < p.from) : p.date !== e.date) return false;
+      const pt = t(p.title);
+      if (!(et === pt || (Math.min(et.length, pt.length) >= 5 && (et.includes(pt) || pt.includes(et))))) return false;
+      const pv = t(p.venue);
+      return !pv || !ev || ev.includes(pv) || pv.includes(ev);
+    });
+    if (p) { e.image = p.image; n++; }
+  }
+  if (n) console.log(`Added ${n} pictures from pictures.json`);
+  return n;
+}
+
 let cache;
 
 export async function getEvents() {
   cache ??= (async () => {
-    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw, hidden, nopic, featured: featuredList }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
+    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw, hidden, nopic, featured: featuredList, pictures }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
     // Listings Charlie hid on the review page (or that a suggested edit replaced). Only feed listings:
     // his own and organizers' submissions are taken off the calendar with "Remove" instead.
     // A hidden address with a date hides that date; "every date" hides the listing's other dates too.
@@ -323,6 +348,9 @@ export async function getEvents() {
     const events = [...direct, ...spark, ...city, ...found, ...ours]
       .filter(Boolean)
       .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today);
+    // Pictures for listings that came without one (KV pictures.json, written by the weekly Claude task
+    // that reads venues' graphics emails, e.g. Rio Grande Winery's). Hidden pictures still win.
+    addPictures(events, pictures);
     for (const e of events) if (noPicture(e)) { e.image = ''; e.flyer = ''; e.photos = []; }
     // Nearby towns: only special events Charlie approved or added (his own listings and the
     // newsletter). A feed's listing from Ruidoso or Deming is left out.
