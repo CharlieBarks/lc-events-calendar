@@ -55,6 +55,8 @@
 /high-noon-leather-the-las-cruces-saddle-whisperer-you-need-to-know/  https://livelovelascruces.com/p/high-noon-leather-the-las-cruces-saddle-whisperer-you-need-to-know  301
 /silver-assets-in-mesilla-where-authenticity-meets-artistry  https://livelovelascruces.com/p/silver-assets-in-mesilla-where-authenticity-meets-artistry  301
 /silver-assets-in-mesilla-where-authenticity-meets-artistry/  https://livelovelascruces.com/p/silver-assets-in-mesilla-where-authenticity-meets-artistry  301
+# Its old WordPress picture pages (/2-8/, /attachment/5/…), flagged as 403s in Search Console Nov 26, 2026
+/silver-assets-in-mesilla-where-authenticity-meets-artistry/*  https://livelovelascruces.com/p/silver-assets-in-mesilla-where-authenticity-meets-artistry  301
 /meet-aggie-carpet-cleaning-serving-las-cruces-homes-businesses  https://livelovelascruces.com/p/meet-aggie-carpet-cleaning-serving-las-cruces-homes-businesses  301
 /meet-aggie-carpet-cleaning-serving-las-cruces-homes-businesses/  https://livelovelascruces.com/p/meet-aggie-carpet-cleaning-serving-las-cruces-homes-businesses  301
 /discover-the-spark-of-creativity-at-metal-jewelry-studio-in-las-cruces  https://livelovelascruces.com/p/discover-the-spark-of-creativity-at-metal-jewelry-studio-in-las-cruces  301
@@ -74,6 +76,15 @@
 # Other pages of the old WordPress calendar (added on the domain move, Nov 23, 2026)
 /contact    https://livelovelascruces.com/contact   301
 /contact/   https://livelovelascruces.com/contact   301
+# More old WordPress addresses Search Console still crawls (Nov 26, 2026)
+/events     /   301
+/events/    /   301
+/opt-out-preferences   https://livelovelascruces.com/   301
+/opt-out-preferences/  https://livelovelascruces.com/   301
+
+# Someone trimming an event's venue address back to /venue/ gets the list of venues (audit, Nov 27, 2026)
+/venue      /venues/   301
+/venue/     /venues/   301
 
 # Sitemaps: the old WordPress (Yoast) address and its parts point to the new sitemap (Nov 23, 2026)
 /sitemap_index.xml   /sitemap-index.xml   301

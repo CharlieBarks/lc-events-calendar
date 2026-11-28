@@ -1,6 +1,8 @@
 {
   "_about": "Master venue list. CitySpark, the city feed and flyer submissions each spell venues their own way; every spelling in 'aliases' is shown and searched as 'name'. Matching ignores capitals, accents, apostrophes and punctuation. 'Room' aliases keep the room ('Boardroom') next to the venue name. 'keywords' are extra words people might search for. Add a venue or a spelling here whenever a new one turns up; anything not listed keeps the name it came with.",
   "venues": [
+    { "name": "Duende Arte Gallery", "aliases": ["Duende Art Gallery", "Duende Gallery", "Duende Arte"], "keywords": ["gallery", "art"] },
+    { "name": "The Hood New Mexico", "aliases": ["The Hood", "Hood Gallery", "The Hood Gallery"], "keywords": ["gallery", "art"] },
     { "name": "Icebox Brewing Company", "aliases": ["Icebox", "Icebox Brewery", "Icebox Brewing", "Icebox Brewing Co."], "keywords": ["brewery", "beer"] },
     { "name": "Icebox Cantina", "aliases": ["Icebox Downtown"], "keywords": ["beer", "downtown"] },
     { "name": "Icebox 28 Beer Garden", "aliases": ["Icebox 28"], "keywords": ["beer", "Anthony"] },

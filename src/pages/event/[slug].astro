@@ -6,27 +6,36 @@ import Lightbox from '../../components/Lightbox.astro';
 import Newsletter from '../../components/Newsletter.astro';
 import { SITE, CATEGORIES, SOURCES, PREVIEW, INTAKE_URL, TURNSTILE_SITEKEY, breadcrumbJsonLd, tagged } from '../../lib/site.js';
 import { getEvents, shortVenue, mapsLink, googleCalendarLink } from '../../lib/events.js';
-import { longDate, shortDate, timeRange, offsetIso, dateKey } from '../../lib/time.js';
+import { longDate, shortDate, timeRange, offsetIso, dateKey, todayWall } from '../../lib/time.js';
 
 export async function getStaticPaths() {
   const { allEvents: events, aliases } = await getEvents();
   return [
     ...events.map((event) => ({ params: { slug: event.slug }, props: { event } })),
-    // Dateless addresses of long runs in their last days: forward to the next date.
-    ...aliases.map((a) => ({ params: { slug: a.slug }, props: { forwardTo: `/event/${a.to}/` } })),
+    // Dateless series addresses (/event/crochet-at-munson/): the series' own page, showing its next
+    // date. Every dated page of the series names this one as canonical (Nov 26, 2026).
+    ...aliases.flatMap((a) => {
+      const next = events.find((e) => e.slug === a.to);
+      return next ? [{ params: { slug: a.slug }, props: { event: next, home: a.slug } }] : [];
+    }),
   ];
 }
 
-if (Astro.props.forwardTo) return Astro.redirect(Astro.props.forwardTo);
-
-const { event } = Astro.props;
+const { event, home } = Astro.props;
+// The series' dateless page is the one Google should index; dated pages point to it.
+const seriesHome = home || event.series?.home;
+const canonicalPath = seriesHome ? `/event/${seriesHome}/` : undefined;
 const { allEvents: events } = await getEvents();
 const cat = CATEGORIES[event.category];
 const known = SOURCES[event.source] || SOURCES.lllc;
 // Events found through Visit Las Cruces are credited to the organizer, linked to their own page.
 const source = known.url ? known : { name: event.venue || 'the organizer', url: event.url };
-const path = `/event/${event.slug}/`;
-const when = `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
+const path = home ? `/event/${home}/` : `/event/${event.slug}/`;
+// An exhibit (Nov 25, 2026) says its open days and hours, not one date: the page stands for the whole run.
+const exhibit = !!(event.ongoing && event.series?.exhibit);
+const when = exhibit && event.series.hours ? event.series.hours : `${longDate(event.start)} · ${timeRange(event.start, event.end)}`;
+// Open days we couldn't read ("Open during events only"): no "Next open" date.
+const nextOpen = exhibit && !(event.rule?.hoursNote && !event.rule?.hours) ? ` · Next open ${shortDate(event.start)}` : '';
 
 // Plain-text descriptions from feeds: split into paragraphs, never inject raw HTML.
 const paragraphs = event.description.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
@@ -49,9 +58,11 @@ const related = events
 const venueCount = events.filter((e) => e.venueKey && e.venueKey === event.venueKey).length;
 
 const isFree = /free/i.test(event.price) || /\$0\b/.test(event.description);
+// No venue on the listing (an online event): leave "at …" out rather than say "at Location on the original listing".
+const atVenue = event.venue ? ` at ${shortVenue(event)}` : '';
 const description = event.description
-  ? `${shortDate(event.start)} at ${shortVenue(event)}. ${event.description}`
-  : `${event.title}: ${shortDate(event.start)}, ${timeRange(event.start, event.end)} at ${shortVenue(event)} in Las Cruces, NM.`;
+  ? `${shortDate(event.start)}${atVenue}. ${event.description}`
+  : `${event.title}: ${shortDate(event.start)}, ${timeRange(event.start, event.end)}${atVenue} in Las Cruces, NM.`;
 
 // What the form needs to open this listing for "Suggest an edit" (read by /submit/?suggest=<slug>).
 const hhmm = (w) => (w && !w.allDay ? `${String(w.H).padStart(2, '0')}:${String(w.M).padStart(2, '0')}` : '');
@@ -61,13 +72,45 @@ const suggestData = {
   date: event.date, start: hhmm(event.start), end: event.end && dateKey(event.end) === event.date ? hhmm(event.end) : '',
 };
 
+// Google's event details (Search Console "Improve item appearance", Nov 25, 2026):
+// - endDate: all-day events use plain dates; an event with no end time ends that same day
+//   (a plain date, so we never make up a time).
+// - offers: free events get price 0, events with a dollar price get it (a range becomes
+//   low/high), anything else gets no offers rather than a guess. validFrom is the build day,
+//   meaning "available now"; it's never later than the event.
+// - performer: only real ones: acts matched on Las Cruces Live, artists on the Art Trail.
+const isoDay = (w) => (w.allDay ? dateKey(w) : offsetIso(w));
+// An exhibit's page stands for the whole run: its first and last days (plain dates).
+const startIso = exhibit && event.rule?.start ? event.rule.start : isoDay(event.start);
+const endIso = exhibit && event.rule?.until ? event.rule.until : event.end ? isoDay(event.end) : dateKey(event.start);
+const dollars = [...String(event.price || '').matchAll(/\$\s*(\d+(?:\.\d{1,2})?)/g)].map((m) => Number(m[1]));
+const today = dateKey(todayWall());
+const validFrom = today < event.date ? today : event.date;
+const offerBase = { '@type': 'Offer', priceCurrency: 'USD', availability: 'https://schema.org/InStock', validFrom, url: event.url || `${SITE.url}${path}` };
+const paidToo = dollars.filter((n) => n > 0);
+const offers = isFree && paidToo.length
+  ? { ...offerBase, '@type': 'AggregateOffer', lowPrice: 0, highPrice: Math.max(...paidToo) } // "Free – $10"
+  : isFree ? { ...offerBase, price: 0 }
+  : dollars.length === 1 ? { ...offerBase, price: dollars[0] }
+  : dollars.length > 1 ? { ...offerBase, '@type': 'AggregateOffer', lowPrice: Math.min(...dollars), highPrice: Math.max(...dollars) }
+  : null;
+const performers = [
+  ...(event.acts || []).map((a) => ({ '@type': 'MusicGroup', name: a.name, url: a.url })),
+  ...(event.artists || []).map((a) => ({ '@type': 'Person', name: a.name, ...(a.url ? { url: a.url } : {}) })),
+];
+
+const NOT_ORGANIZER = new Set(['cityspark', 'lllc', 'newsletter', 'visit-las-cruces', 'markets']);
+const organizer = event.source === 'arttrail'
+  ? (event.venue ? { '@type': 'Organization', name: event.venue, ...(event.url ? { url: event.url } : {}) } : null)
+  : SOURCES[event.source] && !NOT_ORGANIZER.has(event.source) && known.url ?{ '@type': 'Organization', name: known.name, url: known.url } : null;
+
 const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': 'Event',
     name: event.title,
-    startDate: offsetIso(event.start),
-    ...(event.end ? { endDate: offsetIso(event.end) } : {}),
+    startDate: startIso,
+    endDate: endIso,
     eventStatus: 'https://schema.org/EventScheduled',
     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
     location: {
@@ -77,9 +120,15 @@ const jsonLd = [
     },
     description: event.description || description,
     image: [event.image || `${SITE.url}/og/event/${event.slug}.png`],
-    url: `${SITE.url}${path}`,
-    organizer: { '@type': 'Organization', name: source.name, url: event.url || source.url },
-    ...(isFree ? { isAccessibleForFree: true, offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: event.url || `${SITE.url}${path}` } } : {}),
+    // The same address Google is told to index (canonical), not the dated copy (audit, Nov 27, 2026).
+    url: `${SITE.url}${canonicalPath || path}`,
+    // Organizer only when we know it: an organization's own calendar (library, city, museums...) or the
+    // venue for a gallery show. Copies (CitySpark, the form, the newsletter, Visit Las Cruces, markets)
+    // used to name "Live Love Las Cruces" as the organizer of everything; now they leave it out.
+    ...(organizer ? { organizer } : {}),
+    ...(isFree ? { isAccessibleForFree: true } : {}),
+    ...(offers ? { offers } : {}),
+    ...(performers.length ? { performer: performers.length === 1 ? performers[0] : performers } : {}),
   },
   breadcrumbJsonLd([
     { name: 'Events', path: '/' },
@@ -107,7 +156,7 @@ const status = event.sponsored ? 'Sponsored (paid)' : event.featured ? 'Featured
 const mainImage = event.flyer || event.image;
 const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
 ---
-<Layout title={`${event.title}, ${shortDate(event.start)}`} description={description} jsonLd={jsonLd} ogType="article" ogImage={event.image || `/og/event/${event.slug}.png`}>
+<Layout title={home ? `${event.title}${event.series?.when ? `, ${event.series.when}` : ''}` : `${event.title}, ${shortDate(event.start)}`} description={description} jsonLd={jsonLd} canonicalPath={canonicalPath} ogType="article" ogImage={event.image || `/og/event/${event.slug}.png`}>
   <aside class="admin-bar" data-admin-bar hidden aria-label="Admin">
     <div class="wrap admin-bar__inner">
       <p class="admin-bar__title">Admin{status && <span class="admin-bar__status">{status}{event.spotlightUntil && ` until ${event.spotlightUntil}`}</span>}</p>
@@ -155,7 +204,7 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
       <h1>{event.title}</h1>
 
       <dl class="event-facts">
-        <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="event-facts__sub">{event.series.when} · {event.series.time}</span>}</dd></div>
+        <div><dt>When</dt><dd><time datetime={offsetIso(event.start)}>{when}</time>{event.series && <span class="event-facts__sub">{exhibit ? `${event.series.when}${nextOpen}` : `${event.series.when} · ${event.series.time}`}</span>}</dd></div>
         <div><dt>Where</dt><dd>{event.venueKey && event.venue && venueCount > 0 ? <a href={`/venue/${event.venueKey}/`}>{shortVenue(event)}</a> : shortVenue(event)}{event.address && event.address !== event.venue && <span class="event-facts__sub">{event.address}</span>}</dd></div>
         {event.price && <div><dt>Cost</dt><dd>{event.price}</dd></div>}
         {event.acts && (
@@ -182,7 +231,7 @@ const mainThumb = event.flyer ? event.flyerThumbs?.l : event.thumbs?.l;
           <summary class="btn--base btn--outline">Add to calendar</summary>
           <div class="event-actions__menu">
             <a href={googleCalendarLink(event, { offsetIso })} rel="noopener">Google Calendar</a>
-            <a href={`/event/${event.slug}.ics`} download>Apple / Outlook (.ics)</a>
+            <a href={`/event/${event.slug}.ics`} download rel="nofollow">Apple / Outlook (.ics)</a>
           </div>
         </details>
         {event.venue && <a class="btn--base btn--outline" href={mapsLink(event)} rel="noopener">Directions</a>}

@@ -372,10 +372,16 @@ Read the flyer and return ONLY a JSON object, no other text:
   "price": "e.g. 'Free', 'No cover', '$10', '$15 advance / $20 door', or empty",
   "url": "ticket or info website if printed, else empty",
   "description": "1-2 plain sentences about the event using only what the flyer says",
-  "shows": [ { "date": "YYYY-MM-DD", "start": "HH:MM 24-hour or empty", "end": "HH:MM 24-hour or empty", "title": "only if this date has a different act than the main title, else empty" } ],
+  "shows": [ { "date": "YYYY-MM-DD", "weekday": "the weekday printed next to this date (e.g. 'Friday'), else empty", "start": "HH:MM 24-hour or empty", "end": "HH:MM 24-hour or empty", "title": "only if this date has a different act than the main title, else empty" } ],
+  "run": {
+    "until": "YYYY-MM-DD: the last day, only when this is an exhibit or show that runs over many days ('runs through December 13th', 'on view until', 'through Jan 5'), else empty",
+    "hours": [ { "days": ["Thursday", "Friday"], "start": "HH:MM", "end": "HH:MM" } ],
+    "reception": { "label": "Opening reception, Closing reception or Artist talk", "date": "YYYY-MM-DD", "start": "HH:MM", "end": "HH:MM" }
+  },
   "missing": ["fields you could not find on the flyer, from: date, start, venue, price"]
 }
-Rules: list every date on the flyer as its own show. If no year is printed, use the next upcoming date. "Every Friday in November" with dates listed means one show per listed date. Leave anything not on the flyer empty; never guess. Times like "7-10pm" mean start 19:00, end 22:00.`;
+Rules: list every date on the flyer as its own show. If no year is printed, use this year's date and copy the printed weekday exactly; the calendar works out the year. "Every Friday in November" with dates listed means one show per listed date. Leave anything not on the flyer empty; never guess. Times like "7-10pm" mean start 19:00, end 22:00.
+Exhibits and long runs: put the opening or first day as the only show (with the reception's times if there is one), the last day in run.until, the open days and hours in run.hours (one entry per group of days with the same hours; empty list if no hours are printed) and any reception in run.reception. Leave "run" out entirely for a one-time event.`;
 }
 
 function parseJSON(text) {
@@ -426,24 +432,93 @@ async function readFlyer(env, buf, type) {
   return { ...(parseJSON(out?.response) || {}), reader: 'workers-ai' };
 }
 
-// Flyers often say "Monday, Nov 11" with no year, and the model may pick the year that matches the
-// weekday. Events are always upcoming, so a date in the past moves to its next upcoming year.
-function upcoming(date) {
-  if (!isDate(date)) return '';
+// Flyers often say "Friday, Nov 6" with no year. Until Nov 25, 2026 any date already past simply
+// moved to next year, which put a gallery show that opened Nov 6 (and ran through Dec 13) on
+// Nov 6, 2027. Now, in order:
+//   1. A date still coming up this year (or next, for "Jan 10" read in December) stays.
+//   2. A run that's still going (its last day hasn't passed) keeps its first day, even in the past.
+//   3. A printed weekday picks the year it fits ("Friday, Nov 6" is 2026, not 2027).
+//   4. Otherwise the next upcoming date, flagged so the person checks the year.
+// Returns { date, check } where check says why a person should look at it.
+const WEEKDAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const weekdayOf = (key) => new Date(`${key}T12:00:00Z`).getUTCDay();
+function resolveYear(date, { weekday = '', runUntil = '' } = {}) {
+  if (!isDate(date)) return { date: '', check: '' };
   const today = todayLocal();
-  if (date >= today) return date;
-  let y = Number(today.slice(0, 4));
-  let d = `${y}${date.slice(4)}`;
-  if (d < today) d = `${y + 1}${date.slice(4)}`;
-  return d;
+  const y = Number(today.slice(0, 4));
+  const md = date.slice(4);
+  const options = [y - 1, y, y + 1].map((n) => `${n}${md}`).filter(isDate);
+  const wd = WEEKDAY_NAMES.findIndex((n) => String(weekday).toLowerCase().startsWith(n.slice(0, 3)) && String(weekday).trim().length >= 3);
+  const fits = (k) => wd < 0 || weekdayOf(k) === wd;
+  const next = options.find((k) => k >= today);
+  // A run still going: the latest first day on or before its last day.
+  if (runUntil && runUntil >= today) {
+    const start = options.filter((k) => k <= runUntil && fits(k)).pop() || options.filter((k) => k <= runUntil).pop();
+    if (start) return { date: start, check: '' };
+  }
+  if (wd >= 0) {
+    const match = options.filter(fits);
+    const upcomingMatch = match.find((k) => k >= today);
+    if (upcomingMatch && (upcomingMatch === next || !fits(next))) return { date: upcomingMatch, check: '' };
+    const pastMatch = match.filter((k) => k < today).pop();
+    if (pastMatch && !match.some((k) => k >= today)) return { date: pastMatch, check: 'past' };
+  }
+  if (date >= today) return { date, check: '' };
+  return { date: next || date, check: 'year' };
+}
+// Kept for anything else that reads one date: the next upcoming one.
+const upcoming = (date) => resolveYear(date).date;
+
+// "runs through Dec 13" on a flyer: the open days, each day's hours and any reception, as a repeat
+// rule the form fills in (Nov 25, 2026). Returns null when the flyer isn't for a run.
+function runRule(run, firstShow) {
+  if (!run || typeof run !== 'object' || !firstShow?.date) return null;
+  const until = resolveYear(run.until).date;
+  if (!until || until < firstShow.date) return null;
+  const hours = {};
+  const days = new Set();
+  for (const h of Array.isArray(run.hours) ? run.hours : []) {
+    for (const name of Array.isArray(h?.days) ? h.days : []) {
+      const d = WEEKDAY_NAMES.findIndex((n) => String(name).toLowerCase().startsWith(n.slice(0, 3)));
+      if (d < 0) continue;
+      days.add(d);
+      if (isTime(h.start)) hours[d] = { start: h.start, end: isTime(h.end) ? h.end : '' };
+    }
+  }
+  // No open days printed: every day from the first to the last.
+  const list = days.size ? [...days] : [0, 1, 2, 3, 4, 5, 6];
+  const rc = run.reception && isDate(run.reception.date) ? run.reception : null;
+  return tidyRepeat({
+    freq: 'weekly', every: 1, days: list, start: firstShow.date, until, exhibit: true, hours,
+    reception: rc ? { date: resolveYear(rc.date, { runUntil: until }).date, start: rc.start, end: rc.end, label: rc.label } : null,
+  });
 }
 
 function tidyExtract(x = {}) {
+  const runUntil = x.run && isDate(x.run.until) ? resolveYear(x.run.until).date : '';
+  const checks = [];
   const shows = (Array.isArray(x.shows) ? x.shows : [])
-    .map((s) => ({ date: upcoming(s?.date), start: isTime(s?.start) ? s.start : '', end: isTime(s?.end) ? s.end : '', title: clean(s?.title, 120) }))
+    .map((s) => {
+      const { date, check } = resolveYear(s?.date, { weekday: s?.weekday, runUntil });
+      if (check) checks.push(check);
+      return { date, start: isTime(s?.start) ? s.start : '', end: isTime(s?.end) ? s.end : '', title: clean(s?.title, 120) };
+    })
     .filter((s) => s.date || s.start)
     .slice(0, 20);
+  const repeat = runRule(x.run, shows[0]);
+  // A run: one date row (the first day), its times from that day's open hours when it has them.
+  if (repeat) {
+    const own = repeat.hours?.[weekdayOf(shows[0].date)];
+    shows.splice(0, shows.length, { ...shows[0], ...(own ? { start: own.start, end: own.end } : {}), title: '' });
+  }
   return {
+    ...(repeat ? { repeat } : {}),
+    // Things the person should look at, shown above the form.
+    notes: [
+      ...(checks.includes('past') ? ['The date on this flyer has already passed this year. Check the date (or, if it\'s a show that runs for a while, tick "It\'s an exhibit" and add its last day).'] : []),
+      ...(checks.includes('year') ? ['The flyer doesn\'t say the year. Check that the date is right.'] : []),
+      ...(repeat ? ['This looks like a show that runs for a while, so I set it up as an exhibit with its open days and hours. Check them below.'] : []),
+    ],
     title: clean(x.title, 140),
     performers: clean(x.performers, 300),
     venue: clean(x.venue, 140),
@@ -514,6 +589,7 @@ function tidySubmission(b) {
   return {
     repeat,
     annual: !!b.annual,
+    dogs: !!b.dogs,
     title: clean(b.title, 140),
     performers: clean(b.performers, 300),
     venue: clean(b.venue, 140),
@@ -648,7 +724,7 @@ async function handleMine(request, env, origin) {
   return json({
     status: rec.status === 'approved' && !rec.change ? 'live' : rec.change ? 'change-waiting' : 'waiting',
     title: rec.title, venue: rec.venue, address: rec.address, category: rec.category, price: rec.price, url: rec.url,
-    description: rec.description, shows: rec.shows, repeat: rec.repeat || null, annual: !!rec.annual,
+    description: rec.description, shows: rec.shows, repeat: rec.repeat || null, annual: !!rec.annual, dogs: !!rec.dogs,
     imageId: rec.imageId || '', imageUrl: rec.imageId ? `${PUBLIC_ORIGIN}/img/${rec.imageId}` : '',
     photoIds: photosOf(rec), main: mainOf(rec), imgBase: `${PUBLIC_ORIGIN}/img/`,
     // Trusted submitters' changes go live as soon as they save (paid Spotlight events still wait).
@@ -740,6 +816,7 @@ function toCalendarEvents(rec) {
       submissionId: rec.id,
       ...(rec.repeat ? { repeat: rec.repeat } : {}),
       ...(rec.annual ? { annual: true } : {}),
+      ...(rec.dogs ? { dogs: true } : {}),
     };
   });
 }
@@ -779,6 +856,18 @@ async function setHidden(env, item, on, key = 'hidden') {
 // from somewhere else). Same shape and matching as hidden listings; the site shows its text card instead.
 async function getNoPic(env) {
   return (await env.MEDIA.get('nopic.json', 'json'))?.nopic || [];
+}
+
+// ---------- Pictures for feed listings ----------
+// Pictures for listings that arrive without one (Rio Grande Winery's Google Calendar has none; the
+// winery emails its graphics every week). Written by a weekly Claude task straight into KV pictures.json:
+//   { pictures: [{ id, title, date | all (+ from, until), venue, image, source, at }] }
+// image: any public https address. The task puts the graphics in Charlie's Google Drive folder
+// "Calendar pictures" (shared by link) and uses https://lh3.googleusercontent.com/d/<file id>. The
+// site build matches each one to a listing with no picture (addPictures in src/lib/events.js) and
+// makes its own small copies like any picture. Removed from the review page ("Added pictures").
+async function getPictures(env) {
+  return (await env.MEDIA.get('pictures.json', 'json'))?.pictures || [];
 }
 
 // ---------- Featured events ----------
@@ -831,7 +920,7 @@ async function reviewApi(request, env, path, ctx) {
     const reports = (await Promise.all(list.keys.map((k) => env.MEDIA.get(k.name, 'json')))).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at));
     return json({ reports: reports.map((r) => ({ ...r, reasonText: REPORT_REASONS[r.reason] || r.reason })) }, { headers: { 'cache-control': 'no-store' } });
   }
-  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse(), featured: (await getFeatured(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
+  if (request.method === 'GET' && path === 'hidden') return json({ hidden: (await getHidden(env)).reverse(), nopic: (await getNoPic(env)).reverse(), featured: (await getFeatured(env)).reverse(), pictures: (await getPictures(env)).reverse() }, { headers: { 'cache-control': 'no-store' } });
   if (request.method !== 'POST') return json({ error: 'Not found' }, { status: 404 });
   const body = await request.json();
   if (['venue', 'venue-undo', 'publish'].includes(path)) return venuesApi(request, env, path, body);
@@ -846,6 +935,14 @@ async function reviewApi(request, env, path, ctx) {
   }
   if (path === 'nopic' || path === 'pic') {
     if (!(await setHidden(env, body, path === 'nopic', 'nopic'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
+    if (body.publish) await rebuild(env);
+    return json({ ok: true });
+  }
+  if (path === 'unpicture') {
+    const list = await getPictures(env);
+    const keep = list.filter((p) => p.id !== body.id);
+    if (keep.length === list.length) return json({ error: 'Already removed.' }, { status: 404 });
+    await env.MEDIA.put('pictures.json', JSON.stringify({ pictures: keep }));
     if (body.publish) await rebuild(env);
     return json({ ok: true });
   }
@@ -957,6 +1054,8 @@ function tidyVenue(b) {
     address: clean(b.address, 200),
     website: /^https?:\/\//i.test(b.website || '') ? clean(b.website, 400) : '',
     about: clean(b.about, 600),
+    // "Dogs welcome" (Nov 25, 2026): every event here gets the Dog friendly button on the calendar.
+    dogs: !!b.dogs,
     aliases,
     was: clean(b.was, 140),
   };
@@ -966,7 +1065,7 @@ async function venuesApi(request, env, path, body) {
   const edits = await getVenueEdits(env);
   if (path === 'venues') {
     const venues = mergeVenues(venueData.venues, edits).map((v) => ({
-      key: v.key, pageKey: venueKey(v.name), name: v.name, address: v.address || '', website: v.website || '', about: v.about || '',
+      key: v.key, pageKey: venueKey(v.name), name: v.name, address: v.address || '', website: v.website || '', about: v.about || '', dogs: !!v.dogs,
       aliases: v.aliases.filter((a) => typeof a === 'string'),
       rooms: v.aliases.filter((a) => typeof a !== 'string').length,
       edited: !!v.edited, builtin: venueData.venues.some((x) => venueKey(x.name) === v.key),
@@ -1012,6 +1111,7 @@ label{display:block;font-size:.8rem;color:var(--muted);margin:10px 0 2px}input,t
 button{font:inherit;font-weight:600;padding:8px 16px;border-radius:999px;border:1px solid var(--ink);background:#fff;cursor:pointer}.save{background:var(--ok);border-color:var(--ok);color:#fff}.undo{color:var(--accent);border-color:var(--accent)}
 .note{font-size:.9rem;color:var(--muted);margin:0 0 14px}.msg{font-size:.9rem;color:var(--muted)}.trustrow{margin:8px 0;font-size:.95rem}.trustrow button{padding:4px 12px;font-size:.85rem}.err{color:var(--accent)}
 #q{max-width:320px}
+label.dogs{display:flex;gap:8px;align-items:center;font-size:.95rem;color:var(--ink);margin:12px 0 2px}label.dogs input{width:auto}
 .v{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px}
 .v summary{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:10px 14px;cursor:pointer;list-style:none}.v summary::-webkit-details-marker{display:none}
 .v summary strong{font-size:1rem}.v summary span{font-size:.85rem;color:var(--muted)}
@@ -1032,6 +1132,7 @@ function form(v){
   return '<form data-key="'+esc(v.key||'')+'" data-was="'+esc(v.was||'')+'">'+
   '<div class="row"><div><label>Name (how it shows on the calendar)</label><input name="name" required value="'+esc(v.name)+'"></div><div><label>Address</label><input name="address" value="'+esc(v.address)+'" placeholder="'+esc(v.listedAddress?'From listings: '+v.listedAddress:'Street, city')+'"></div></div>'+
   '<div class="row"><div><label>Website</label><input name="website" type="url" value="'+esc(v.website)+'" placeholder="https://"></div><div><label>Short description (shown on the venue page)</label><input name="about" value="'+esc(v.about)+'"></div></div>'+
+  '<label class="dogs"><input type="checkbox" name="dogs"'+(v.dogs?' checked':'')+'> Dogs welcome (every event here shows under Dog friendly on the calendar)</label>'+
   '<label>Also known as (other spellings, one per line)</label><textarea name="aliases" rows="'+Math.max(3,(v.aliases||[]).length+1)+'">'+esc((v.aliases||[]).join('\n'))+'</textarea>'+
   (v.rooms?'<div class="msg">Plus '+v.rooms+' room rule'+(v.rooms===1?'':'s')+' kept from the built-in list.</div>':'')+
   '<div class="btns"><button class="save" type="submit">Save</button>'+
@@ -1043,7 +1144,7 @@ function row(v){
   return '<details class="v" data-find="'+esc((v.name+' '+(v.aliases||[]).join(' ')+' '+(v.address||v.listedAddress||'')).toLowerCase())+'"><summary><strong>'+esc(v.name)+'</strong>'+
   '<span>'+esc(v.address||v.listedAddress||'No address yet')+'</span>'+
   (v.count?'<span>'+v.count+' upcoming</span>':'')+
-  (v.unlisted?'<span class="tag new">From the feeds</span>':'')+(v.edited?'<span class="tag ed">Edited</span>':'')+
+  (v.unlisted?'<span class="tag new">From the feeds</span>':'')+(v.edited?'<span class="tag ed">Edited</span>':'')+(v.dogs?'<span class="tag">Dogs welcome</span>':'')+
   '</summary>'+form(v)+'</details>';
 }
 async function load(keepOpen){
@@ -1068,7 +1169,7 @@ document.getElementById('add').onclick=()=>{const n=document.getElementById('new
 document.getElementById('publish').onclick=async e=>{const s=document.getElementById('status');e.target.disabled=true;s.textContent='Starting the rebuild…';const r=await fetch('/review/api/publish',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}).then(r=>r.json()).catch(()=>({}));s.textContent=r.ok?'Rebuild started. The calendar updates in a few minutes.':"Couldn't start the rebuild. Try again.";e.target.disabled=false};
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target,msg=f.querySelector('[data-msg]');msg.className='msg';msg.textContent='Saving…';
-  const body={key:f.dataset.key,was:f.dataset.was,name:f.name.value,address:f.address.value,website:f.website.value,about:f.about.value,aliases:f.aliases.value.split('\n')};
+  const body={key:f.dataset.key,was:f.dataset.was,name:f.name.value,address:f.address.value,website:f.website.value,about:f.about.value,dogs:f.dogs.checked,aliases:f.aliases.value.split('\n')};
   const r=await fetch('/review/api/venue',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).catch(()=>({error:'Could not save. Try again.'}));
   if(r.error){msg.className='msg err';msg.textContent=r.error;return}
   document.getElementById('new').innerHTML='';await load(r.key);
@@ -1123,7 +1224,9 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 <div id="hidden"></div>
 <h2>Hidden pictures</h2><p class="msg">A listing whose picture doesn't fit (wrong event, a random stock photo)? Paste its address. It keeps its listing but shows its name card instead of the picture.</p>
 <form id="nopic" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><input type="hidden" name="title"><label><input type="checkbox" name="all"> Every date of it</label><button>Hide picture</button><span class="msg" data-msg></span></form>
-<div id="nopiclist"></div></main>
+<div id="nopiclist"></div>
+<h2>Added pictures</h2><p class="msg">Graphics from venues' weekly emails (Rio Grande Winery), put on their listings that came without a picture. Remove one that's on the wrong event; the listing goes back to its name card.</p>
+<div id="piclist"></div></main>
 <div id="lb"><img alt=""></div>
 <script>
 const CATS='${cats.replace(/'/g, "\\'")}';
@@ -1234,6 +1337,7 @@ function card(r){
   (r.change?'<div class="boost"><strong>'+(r.changedBy==='charlie'?'You reopened this to edit it.':'Changed by the organizer.')+'</strong> The calendar keeps the current version until you approve. Reject = keep the current version.'+diffSum(r)+'</div>':'')+
   (r.repeat?'<div class="boost" data-repeat><strong>Repeats: '+esc(r.repeatText)+'.</strong> The first date above sets the start and the times. Next dates: '+esc((r.repeatDates||[]).join(', ')||'none in the next 90 days')+'<div class="row"><div><label>Stops after (empty = keeps going)</label><input type="date" name="repeatUntil" value="'+esc(r.repeat.until||'')+'"></div><div><label>Dates to leave out (YYYY-MM-DD, commas)</label><input name="repeatSkip" value="'+esc((r.repeat.skip||[]).join(', '))+'"></div></div></div>':'')+
   (r.annual?'<div class="boost"><strong>Annual event.</strong> The organizer says this happens every year.</div>':'')+
+  (r.dogs?'<div class="boost"><strong>Dog friendly.</strong> The organizer says dogs are welcome.</div>':'')+
   (r.possibleDuplicate&&!r.suggests?'<div class="boost dupe"><strong>Possible duplicate</strong> of <a href="'+esc(SITE)+'/event/'+esc(r.possibleDuplicate)+'/" target="_blank" rel="noopener">'+esc(r.possibleDuplicateTitle||'this listing')+'</a>. The form asked and the organizer said theirs is a different event. Same event after all? Tick the box below to replace that listing, or use <em>Reject: already listed</em>.<label><input type="checkbox" name="replaceDuplicate"> Same event: approve this and hide the other listing</label></div>':'')+
   (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.'+diffSum(r)+'</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
@@ -1246,6 +1350,7 @@ async function loadHidden(){
   const d=await fetch('/review/api/hidden').then(r=>r.json());
   document.getElementById('featuredlist').innerHTML=(d.featured||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.sponsored?'<span class="tag sp">Sponsored</span>':'')+(h.all?'<span class="tag">Every date</span>':'')+(h.until?'<span class="tag">until '+esc(h.until)+'</span>':'')+'</span><span class="apflags"><a href="'+esc(SITE)+'/event/'+esc(h.slug)+'/" target="_blank" rel="noopener">View</a><button data-unfeature="'+esc(h.slug)+'">Stop featuring</button></span></div>').join('')||'<div class="msg">Nothing featured right now.</div>';
   document.getElementById('nopiclist').innerHTML=(d.nopic||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+'</span><span class="apflags"><button data-showpic="'+esc(h.slug)+'">Show picture again</button></span></div>').join('')||'<div class="msg">No pictures hidden.</div>';
+  document.getElementById('piclist').innerHTML=(d.pictures||[]).map(p=>'<div class="ap"><span><img src="'+esc(p.image)+'" alt="" style="width:48px;height:48px;object-fit:cover;vertical-align:middle;margin-right:8px;border-radius:6px">'+esc(p.title)+' · '+esc(p.all?'every date'+(p.until?' until '+p.until:''):p.date)+(p.venue?' · <span class="msg">'+esc(p.venue)+'</span>':'')+'</span><span class="apflags"><button data-unpicture="'+esc(p.id)+'">Remove</button></span></div>').join('')||'<div class="msg">No pictures added.</div>';
   document.getElementById('hidden').innerHTML=d.hidden.map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.reason?' · <span class="msg">'+esc(h.reason)+'</span>':'')+'</span><span class="apflags"><button data-unhide="'+esc(h.slug)+'">Show again</button></span></div>').join('')||'<div class="msg">Nothing hidden.</div>';
 }
 async function loadReports(){
@@ -1286,6 +1391,7 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-reject]')){const f=t.closest('form');if(!confirm('Reject this submission?'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id})});load();return}
   if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
   if(t.matches('[data-reopen]')){t.textContent='Opening…';await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.reopen})});await load();window.scrollTo({top:0,behavior:'smooth'});return}
+  if(t.matches('[data-unpicture]')){await fetch('/review/api/unpicture',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.unpicture,publish:true})});loadHidden();return}
   if(t.matches('[data-showpic]')){await fetch('/review/api/pic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.showpic,publish:true})});loadHidden();return}
   if(t.matches('[data-unfeature]')){await fetch('/review/api/unfeature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unfeature,publish:true})});loadHidden();return}
   if(t.matches('[data-unhide]')){await fetch('/review/api/unhide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.unhide,publish:true})});loadHidden();return}
@@ -1385,8 +1491,8 @@ export default {
       if (path === '/approved.json') {
         // "feeds": events read from other organizations' calendars. They ride along here so the site
         // build makes one request for both (each extra request is one more chance of a failed build).
-        const [approved, feeds, hidden, nopic, featured] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env), getNoPic(env), getFeatured(env)]);
-        return json({ count: approved.length, events: approved, feeds, hidden, nopic, featured }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+        const [approved, feeds, hidden, nopic, featured, pictures] = await Promise.all([getApproved(env), getFeedEvents(env), getHidden(env), getNoPic(env), getFeatured(env), getPictures(env)]);
+        return json({ count: approved.length, events: approved, feeds, hidden, nopic, featured, pictures }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
       }
 
       if (path.startsWith('/img/')) {

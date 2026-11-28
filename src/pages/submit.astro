@@ -106,6 +106,22 @@ const venueList = await getVenues();
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => <label class="submit-repeat__day"><input type="checkbox" value={i} data-rp-day /> {d}</label>)}
               </div>
             </fieldset>
+            <!-- Exhibits and shows that run for a while (Nov 25, 2026): open days with their own hours, an optional reception. -->
+            <div class="submit-repeat__exhibit" data-rp-exhibit-wrap>
+              <label class="submit-form__check"><input type="checkbox" data-rp-exhibit /> It's an exhibit or a show that runs for a while</label>
+              <div class="submit-repeat__hours" data-rp-hours hidden>
+                <p class="submit-form__hint">It's listed once under "Art exhibits and more" for the whole run instead of on every open day. The date above is the first day of the show (it can be a day that's already passed). Add the open hours for each day; a day left blank uses the times in the date row.</p>
+                <div class="submit-repeat__hour-rows" data-rp-hour-rows></div>
+                <label class="submit-form__check"><input type="checkbox" data-rc-on /> There's an opening or closing reception</label>
+                <div class="submit-repeat__reception" data-rc hidden>
+                  <div class="submit-form__show-field"><label for="rc-label">Which</label>
+                    <select id="rc-label" data-rc-label><option>Opening reception</option><option>Closing reception</option><option>Artist talk</option></select></div>
+                  <div class="submit-form__show-field"><label for="rc-date">Date</label><input id="rc-date" type="date" data-rc-date /></div>
+                  <div class="submit-form__show-field"><label>Starts</label><div class="submit-time" data-time="start"></div></div>
+                  <div class="submit-form__show-field"><label>Ends <span class="submit-form__optional">(opt.)</span></label><div class="submit-time" data-time="end"></div></div>
+                </div>
+              </div>
+            </div>
             <div class="submit-form__field" data-rp-monthly hidden><label for="rp-by">On</label>
               <select id="rp-by" data-rp="by"><option value="weekday"></option><option value="date"></option></select></div>
             <div class="submit-form__field"><label for="rp-until">Ends on <span class="submit-form__optional">(optional: leave empty if it keeps going)</span></label><input id="rp-until" type="date" data-rp="until" /></div>
@@ -114,6 +130,7 @@ const venueList = await getVenues();
             <p class="submit-form__hint" data-rp-hint hidden>Not happening on one of these? Tap a date to take it out.</p>
           </div>
           <label class="submit-form__check"><input type="checkbox" data-annual /> This is an annual event (same time every year)</label>
+          <label class="submit-form__check"><input type="checkbox" data-dogs /> Dogs are welcome (it shows under Dog friendly)</label>
         </div>
 
         <div class="submit-form__pair">
@@ -233,6 +250,14 @@ const venueList = await getVenues();
     <div class="submit-form__show-field"><label>Ends <span class="submit-form__optional">(opt.)</span></label><div class="submit-time" data-time="end"></div></div>
     <div class="submit-form__show-field submit-form__act" hidden><label>Different act? <span class="submit-form__optional">(opt.)</span></label><input data-k="title" autocomplete="off" /></div>
     <button type="button" class="submit-form__remove" aria-label="Remove this date" data-del>✕</button>
+  </div>
+</template>
+
+<template id="hour-row">
+  <div class="submit-repeat__hour-row">
+    <span class="submit-repeat__hour-day"></span>
+    <div class="submit-form__show-field"><label>Opens</label><div class="submit-time" data-time="start"></div></div>
+    <div class="submit-form__show-field"><label>Closes <span class="submit-form__optional">(opt.)</span></label><div class="submit-time" data-time="end"></div></div>
   </div>
 </template>
 
@@ -387,12 +412,70 @@ const venueList = await getVenues();
   const rp = (k: string) => rpBox.querySelector(`[data-rp="${k}"]`) as HTMLInputElement;
   let rpSkip: string[] = [];
   const firstDate = () => (showsEl.querySelector('[data-k="date"]') as HTMLInputElement)?.value || '';
+  // Exhibits (Nov 25, 2026): one row of open hours per ticked day, and an optional reception.
+  const rpEx = $<HTMLInputElement>('[data-rp-exhibit]');
+  const hourRowsEl = $('[data-rp-hour-rows]');
+  const hourTpl = document.getElementById('hour-row') as HTMLTemplateElement;
+  const rcOn = $<HTMLInputElement>('[data-rc-on]');
+  const rcBox = $('[data-rc]');
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  let rpHours: Record<string, { start: string; end: string }> = {};
+  let hourDays = '';
+  setTime(rcBox, 'start', ''); setTime(rcBox, 'end', '');
+  const timeOf = (box: Element | null, k: string) => (box?.querySelector(`input[data-k="${k}"]`) as HTMLInputElement)?.value || '';
+  function readHours() {
+    hourRowsEl.querySelectorAll<HTMLElement>('[data-day]').forEach((row) => { rpHours[row.dataset.day!] = { start: timeOf(row, 'start'), end: timeOf(row, 'end') }; });
+  }
+  function renderHours(days: number[]) {
+    const key = days.join(',');
+    if (key === hourDays) return;
+    readHours();
+    hourDays = key;
+    hourRowsEl.innerHTML = '';
+    for (const d of [1, 2, 3, 4, 5, 6, 0].filter((x) => days.includes(x))) {
+      const row = hourTpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
+      row.dataset.day = String(d);
+      (row.querySelector('.submit-repeat__hour-day') as HTMLElement).textContent = DAY_NAMES[d];
+      setTime(row, 'start', rpHours[d]?.start || ''); setTime(row, 'end', rpHours[d]?.end || '');
+      hourRowsEl.append(row);
+    }
+  }
+  function exhibitParts() {
+    if (!rpEx.checked || rp('freq').value !== 'weekly') return {};
+    readHours();
+    const hours: Record<string, { start: string; end: string }> = {};
+    for (const [d, h] of Object.entries(rpHours)) if (h.start && hourDays.split(',').includes(d)) hours[d] = h;
+    const rcDate = ($('[data-rc-date]') as HTMLInputElement).value;
+    return {
+      exhibit: true, hours,
+      reception: rcOn.checked && rcDate ? { date: rcDate, start: timeOf(rcBox, 'start'), end: timeOf(rcBox, 'end'), label: ($('[data-rc-label]') as HTMLSelectElement).value } : null,
+    };
+  }
   function repeatRule() {
     if (!rpOn.checked || !firstDate()) return null;
     return tidyRepeat({
       freq: rp('freq').value, every: rp('every').value, by: rp('by').value, until: rp('until').value, skip: rpSkip, start: firstDate(),
       days: [...rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]:checked')].map((c) => Number(c.value)),
+      ...exhibitParts(),
     });
+  }
+  // Fills the repeat box from a saved rule (edit links) or from a flyer that was read.
+  function applyRepeat(r: any) {
+    if (!r) return;
+    rpOn.checked = true;
+    rp('freq').value = r.freq; rp('every').value = String(r.every || 1); rp('by').value = r.by || 'weekday'; rp('until').value = r.until || '';
+    rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]').forEach((b) => (b.checked = (r.days || []).includes(Number(b.value))));
+    rpSkip = r.skip || [];
+    rpEx.checked = !!r.exhibit;
+    rpHours = {}; hourDays = '';
+    for (const [d, h] of Object.entries(r.hours || {})) rpHours[d] = { start: (h as any).start || '', end: (h as any).end || '' };
+    rcOn.checked = !!r.reception;
+    if (r.reception) {
+      ($('[data-rc-date]') as HTMLInputElement).value = r.reception.date || '';
+      ($('[data-rc-label]') as HTMLSelectElement).value = r.reception.label || 'Opening reception';
+      setTime(rcBox, 'start', r.reception.start || ''); setTime(rcBox, 'end', r.reception.end || '');
+    }
+    syncRepeat();
   }
   function syncRepeat() {
     const on = rpOn.checked;
@@ -417,17 +500,31 @@ const venueList = await getVenues();
     const boxes = [...rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]')];
     if (!boxes.some((b) => b.checked)) boxes[new Date(start + 'T12:00:00Z').getUTCDay()].checked = true;
     rp('until').min = start;
+    // Exhibit: hours for each open day, a reception, and a first day that may already have passed.
+    const exhibit = rpEx.checked && !monthly;
+    $('[data-rp-exhibit-wrap]').hidden = monthly;
+    $('[data-rp-hours]').hidden = !exhibit;
+    rcBox.hidden = !(exhibit && rcOn.checked);
+    if (exhibit) {
+      renderHours(boxes.filter((b) => b.checked).map((b) => Number(b.value)));
+      (showsEl.querySelector('[data-k="date"]') as HTMLInputElement).min = '';
+    }
     const rule = repeatRule()!;
-    const all = expand({ ...rule, skip: [] }, start, addDaysKey(start, 120), 12);
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver' }).format(new Date());
+    const from = start < today ? today : start;
+    const all = expand({ ...rule, skip: [] }, from, addDaysKey(from, 120), 12);
     const start_ = showsEl.querySelector('[data-k="start"]') as HTMLInputElement;
-    const at = start_.value ? ` at ${new Date(`2000-01-01T${start_.value}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(':00', '')}` : '';
-    summary.textContent = describe(rule).replace(/( until .*)?$/, (u) => `${at}${u}`) + '.';
+    const at = start_.value && !exhibit ? ` at ${new Date(`2000-01-01T${start_.value}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(':00', '')}` : '';
+    summary.textContent = exhibit ? describe(rule) + '.' : describe(rule).replace(/( until .*)?$/, (u) => `${at}${u}`) + '.';
     const nice = (k: string) => new Date(k + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
     dates.innerHTML = all.map((k) => `<li><button type="button" class="submit-repeat__date" data-rp-date="${k}" aria-pressed="${!rpSkip.includes(k)}" title="${rpSkip.includes(k) ? 'Put this date back' : 'Take this date out'}">${nice(k)}</button></li>`).join('');
     $('[data-rp-hint]').hidden = all.length === 0;
   }
   rpOn.addEventListener('change', syncRepeat);
-  rpBox.addEventListener('input', syncRepeat);
+  // Time lists in the hours rows and the reception work like the date row's.
+  rpBox.addEventListener('change', onTime);
+  rpBox.addEventListener('input', (e) => { onTime(e); syncRepeat(); });
+  rcOn.addEventListener('change', () => { if (rcOn.checked && !($('[data-rc-date]') as HTMLInputElement).value) ($('[data-rc-date]') as HTMLInputElement).value = firstDate(); syncRepeat(); });
   showsEl.addEventListener('input', (e) => {
     if (!rpOn.checked) return;
     // A new first date starts the rule over (its weekday and any dates taken out). A new time doesn't.
@@ -545,13 +642,9 @@ const venueList = await getVenues();
       field('email').readOnly = true;
       showsEl.innerHTML = '';
       (x.shows?.length ? x.shows : [{}]).forEach(addShow);
-      if (x.repeat) {
-        rpOn.checked = true;
-        rp('freq').value = x.repeat.freq; rp('every').value = String(x.repeat.every); rp('by').value = x.repeat.by || 'weekday'; rp('until').value = x.repeat.until || '';
-        rpBox.querySelectorAll<HTMLInputElement>('[data-rp-day]').forEach((b) => (b.checked = (x.repeat.days || []).includes(Number(b.value))));
-        rpSkip = x.repeat.skip || [];
-      }
+      applyRepeat(x.repeat);
       $<HTMLInputElement>('[data-annual]').checked = !!x.annual;
+      $<HTMLInputElement>('[data-dogs]').checked = !!x.dogs;
       syncRepeat();
       // The pictures it already has, ready to keep, remove or change (Charlie, Nov 23).
       imageId = x.imageId || ''; photoIds = (x.photoIds || []).slice(0, MAX_PHOTOS); mainId = x.main || '';
@@ -607,6 +700,9 @@ const venueList = await getVenues();
     if (x.category && !field('category').value) field('category').value = x.category;
     showsEl.innerHTML = '';
     (x.shows?.length ? x.shows : [{}]).forEach(addShow);
+    // A flyer for an exhibit ("runs through Dec 13", gallery hours, opening reception) comes back
+    // with a rule already worked out by the Worker (Nov 25, 2026).
+    if (x.repeat) applyRepeat(x.repeat);
   }
   function markMissing() {
     form.querySelectorAll('[data-missing]').forEach((el) => el.removeAttribute('data-missing'));
@@ -707,6 +803,9 @@ const venueList = await getVenues();
       $('[data-read-note]').innerHTML = data.extracted && empty.length < 3
         ? `<strong>Here's what I read off your flyer.</strong> Check it over${empty.length ? ` and add ${empty.join(', ')}` : ''}.`
         : `<strong>I couldn't read much off this one.</strong> No problem, just fill in the details below.`;
+      // A date that's already passed, a missing year, or a show that runs for a while (Nov 25, 2026).
+      const notes: string[] = (data.extracted?.notes || []).filter((n: unknown) => typeof n === 'string');
+      if (notes.length) $('[data-read-note]').innerHTML += notes.map((n) => `<br>${n.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)}`).join('');
       // Already on the calendar? Ask before the form (Charlie, Nov 24).
       flyerRead = data.extracted || {};
       const x = flyerRead;
@@ -899,6 +998,7 @@ const venueList = await getVenues();
       boost: (form.querySelector('input[name="boost"]:checked') as HTMLInputElement)?.value || '',
       repeat: repeatRule(),
       annual: $<HTMLInputElement>('[data-annual]').checked,
+      dogs: $<HTMLInputElement>('[data-dogs]').checked,
       ...(suggest ? { suggests: suggest, imageUrl: imageId ? '' : suggestImage } : {}),
       ...(dupeOf && !suggest ? { possibleDuplicate: dupeOf.id, possibleDuplicateTitle: dupeOf.title } : {}),
     };
@@ -1172,6 +1272,16 @@ const venueList = await getVenues();
   .submit-form__remove { inline-size: 2.75rem; block-size: 3rem; border: 1.5px solid var(--neutral-light); border-radius: var(--radius-s); background: var(--white); cursor: pointer; color: var(--text-dark-muted); }
   .submit-form__remove[hidden] { display: none; }
   .submit-form__add { align-self: flex-start; margin-block-start: 0.25rem; min-block-size: 2.75rem; }
+  .submit-repeat__hours, .submit-repeat__hour-rows { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .submit-repeat__hours[hidden], .submit-repeat__reception[hidden] { display: none; }
+  .submit-repeat__hour-row { display: grid; grid-template-columns: 7rem 1fr 1fr; gap: var(--space-xs); align-items: end; }
+  .submit-repeat__hour-day { font-weight: 600; padding-block-end: 0.75rem; }
+  .submit-repeat__reception { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xs); align-items: end; }
+  @media (max-width: 620px) {
+    .submit-repeat__hour-row { grid-template-columns: 1fr; padding-block-end: var(--space-s); border-block-end: 1px dashed var(--neutral-light); }
+    .submit-repeat__hour-day { padding-block-end: 0; }
+    .submit-repeat__reception { grid-template-columns: 1fr; }
+  }
   @media (max-width: 620px) {
     .submit-form__show, .submit-form__show:has(.submit-form__act:not([hidden])) { grid-template-columns: 1fr 1fr; padding-block-end: var(--space-s); border-block-end: 1px dashed var(--neutral-light); }
     .submit-form__show .submit-form__show-field:first-child, .submit-form__show-field:has(.submit-time) { grid-column: 1 / -1; }

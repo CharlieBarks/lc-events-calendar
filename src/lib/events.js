@@ -19,12 +19,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import lllcEvents from '../data/events.json';
 import { CATEGORIES, categoryKey, categoryFromTags, audienceOf, PREVIEW, CITYSPARK_SUBSCRIBED, INTAKE_URL, REPEAT_DAYS } from './site.js';
-import { expand, describe, addDaysKey } from './repeat.js';
+import { expand, describe, addDaysKey, hoursOn, openHours } from './repeat.js';
 import { topicFor } from './topics.js';
 import { resolveVenue, fold, venueKey, venueInfo, venueList } from './venues.js';
 import { addThumbs } from './thumbs.js';
 import { areaOf, townOf } from './areas.js';
-import { addSisterLinks } from './sisters.js';
+import { addSisterLinks, artTrailShows } from './sisters.js';
 import spotlightList from '../data/spotlight.json';
 import { wall, dateKey, todayWall, weekday, timeLabel, monthShort } from './time.js';
 
@@ -57,7 +57,7 @@ async function loadCitySpark() {
 }
 
 async function loadSubmissions() {
-  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [], hidden: [], nopic: [], featured: [] };
+  if (process.env.EVENTS_OFFLINE === '1') return { events: [], feeds: [], hidden: [], nopic: [], featured: [], pictures: [] };
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetch(`${INTAKE_URL}/approved.json`, { signal: AbortSignal.timeout(20000) });
@@ -66,7 +66,7 @@ async function loadSubmissions() {
       // "feeds": events the Worker read from other organizations' calendars (feeds.js). Same request,
       // so they can't be missing while submissions are present.
       console.log(`Loaded ${data.events.length} approved submissions and ${(data.feeds || []).length} events from other calendars`);
-      return { events: data.events, feeds: data.feeds || [], hidden: data.hidden || [], nopic: data.nopic || [], featured: data.featured || [] };
+      return { events: data.events, feeds: data.feeds || [], hidden: data.hidden || [], nopic: data.nopic || [], featured: data.featured || [], pictures: data.pictures || [] };
     } catch (err) {
       console.warn(`Submissions attempt ${attempt} failed: ${err.message}`);
       await new Promise((r) => setTimeout(r, 2000 * attempt));
@@ -106,15 +106,29 @@ async function loadCity() {
 function spread(e, today) {
   if (!e.repeat) return [e];
   const time = (iso) => (String(iso || '').match(/T(\d\d:\d\d)/) || [])[1] || '';
-  const startTime = time(e.start), endTime = time(e.end);
-  const overnight = startTime && endTime && endTime < startTime;
-  return expand(e.repeat, today, addDaysKey(today, REPEAT_DAYS)).map((date) => ({
-    ...e,
-    slug: `${e.slug}-${date}`,
-    start: startTime ? `${date}T${startTime}:00` : date,
-    end: endTime ? `${overnight ? addDaysKey(date, 1) : date}T${endTime}:00` : '',
-    seriesKey: e.slug,
-  }));
+  const at = (date, s, t) => {
+    const overnight = s && t && t < s;
+    return { start: s ? `${date}T${s}:00` : date, end: t ? `${overnight ? addDaysKey(date, 1) : date}T${t}:00` : '' };
+  };
+  // An exhibit can keep different hours on different days (Thu–Fri evenings, weekend afternoons).
+  // Open days without their own hours use the first date's times; filling them in here lets the
+  // event page say every open day's hours.
+  let rule = e.repeat;
+  if (rule.exhibit && time(e.start)) {
+    const hours = { ...(rule.hours || {}) };
+    for (const d of rule.days || []) if (!hours[d]) hours[d] = { start: time(e.start), end: time(e.end) };
+    rule = { ...rule, hours };
+  }
+  const dates = expand(rule, today, addDaysKey(today, REPEAT_DAYS)).map((date) => {
+    const own = hoursOn(rule, date);
+    return { ...e, repeat: rule, slug: `${e.slug}-${date}`, ...at(date, own ? own.start : time(e.start), own ? own.end : time(e.end)), seriesKey: e.slug };
+  });
+  // An exhibit's opening (or closing) reception: its own listing on its night, like any one-off event.
+  const rc = rule.reception;
+  if (rc && rc.date >= today) {
+    dates.push({ ...e, repeat: null, seriesKey: '', slug: `${e.slug}-${slugify(rc.label || 'reception')}-${rc.date}`, title: `${rc.label || 'Opening reception'}: ${e.title}`, ...at(rc.date, rc.start, rc.end) });
+  }
+  return dates;
 }
 
 const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -150,11 +164,20 @@ export const offVisitLC = (url = '') => {
   try { return VISIT_LC.test(new URL(url).hostname) ? '' : url; } catch { return url || ''; }
 };
 
+// A web address typed into the Venue box (NMSU Giving Tuesday, an online event, showed its link as
+// the venue on its Spotlight card; audit, Nov 27, 2026): not a place. It becomes the event's link
+// when it has none, and the listing shows no venue.
+const IS_URL = /^\s*(https?:\/\/|www\.)\S+\s*$/i;
+
 function normalize(e, source) {
   if (NOT_AN_EVENT.test(e.title || '')) return null;
   const start = wall(e.start);
   if (!start) return null;
   const end = wall(e.end);
+  if (IS_URL.test(e.venue || '')) {
+    const link = e.venue.trim();
+    e = { ...e, venue: '', url: e.url || (/^www\./i.test(link) ? `https://${link}` : link) };
+  }
   // Feeds we read ourselves (feeds.js) keep venue and address apart already, even when the address is empty.
   const place = e.address || e.feed ? { venue: e.venue || e.city || '', address: e.address || '' } : cleanVenue(e.venue);
   const category = e.tags ? categoryFromTags(e.tags, e.title) : categoryKey(e.category);
@@ -190,6 +213,7 @@ function normalize(e, source) {
     rule: e.repeat || null,
     seriesKey: e.seriesKey || '',
     annual: !!e.annual,
+    dogs: !!e.dogs,
     source,
   };
   // An organizer who sent a flyer and a photo: the photo is the picture on the calendar and in
@@ -207,6 +231,8 @@ function normalize(e, source) {
   // Stock topic photos were turned off on Nov 18 (Charlie): one photo per topic was often wrong for
   // the event (a rock crowd for a jazz concert). Events without a picture show their name card.
   out.audience = audienceOf(out);
+  // A venue marked "Dogs welcome" on the Venues screen makes every event there dog friendly.
+  if (venueInfo(out.venue).dogs && !out.audience.includes('dogs')) out.audience.push('dogs');
   out.town = townOf(out);
   out.area = out.town || areaOf(out);
   return out;
@@ -230,11 +256,36 @@ function samePlace(a, b) {
   return close && a.start.H === b.start.H && a.start.M === b.start.M;
 }
 
+// A picture for a listing that has none of its own: same day (or every date when "all" is set,
+// optionally until a day), the same name or one containing the other, and the same venue when one
+// is given. Only https pictures. SITE.md, "Pictures for feed listings".
+export function addPictures(events, pictures = []) {
+  const t = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const list = (Array.isArray(pictures) ? pictures : []).filter((p) => /^https:\/\//.test(p?.image || '') && t(p.title));
+  if (!list.length) return 0;
+  let n = 0;
+  for (const e of events) {
+    if (e.image || e.flyer) continue;
+    const et = t(e.title);
+    const ev = t(e.venue);
+    const p = list.find((p) => {
+      if (p.all ? (p.until && e.date > p.until) || (p.from && e.date < p.from) : p.date !== e.date) return false;
+      const pt = t(p.title);
+      if (!(et === pt || (Math.min(et.length, pt.length) >= 5 && (et.includes(pt) || pt.includes(et))))) return false;
+      const pv = t(p.venue);
+      return !pv || !ev || ev.includes(pv) || pv.includes(ev);
+    });
+    if (p) { e.image = p.image; n++; }
+  }
+  if (n) console.log(`Added ${n} pictures from pictures.json`);
+  return n;
+}
+
 let cache;
 
 export async function getEvents() {
   cache ??= (async () => {
-    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw, hidden, nopic, featured: featuredList }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
+    const [cityRaw, sparkRaw, { events: subsRaw, feeds: feedsRaw, hidden, nopic, featured: featuredList, pictures }] = await Promise.all([loadCity(), loadCitySpark(), loadSubmissions()]);
     // Listings Charlie hid on the review page (or that a suggested edit replaced). Only feed listings:
     // his own and organizers' submissions are taken off the calendar with "Remove" instead.
     // A hidden address with a date hides that date; "every date" hides the listing's other dates too.
@@ -265,7 +316,17 @@ export async function getEvents() {
     const subIndex = index(subs);
     // Next: the organizations' own calendars (library, museums...). Their copy links straight to
     // their page, so it beats CitySpark's copy of the same event.
-    const direct = feedsRaw.filter((e) => !e.finder).flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => shown(e) && !dupOf(subIndex, e));
+    // Galleries' current shows from the Las Cruces Art Trail (Nov 25, 2026): exhibits like any feed.
+    // They give way to the same show from our form or from the venue's own calendar (the Museums'
+    // calendar lists theirs): same place and day, and one title contains the other.
+    const shows = await artTrailShows(today);
+    const feedsOnly = feedsRaw.filter((e) => !e.finder).flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => shown(e) && !dupOf(subIndex, e));
+    const byDay = new Map();
+    for (const e of [...subs, ...feedsOnly]) byDay.set(e.date, [...(byDay.get(e.date) || []), e]);
+    const t = (e) => e.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const sameShow = (e) => (byDay.get(e.date) || []).some((x) => samePlace(x, e) && Math.min(t(x).length, t(e).length) >= 8 && (t(x).includes(t(e)) || t(e).includes(t(x))));
+    const fromTrail = shows.flatMap((e) => spread(e, today)).map((e) => normalize(e, e.feed)).filter((e) => shown(e) && !sameShow(e));
+    const direct = [...feedsOnly, ...fromTrail];
     const directIndex = index(direct);
     const spark = sparkRaw.map((e) => normalize(e, 'cityspark')).filter((e) => shown(e) && !dupOf(subIndex, e) && !dupOf(directIndex, e));
     // Between CitySpark and the city feed, keep the CitySpark copy (it has a photo).
@@ -287,6 +348,9 @@ export async function getEvents() {
     const events = [...direct, ...spark, ...city, ...found, ...ours]
       .filter(Boolean)
       .filter((e) => (e.end ? dateKey(e.end) : e.date) >= today);
+    // Pictures for listings that came without one (KV pictures.json, written by the weekly Claude task
+    // that reads venues' graphics emails, e.g. Rio Grande Winery's). Hidden pictures still win.
+    addPictures(events, pictures);
     for (const e of events) if (noPicture(e)) { e.image = ''; e.flyer = ''; e.photos = []; }
     // Nearby towns: only special events Charlie approved or added (his own listings and the
     // newsletter). A feed's listing from Ruidoso or Deming is left out.
@@ -362,7 +426,10 @@ export async function getEvents() {
       }
       s.when = describe(first.rule);
       s.ruled = true;
-      s.ongoing = false; // a rule is a schedule, not an exhibit that is simply open every day
+      // A rule is a schedule, not an exhibit that is simply open every day, unless the organizer
+      // said it's an exhibit (Nov 25, 2026): then it's listed once under "On now" for the whole run.
+      s.ongoing = !!first.rule.exhibit;
+      s.exhibit = !!first.rule.exhibit;
       list.forEach((e) => { e.series = s; });
     }
 
@@ -381,17 +448,33 @@ export async function getEvents() {
       const stable = dateless(x);
       if (stable) { taken.delete(x.next.slug); x.next.slug = stable; taken.add(stable); }
     }
-    // In its last days a long run has too few dates left to count as "ongoing" and goes back to one
-    // listing per day. The dateless address then forwards to the next date, so the link still works.
+    // Every repeating series also gets a dateless address (/event/crochet-at-munson/) that shows its
+    // next date. Each dated page points Google there with rel=canonical, so the series is one strong
+    // page in search instead of 27 near-copies Google won't index (Search Console, Nov 26, 2026:
+    // 497 "crawled, not indexed" event pages were only 188 different events).
+    // Long runs in their last days (too few dates left to count as "ongoing") use the same address.
     const aliases = [];
     for (const x of series) {
-      if (x.ongoing || x.gap > 1) continue;
+      if (x.ongoing) continue;
       const stable = dateless(x);
-      if (stable) { taken.add(stable); aliases.push({ slug: stable, to: x.next.slug }); }
+      if (stable) { taken.add(stable); x.home = stable; aliases.push({ slug: stable, to: x.next.slug }); }
     }
     for (const x of ongoing) {
       x.next.ongoing = true;
+      // Its last day, for sorting the Art exhibits and more page (closing soonest first).
+      x.next.runUntil = x.exhibit ? (x.next.rule?.until || '') : x.until.date;
       x.when = `${x.category === 'arts-culture' ? 'On view' : 'Daily'} through ${monthShort(x.until.start)} ${x.until.start.d}`;
+      if (x.exhibit) {
+        // The organizer's own last day (it can be past the 90-day window) and open days and hours.
+        const rule = x.next.rule;
+        const day = (key) => { const w = wall(key); return `${monthShort(w)} ${w.d}`; };
+        const until = rule.until ? `through ${day(rule.until)}` : 'ongoing';
+        x.when = `${x.category === 'arts-culture' ? 'On view' : 'Open'} ${until}`;
+        // "Thursday and Friday 5–8 PM, Saturday and Sunday noon–4 PM" (spread() filled in every open day's hours).
+        x.hours = openHours(rule);
+        // Not open yet: say when it opens.
+        if (rule.start > dateKey(todayWall())) x.when = `Opens ${day(rule.start)}, ${until}`;
+      }
       x.dates = [x.next];
     }
 
@@ -438,6 +521,9 @@ export async function getEvents() {
     // The main calendar is the Las Cruces area. Nearby towns' events are listed on /nearby/ and
     // still get their own event pages (allEvents).
     const local = kept.filter((e) => !e.town);
+    // Dated pages of a series point to the series page (rel=canonical), so they stay out of the
+    // sitemap: astro.config.mjs reads this list when it writes sitemap-index.xml (Nov 26, 2026).
+    globalThis.__lcNotInSitemap = new Set(kept.filter((e) => e.series?.home).map((e) => `/event/${e.slug}/`));
     return {
       events: local,
       allEvents: kept,
@@ -446,7 +532,7 @@ export async function getEvents() {
       dated: local.filter((e) => !e.ongoing),
       ongoing: ongoing.map((x) => x.next).filter((e) => !e.town),
       series: series.filter((x) => !x.ongoing && !x.next.town),
-      // Dateless addresses that forward to an event page: [{ slug, to }]
+      // Dateless series addresses and the dated page they show: [{ slug, to }]
       aliases,
     };
   })();

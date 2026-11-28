@@ -62,7 +62,7 @@ const jsonLd = [
       : onNow.length === 0 && <p class="notice">Nothing posted here yet. <a href="/">See everything coming up</a> or <a href={`/submit/?venue=${encodeURIComponent(venue.name)}`}>add an event at {venue.name}</a>.</p>}
     {onNow.length > 0 && (
       <div class="venue-list__on-now">
-        <h2>On now</h2>
+        <h2>Art exhibits and more</h2>
         <ul class="venue-list__links" role="list">
           {onNow.map((e) => <li><a href={`/event/${e.slug}/`}>{e.title}</a> <span>{e.series?.when}</span></li>)}
         </ul>

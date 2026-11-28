@@ -2,7 +2,7 @@
 // venue Charlie edits on the review page means the same thing in both places.
 //
 // The master list is src/data/venues.json PLUS Charlie's edits (kept by the Worker, read at
-// /venues.json). An edit is { key, name, address, website, about, aliases: [spellings], was }.
+// /venues.json). An edit is { key, name, address, website, about, dogs, aliases: [spellings], was }.
 // "key" is the venue's original key and never changes, so a renamed venue still lines up with
 // its entry in venues.json; the old name keeps working as a spelling.
 
@@ -22,7 +22,7 @@ export function mergeVenues(base = [], edits = []) {
     // The name it had before stays as a spelling, so feeds that still use it land on this venue.
     const old = prev?.name || e.was || e.key.replace(/-/g, ' ');
     if (fold(old) !== fold(e.name) && !aliases.some((a) => typeof a === 'string' && fold(a) === fold(old))) aliases.push(old);
-    const v = { key: e.key, name: e.name, aliases, keywords: prev?.keywords || [], address: e.address || '', website: e.website || '', about: e.about || '', edited: true };
+    const v = { key: e.key, name: e.name, aliases, keywords: prev?.keywords || [], address: e.address || '', website: e.website || '', about: e.about || '', dogs: e.dogs ?? prev?.dogs ?? false, edited: true };
     if (i >= 0) out[i] = v; else out.push(v);
   }
   return out;

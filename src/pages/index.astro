@@ -5,8 +5,8 @@ import { HOME_DAYS } from '../lib/site.js';
 import EventCard from '../components/EventCard.astro';
 import Newsletter from '../components/Newsletter.astro';
 import { SITE, CATEGORIES, SPOTLIGHT, AUDIENCES } from '../lib/site.js';
-import { getEvents, shortVenue } from '../lib/events.js';
-import { dateKey, todayWall, addDays, shortDate, weekendRange } from '../lib/time.js';
+import { getEvents } from '../lib/events.js';
+import { dateKey, todayWall, addDays, weekendRange } from '../lib/time.js';
 
 const { events: all, dated: events, ongoing, series, nearby } = await getEvents();
 const today = todayWall();
@@ -29,11 +29,6 @@ const FOR_ICON = {
   outdoors: CATEGORIES.outdoors.icon,
 };
 const usedCats = Object.keys(CATEGORIES).filter((k) => all.some((e) => e.category === k));
-// Weekly regulars: the truly weekly ones first, then the rest, by next date. 12 is plenty.
-const regulars = [...series]
-  .sort((a, b) => (b.when.startsWith('Every ') - a.when.startsWith('Every ')) || a.next.date.localeCompare(b.next.date))
-  .slice(0, 12);
-
 const jsonLd = [
   {
     '@context': 'https://schema.org',
@@ -47,13 +42,17 @@ const jsonLd = [
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: 'Upcoming events in Las Cruces, NM',
-    itemListElement: all.slice(0, 30).map((e, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}/event/${e.slug}/`, name: e.title })),
+    // Each event once, at the address Google indexes: a repeating series' dateless page, not a dated
+    // copy (audit, Nov 27, 2026). Events that started earlier and are still running stay in.
+    itemListElement: [...new Map(all.map((e) => [`/event/${e.series?.home || e.slug}/`, e])).entries()]
+      .slice(0, 30)
+      .map(([path, e], i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE.url}${path}`, name: e.title })),
   },
 ];
 ---
 <Layout
   title={SITE.name}
-  description="What's happening in Las Cruces, NM this week: live music, markets, art walks, family days and city events, hand-checked by a local and updated every morning."
+  description="What's happening in Las Cruces, NM this week: live music, markets, art walks, family days and city events, checked by a local and updated daily."
   jsonLd={jsonLd}
 >
   <section class="home-hero wrap">
@@ -108,7 +107,7 @@ const jsonLd = [
       <div class="old-link-note" data-old-link-note hidden>
         <p><strong>Heads up: that event already happened, or it's on our new calendar under a slightly different name.</strong> <span data-old-link-more>Here's everything coming up in Las Cruces.</span> Looking for something specific? Try the search box below.</p>
       </div>
-      <Agenda events={events} ongoing={ongoing} initialDays={HOME_DAYS} rest="/more/home/" nearby={nearby.length} />
+      <Agenda events={events} ongoing={ongoing} initialDays={HOME_DAYS} rest="/more/home/" nearby={nearby.length} onNow={ongoing.length} weekly={series.length} />
     </div>
   </section>
   <script is:inline>
@@ -121,46 +120,6 @@ const jsonLd = [
       note.hidden = false;
     })();
   </script>
-
-  {ongoing.length > 0 && (
-    <section class="section">
-      <div class="wrap">
-        <div class="section-head">
-          <div>
-            <h2>On now, any day you like</h2>
-            <p>Exhibits and long runs you can catch whenever it suits you. No rush, but don't sleep on them.</p>
-          </div>
-        </div>
-        <ul class="grid" role="list">{ongoing.map((e) => <EventCard event={e} />)}</ul>
-      </div>
-    </section>
-  )}
-
-  {regulars.length > 0 && (
-    <section class="section section-white">
-      <div class="wrap">
-        <div class="section-head">
-          <div>
-            <h2>Weekly regulars</h2>
-            <p>The standing dates. Cheap, easy and a good way to meet your neighbors.</p>
-          </div>
-        </div>
-        <ul class="grid-tight regulars" role="list">
-          {regulars.map((s) => (
-            <li><a class="regulars__link" href={`/event/${s.next.slug}/`}>
-              <span class="dot" style={`background:${CATEGORIES[s.category].color}`} aria-hidden="true"></span>
-              <span>
-                <h3>{s.title}</h3>
-                <span class="regulars__when">{s.when} · {s.time}</span>
-                <span class="regulars__where">{shortVenue(s.next)}</span>
-                <span class="regulars__next">Next: {shortDate(s.next.start)}</span>
-              </span>
-            </a></li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  )}
 
   <section class="section" id="browse">
     <div class="wrap">
@@ -210,14 +169,6 @@ const jsonLd = [
   .home-hero__stats strong { font-family: var(--heading-font-family); font-size: 2rem; font-weight: 800; color: var(--primary); }
   .home-hero__stats span { color: var(--text-dark-muted); }
 
-  .regulars li { display: flex; }
-  .regulars__link { flex: 1; display: flex; gap: var(--space-s); align-items: flex-start; padding: var(--space-s); background: var(--bg-light); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); text-decoration: none; color: var(--text-dark); }
-  .regulars__link:hover { border-color: var(--text-dark); color: var(--text-dark); }
-  .regulars__link .dot { margin-block-start: var(--space-xs); }
-  .regulars__link > span:last-child { display: flex; flex-direction: column; gap: 0.125rem; }
-  .regulars__link h3 { font-size: var(--text-l); }
-  .regulars__when { font-weight: 600; color: var(--secondary); }
-  .regulars__where, .regulars__next { color: var(--text-dark-muted); font-size: var(--text-s); }
 
   .vibes li { display: flex; }
   .vibes__link { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; padding: var(--space-m); border-radius: var(--radius); background: var(--c); color: var(--white); text-decoration: none; min-block-size: 8.75rem; position: relative; overflow: hidden; }

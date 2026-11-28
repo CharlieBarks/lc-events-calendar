@@ -12,17 +12,25 @@ import { SITE, PREVIEW, ANALYTICS_TOKEN } from '../lib/site.js';
 
 // ogImage: path to this page's share image, e.g. /og/event/first-friday-ramble.png
 // ogImage may also be a full URL (an event's own flyer); then the 1200x630 size tags are left off.
-const { title, description, jsonLd = [], ogType = 'website', ogImage: ogImagePath = '/og/default.png' } = Astro.props;
+// canonicalPath: the address Google should index instead of this one (dated pages of a repeating series).
+// noindex: keep this page out of search (the 404 page).
+const { title, description, jsonLd = [], ogType = 'website', ogImage: ogImagePath = '/og/default.png', canonicalPath, noindex = false } = Astro.props;
 const generated = !/^https?:/.test(ogImagePath);
-// Google shows roughly 155 characters, so trim longer descriptions on a word boundary.
+// Google shows roughly 155 characters. Longer descriptions end at the last full sentence that fits
+// (when that keeps at least 70 characters), otherwise on a word boundary with "…" (audit, Nov 27, 2026:
+// they were cut mid-sentence). "a.m." and "p.m." don't count as the end of a sentence.
 function trimDescription(text = '', max = 155) {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
-  const cut = clean.slice(0, max - 1);
-  return cut.slice(0, cut.lastIndexOf(' ')).replace(/[\s,;:.–—-]+$/, '') + '…';
+  const cut = clean.slice(0, max);
+  const ends = [...cut.matchAll(/[.!?](?=\s)/g)].map((m) => m.index).filter((i) => !/\b[ap]\.m$/i.test(cut.slice(Math.max(0, i - 3), i)));
+  const last = ends.length ? ends[ends.length - 1] : -1;
+  if (last >= 69) return cut.slice(0, last + 1);
+  const words = cut.slice(0, max - 1);
+  return words.slice(0, words.lastIndexOf(' ')).replace(/[\s,;:.–—-]+$/, '') + '…';
 }
 const metaDescription = trimDescription(description);
-const canonical = new URL(Astro.url.pathname, SITE.url).href;
+const canonical = new URL(canonicalPath || Astro.url.pathname, SITE.url).href;
 const fullTitle = title === SITE.name ? `Things to Do in Las Cruces, NM | ${SITE.name}` : `${title} | ${SITE.name}`;
 const ogImage = new URL(ogImagePath, SITE.url).href;
 ---
@@ -31,7 +39,7 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  {PREVIEW && <meta name="robots" content="noindex, nofollow" />}
+  {PREVIEW ? <meta name="robots" content="noindex, nofollow" /> : noindex && <meta name="robots" content="noindex" />}
   <title>{fullTitle}</title>
   <meta name="description" content={metaDescription} />
   <link rel="canonical" href={canonical} />
@@ -49,6 +57,10 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
   <meta property="og:image:alt" content={fullTitle} />
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={fullTitle} />
+  <meta name="twitter:description" content={metaDescription} />
+  <meta name="twitter:image" content={ogImage} />
+  <meta name="twitter:image:alt" content={fullTitle} />
   <meta name="geo.region" content="US-NM" />
   <meta name="geo.placename" content="Las Cruces" />
   <link rel="sitemap" href="/sitemap-index.xml" />
@@ -102,6 +114,21 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
     <slot />
   </main>
   <Footer />
+  {/* Back to top (Charlie, Nov 25): shows after scrolling down about a screen. */}
+  <button class="to-top" type="button" aria-label="Back to top" hidden data-to-top>
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+  </button>
+  <script is:inline>
+    (function () {
+      var b = document.querySelector('[data-to-top]');
+      if (!b) return;
+      var on = false;
+      function check() { var s = scrollY > innerHeight; if (s !== on) { on = s; b.hidden = !s; } }
+      addEventListener('scroll', check, { passive: true });
+      check();
+      b.addEventListener('click', function () { scrollTo({ top: 0 }); var h = document.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } });
+    })();
+  </script>
   {/* Admin bar switch (Charlie only): ?admin=on on any page turns on the admin bar on event pages
       for this device, ?admin=off turns it off. It's only shortcuts to the review page, which stays
       behind the Cloudflare Access login, so anyone else who tries it gets nothing they can use. */}
@@ -124,3 +151,9 @@ const ogImage = new URL(ogImagePath, SITE.url).href;
   </script>
 </body>
 </html>
+<style>
+  .to-top { position: fixed; inset-block-end: max(1rem, env(safe-area-inset-bottom)); inset-inline-end: 1rem; z-index: 20; inline-size: 3rem; block-size: 3rem; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--base); color: var(--white); cursor: pointer; box-shadow: 0 2px 8px rgb(0 0 0 / .2); }
+  .to-top[hidden] { display: none; }
+  .to-top:hover { background: var(--base-dark); }
+  .to-top:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+</style>
