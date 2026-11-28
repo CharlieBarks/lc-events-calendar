@@ -812,6 +812,8 @@ function toCalendarEvents(rec) {
       ...calendarPictures(rec),
       featured: !!rec.featured,
       sponsored: !!rec.sponsored,
+      // Spotlight given free by Charlie: everything a paid one gets, labeled "Spotlight" (Nov 28, 2026).
+      ...(rec.freeSpotlight && !rec.sponsored ? { freeSpotlight: true } : {}),
       spotlightUntil: rec.spotlightUntil || '',
       submissionId: rec.id,
       ...(rec.repeat ? { repeat: rec.repeat } : {}),
@@ -846,7 +848,7 @@ async function setHidden(env, item, on, key = 'hidden') {
   const list = ((await env.MEDIA.get(`${key}.json`, 'json'))?.[key] || []).filter((h) => h.slug !== slug);
   // No date at the end of the address: it already means every date.
   const all = !!item.all || !/\d{4}-\d{2}-\d{2}(-\d+)?$/.test(slug);
-  if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), ...(isDate(item.until) ? { until: item.until } : {}), ...(key === 'featured' && item.sponsored ? { sponsored: true } : {}), at: new Date().toISOString() });
+  if (on) list.push({ slug, title: clean(item.title, 140), all, reason: clean(item.reason, 80), ...(isDate(item.until) ? { until: item.until } : {}), ...(key === 'featured' && item.sponsored ? { sponsored: true } : {}), ...(key === 'featured' && item.freeSpotlight && !item.sponsored ? { freeSpotlight: true } : {}), at: new Date().toISOString() });
   await env.MEDIA.put(`${key}.json`, JSON.stringify({ [key]: list.slice(-500) }));
   return true;
 }
@@ -950,6 +952,35 @@ async function reviewApi(request, env, path, ctx) {
     if (!(await setTrusted(env, body.email, body.name, path === 'trust'))) return json({ error: "That doesn't look like an email address." }, { status: 400 });
     return json({ ok: true });
   }
+  if (path === 'promote') {
+    // One step from the admin bar on an event page (Nov 28, 2026): level = none | featured |
+    // spotlight (free, labeled Spotlight) | sponsored (paid). Events from the form keep the flags on
+    // their own record (every date); any other listing goes in the Featured events list.
+    const slug = hiddenSlug(body.slug);
+    if (!slug) return json({ error: "That doesn't look like an event address." }, { status: 400 });
+    const level = ['featured', 'spotlight', 'sponsored'].includes(body.level) ? body.level : 'none';
+    const until = isDate(body.until) ? body.until : '';
+    const base = slug.replace(/-\d{4}-\d{2}-\d{2}(-\d+)?$/, '');
+    const approved = await getApproved(env);
+    const hit = approved.find((e) => e.slug === slug || e.slug === base);
+    if (hit) {
+      for (const e of approved) {
+        if (hit.submissionId ? e.submissionId !== hit.submissionId : e.slug !== hit.slug) continue;
+        e.featured = level !== 'none';
+        e.sponsored = level === 'sponsored';
+        if (level === 'spotlight') e.freeSpotlight = true; else delete e.freeSpotlight;
+        e.spotlightUntil = until;
+      }
+      await env.MEDIA.put('sub/approved.json', JSON.stringify(approved));
+    }
+    // Clear any earlier pick for this listing, then add the new one (not needed for form events).
+    for (const s of new Set([slug, base])) await setHidden(env, { slug: s }, false, 'featured');
+    if (!hit && level !== 'none') {
+      await setHidden(env, { slug, title: body.title, all: body.all, until, sponsored: level === 'sponsored', freeSpotlight: level === 'spotlight' }, true, 'featured');
+    }
+    await rebuild(env);
+    return json({ ok: true, level });
+  }
   if (path === 'feature' || path === 'unfeature') {
     if (!(await setHidden(env, body, path === 'feature', 'featured'))) return json({ error: "That doesn't look like an event address. Copy it from the event page." }, { status: 400 });
     if (body.publish) await rebuild(env);
@@ -965,7 +996,7 @@ async function reviewApi(request, env, path, ctx) {
     if (!rec) return json({ error: 'Already handled.' }, { status: 404 });
     // Charlie's edits from the review screen win.
     const { repeat: repeatEdit, ...plainEdits } = body.edits || {};
-    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...plainEdits, imageId: rec.imageId, photoIds: photosOf(rec), main: mainOf(rec) }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, spotlightUntil: isDate(body.edits?.spotlightUntil) ? body.edits.spotlightUntil : '', id: rec.id };
+    const edited = { ...rec, ...tidySubmission({ ...rec, ...rec.contact, ...plainEdits, imageId: rec.imageId, photoIds: photosOf(rec), main: mainOf(rec) }), contact: rec.contact, featured: !!body.edits?.featured, sponsored: !!body.edits?.sponsored, freeSpotlight: !!body.edits?.freeSpotlight && !body.edits?.sponsored, spotlightUntil: isDate(body.edits?.spotlightUntil) ? body.edits.spotlightUntil : '', id: rec.id };
     // The review page can change when a repeating event stops and take single dates out.
     if (edited.repeat && repeatEdit) edited.repeat = tidyRepeat({ ...edited.repeat, until: repeatEdit.until, skip: repeatEdit.skip });
     if (!edited.shows.length) return json({ error: 'Needs at least one date.' }, { status: 400 });
@@ -1011,6 +1042,7 @@ async function reviewApi(request, env, path, ctx) {
       if (hit.submissionId ? e.submissionId === hit.submissionId : e.slug === hit.slug) {
         e.featured = !!body.featured;
         e.sponsored = !!body.sponsored;
+        if (body.freeSpotlight && !body.sponsored) e.freeSpotlight = true; else delete e.freeSpotlight;
         e.spotlightUntil = isDate(body.spotlightUntil) ? body.spotlightUntil : '';
       }
     }
@@ -1213,7 +1245,7 @@ h2{margin:30px 0 10px;font-size:1.1rem}.ap{display:flex;justify-content:space-be
 <h2>Reports</h2><p class="msg">Visitors who tapped "Something wrong with this listing?" on an event page. Fix it opens the listing for you to edit. Fixed emails them a thank-you; Dismiss just clears it.</p>
 <div id="reports"></div>
 <h2>Featured events</h2><p class="msg">Want an event to stand out? Paste its address from the event page. It's pinned to the top of its day with a Featured label and its own background, and goes into the homepage Spotlight. Works for any event, from any source.</p>
-<form id="feature" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><input type="hidden" name="title"><label><input type="checkbox" name="all"> Every date of it</label><label><input type="checkbox" name="sponsored"> Sponsored (paid)</label><label>until <input type="date" name="until" title="Leave empty to feature it until the event is over"></label><button>Feature</button><span class="msg" data-msg></span></form>
+<form id="feature" class="hide"><input name="slug" placeholder="https://…/event/…/" aria-label="Event address"><input type="hidden" name="title"><label><input type="checkbox" name="all"> Every date of it</label><label><input type="checkbox" name="freeSpotlight"> Spotlight (free)</label><label><input type="checkbox" name="sponsored"> Sponsored (paid)</label><label>until <input type="date" name="until" title="Leave empty to feature it until the event is over"></label><button>Feature</button><span class="msg" data-msg></span></form>
 <div id="featuredlist"></div>
 <h2>Recently approved</h2><div id="approved"></div>
 <h2>Trusted submitters</h2><p class="msg">Their new events and their changes go on the calendar right away, without waiting for you. You still get an email for each one. Limits that stay on: ${TRUSTED_PER_DAY} a day each (the rest wait here), and paid Spotlight requests always wait.</p>
@@ -1341,14 +1373,15 @@ function card(r){
   (r.possibleDuplicate&&!r.suggests?'<div class="boost dupe"><strong>Possible duplicate</strong> of <a href="'+esc(SITE)+'/event/'+esc(r.possibleDuplicate)+'/" target="_blank" rel="noopener">'+esc(r.possibleDuplicateTitle||'this listing')+'</a>. The form asked and the organizer said theirs is a different event. Same event after all? Tick the box below to replace that listing, or use <em>Reject: already listed</em>.<label><input type="checkbox" name="replaceDuplicate"> Same event: approve this and hide the other listing</label></div>':'')+
   (r.suggests?'<div class="boost"><strong>Suggested edit</strong> to <a href="'+esc(SITE)+'/event/'+esc(r.suggests)+'/" target="_blank" rel="noopener">this listing</a>. Approving it puts this version on the calendar and hides the original. Reject leaves the original as it is.'+diffSum(r)+'</div>':'')+
   (r.boost==='spotlight'?'<div class="boost"><strong>Spotlight requested ($50).</strong> Check Stripe for a payment with reference <code>'+esc(r.id)+'</code> (or from '+esc(r.contact?.email)+'), then approve with Sponsored ticked.</div>':'')+
-  '<div class="checks"><label><input type="checkbox" name="featured"> Featured</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
+  '<div class="checks"><label><input type="checkbox" name="featured"> Featured</label><label><input type="checkbox" name="freeSpotlight"> Spotlight (free)</label><label><input type="checkbox" name="sponsored"'+(r.boost==='spotlight'?' checked':'')+'> Sponsored (paid)</label><label>until <input type="date" name="spotlightUntil" title="Leave empty to run until the event\\'s last date"></label></div>'+
   (r.trusted?'':'<div class="trustrow">'+(r.approvedBefore>=2?'<strong>A regular:</strong> '+r.approvedBefore+' earlier events approved. ':'')+'<button type="button" data-trust="'+esc(r.contact?.email)+'" data-trust-name="'+esc(r.contact?.name)+'">Trust this submitter</button> <span class="msg">Their future events go live without waiting.</span></div>')+
   '<div class="meta">From '+esc(r.contact?.name)+' · <a href="mailto:'+esc(r.contact?.email)+'">'+esc(r.contact?.email)+'</a>'+(r.trusted?' <span class="tag">Trusted</span>':'')+(r.contact?.phone?' · '+esc(r.contact.phone):'')+(r.act?' · Act: '+esc(r.act):'')+' · '+new Date(r.submittedAt).toLocaleString()+'</div>'+
   '<div class="btns"><button class="approve" type="submit">Approve</button><button class="reject" type="button" data-reject>Reject</button>'+(r.possibleDuplicate&&!r.change?'<button class="reject" type="button" data-reject-dupe>Reject: already listed</button>':'')+'<span class="msg" data-msg></span></div></div></form>';
 }
 async function loadHidden(){
   const d=await fetch('/review/api/hidden').then(r=>r.json());
-  document.getElementById('featuredlist').innerHTML=(d.featured||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.sponsored?'<span class="tag sp">Sponsored</span>':'')+(h.all?'<span class="tag">Every date</span>':'')+(h.until?'<span class="tag">until '+esc(h.until)+'</span>':'')+'</span><span class="apflags"><a href="'+esc(SITE)+'/event/'+esc(h.slug)+'/" target="_blank" rel="noopener">View</a><button data-unfeature="'+esc(h.slug)+'">Stop featuring</button></span></div>').join('')||'<div class="msg">Nothing featured right now.</div>';
+  const nice=s=>{const m=s.match(/^(.*?)-([0-9]{4})-([0-9]{2})-([0-9]{2})(-[0-9]+)?$/);const t=(m?m[1]:s).replace(/-/g,' ');return t.charAt(0).toUpperCase()+t.slice(1)+(m?' · '+m[3]+'/'+m[4]:'')};
+  document.getElementById('featuredlist').innerHTML=(d.featured||[]).map(h=>'<div class="ap"><span>'+esc(h.title||nice(h.slug))+(h.sponsored?'<span class="tag sp">Sponsored</span>':'')+(h.freeSpotlight?'<span class="tag sp">Spotlight</span>':'')+(h.all?'<span class="tag">Every date</span>':'')+(h.until?'<span class="tag">until '+esc(h.until)+'</span>':'')+'</span><span class="apflags"><a href="'+esc(SITE)+'/event/'+esc(h.slug)+'/" target="_blank" rel="noopener">View</a><button data-unfeature="'+esc(h.slug)+'">Stop featuring</button></span></div>').join('')||'<div class="msg">Nothing featured right now.</div>';
   document.getElementById('nopiclist').innerHTML=(d.nopic||[]).map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+'</span><span class="apflags"><button data-showpic="'+esc(h.slug)+'">Show picture again</button></span></div>').join('')||'<div class="msg">No pictures hidden.</div>';
   document.getElementById('piclist').innerHTML=(d.pictures||[]).map(p=>'<div class="ap"><span><img src="'+esc(p.image)+'" alt="" style="width:48px;height:48px;object-fit:cover;vertical-align:middle;margin-right:8px;border-radius:6px">'+esc(p.title)+' · '+esc(p.all?'every date'+(p.until?' until '+p.until:''):p.date)+(p.venue?' · <span class="msg">'+esc(p.venue)+'</span>':'')+'</span><span class="apflags"><button data-unpicture="'+esc(p.id)+'">Remove</button></span></div>').join('')||'<div class="msg">No pictures added.</div>';
   document.getElementById('hidden').innerHTML=d.hidden.map(h=>'<div class="ap"><span>'+esc(h.title||h.slug)+(h.all?'<span class="tag">Every date</span>':'')+(h.reason?' · <span class="msg">'+esc(h.reason)+'</span>':'')+'</span><span class="apflags"><button data-unhide="'+esc(h.slug)+'">Show again</button></span></div>').join('')||'<div class="msg">Nothing hidden.</div>';
@@ -1377,7 +1410,7 @@ async function load(){
   p.innerHTML=d.pending.length?d.pending.map(card).join(''):'<div class="empty">Nothing waiting. New submissions show up here.</div>';
   d.pending.forEach(r=>{const f=p.querySelector('[data-id="'+r.id+'"]');f.category.value=r.category;markChanges(f,r)});
   document.getElementById('trustedlist').innerHTML=(d.trusted||[]).map(t=>'<div class="ap"><span>'+esc(t.name||t.email)+(t.name?' · <span class="msg">'+esc(t.email)+'</span>':'')+'</span><span class="apflags"><button data-untrust="'+esc(t.email)+'">Stop trusting</button></span></div>').join('')||'<div class="msg">Nobody yet. Use "Trust this submitter" on a waiting event, or add an email above.</div>';
-  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'" data-owner="'+esc(e.ownerTrusted?e.ownerEmail:'')+'"><span>'+(e.autoLive?'<span class="tag">Trusted · went live on its own</span> ':'')+'<strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Featured</span>':'')+'</span><span class="apflags"><a href="'+esc(viewLink(e))+'" target="_blank" rel="noopener">View</a><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Featured</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
+  document.getElementById('approved').innerHTML=d.approved.map(e=>'<div class="ap" data-slug="'+esc(e.slug)+'" data-owner="'+esc(e.ownerTrusted?e.ownerEmail:'')+'"><span>'+(e.autoLive?'<span class="tag">Trusted · went live on its own</span> ':'')+'<strong>'+esc(e.start.slice(0,10))+'</strong> · '+esc(e.title)+' · '+esc(e.venue)+(e.repeat?'<span class="tag">Repeats</span>':'')+(e.sponsored?'<span class="tag sp">Sponsored</span>':e.featured?'<span class="tag">Featured</span>':'')+'</span><span class="apflags"><a href="'+esc(viewLink(e))+'" target="_blank" rel="noopener">View</a><label><input type="checkbox" data-f="featured"'+(e.featured?' checked':'')+'> Featured</label><label><input type="checkbox" data-f="freeSpotlight"'+(e.freeSpotlight?' checked':'')+'> Spotlight</label><label><input type="checkbox" data-f="sponsored"'+(e.sponsored?' checked':'')+'> Sponsored</label><label>until <input type="date" data-f="until" value="'+esc(e.spotlightUntil||'')+'"></label><button data-flags>Save</button>'+(e.submissionId?'<button data-reopen="'+esc(e.submissionId)+'">Edit</button>':'')+'<button data-remove="'+esc(e.slug)+'">Remove</button></span></div>').join('')||'<div class="msg">None yet.</div>';
 }
 document.addEventListener('click',async e=>{
   const t=e.target;
@@ -1389,7 +1422,7 @@ document.addEventListener('click',async e=>{
   if(t.matches('[data-add]')){t.previousElementSibling.insertAdjacentHTML('beforeend',showRow({}));return}
   if(t.matches('[data-reject-dupe]')){const f=t.closest('form');if(!confirm('Turn this down as a duplicate? The organizer gets a friendly email with the link to the listing that is already up.'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id,duplicate:true})});load();return}
   if(t.matches('[data-reject]')){const f=t.closest('form');if(!confirm('Reject this submission?'))return;await fetch('/review/api/reject',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id})});load();return}
-  if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked,sponsored:g('sponsored').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
+  if(t.matches('[data-flags]')){const row=t.closest('.ap');const g=k=>row.querySelector('[data-f="'+k+'"]');t.textContent='Saving…';await fetch('/review/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:row.dataset.slug,featured:g('featured').checked||g('freeSpotlight').checked,sponsored:g('sponsored').checked,freeSpotlight:g('freeSpotlight').checked,spotlightUntil:g('until').value})});t.textContent='Saved · updating';setTimeout(load,1500);return}
   if(t.matches('[data-reopen]')){t.textContent='Opening…';await fetch('/review/api/reopen',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.reopen})});await load();window.scrollTo({top:0,behavior:'smooth'});return}
   if(t.matches('[data-unpicture]')){await fetch('/review/api/unpicture',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.unpicture,publish:true})});loadHidden();return}
   if(t.matches('[data-showpic]')){await fetch('/review/api/pic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:t.dataset.showpic,publish:true})});loadHidden();return}
@@ -1402,11 +1435,11 @@ document.addEventListener('click',async e=>{
 document.addEventListener('submit',async e=>{
   e.preventDefault();const f=e.target;const msg=f.querySelector('[data-msg]');msg.textContent='Saving…';
   if(f.id==='trustform'){const r=await fetch('/review/api/trust',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:f.email.value,name:f.name.value})}).then(r=>r.json());msg.textContent=r.ok?'Trusted.':r.error;if(r.ok){f.reset();load()}return}
-  if(f.id==='feature'){const r=await fetch('/review/api/feature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,title:f.title.value,all:f.all.checked,sponsored:f.sponsored.checked,until:f.until.value,publish:true})}).then(r=>r.json());msg.textContent=r.ok?(f.sponsored.checked?'Marked Sponsored (paid).':'Featured.')+' The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();f.title.value='';loadHidden()}return}
+  if(f.id==='feature'){const r=await fetch('/review/api/feature',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,title:f.title.value,all:f.all.checked,sponsored:f.sponsored.checked,freeSpotlight:f.freeSpotlight.checked,until:f.until.value,publish:true})}).then(r=>r.json());msg.textContent=r.ok?(f.sponsored.checked?'Marked Sponsored (paid).':f.freeSpotlight.checked?'Marked Spotlight (free).':'Featured.')+' The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();f.title.value='';loadHidden()}return}
   if(f.id==='nopic'){const r=await fetch('/review/api/nopic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,title:f.title.value,all:f.all.checked,publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Picture hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();f.title.value='';loadHidden()}return}
   if(f.id==='hide'){const r=await fetch('/review/api/hide',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:f.slug.value,title:f.title.value,all:f.all.checked,reason:'Hidden by Charlie',publish:true})}).then(r=>r.json());msg.textContent=r.ok?'Hidden. The calendar updates in a few minutes.':r.error;if(r.ok){f.reset();f.title.value='';loadHidden()}return}
   const shows=[...f.querySelectorAll('.show')].map(s=>({date:s.querySelector('[name=date]').value,start:s.querySelector('[name=start]').value,end:s.querySelector('[name=end]').value,title:s.querySelector('[name=stitle]').value}));
-  const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked,sponsored:f.sponsored.checked,spotlightUntil:f.spotlightUntil.value,replaceDuplicate:!!f.replaceDuplicate?.checked};
+  const edits={title:f.title.value,venue:f.venue.value,address:f.address.value,category:f.category.value,price:f.price.value,url:f.url.value,description:f.description.value,shows,featured:f.featured.checked||f.freeSpotlight.checked,sponsored:f.sponsored.checked,freeSpotlight:f.freeSpotlight.checked,spotlightUntil:f.spotlightUntil.value,replaceDuplicate:!!f.replaceDuplicate?.checked};
   if(f.repeatUntil)edits.repeat={until:f.repeatUntil.value,skip:f.repeatSkip.value.split(',').map(x=>x.trim()).filter(Boolean)};
   const r=await fetch('/review/api/approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:f.dataset.id,edits})}).then(r=>r.json());
   if(r.ok){msg.textContent='Approved. The calendar updates in a couple of minutes.';setTimeout(load,1200)}else msg.textContent=r.error||'Something went wrong.';
@@ -1419,6 +1452,17 @@ load();
   if(!act||!slug)return;
   history.replaceState(null,'',location.pathname);
   const mark=el=>{el.style.outline='3px solid #e8c766';el.style.outlineOffset='4px';el.style.borderRadius='10px';el.scrollIntoView({block:'center'})};
+  // Save from the admin bar in one step (opened in a small window): Featured / Spotlight / Sponsored / none.
+  if(act==='promote'){
+    const level=q.get('level')||'none';const names={none:'Not promoted',featured:'Featured',spotlight:'Spotlight (free)',sponsored:'Sponsored (paid)'};
+    const box=document.createElement('div');box.className='boost';box.style.cssText='position:fixed;inset:12px 12px auto;z-index:9;font-size:1.1rem;padding:16px;box-shadow:0 6px 24px rgba(0,0,0,.2)';
+    box.textContent='Saving '+(q.get('title')||slug)+' as '+(names[level]||level)+'…';document.body.appendChild(box);
+    fetch('/review/api/promote',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug,title:q.get('title')||'',all:q.get('all')==='1',level,until:q.get('until')||''})}).then(r=>r.json()).then(r=>{
+      box.textContent=r.ok?'Saved: '+(names[level]||level)+'. The calendar updates in a few minutes.'+(window.opener?' This window closes by itself.':''):(r.error||'Something went wrong.');
+      if(r.ok){loadHidden();if(window.opener)setTimeout(()=>window.close(),2500)}
+    }).catch(()=>{box.textContent='Could not save. Try again.'});
+    return;
+  }
   const id={feature:'feature',sponsor:'feature',hide:'hide',nopic:'nopic'}[act];
   if(id){
     const f=document.getElementById(id);const b=f.querySelector('button');
