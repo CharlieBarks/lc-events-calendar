@@ -206,7 +206,9 @@ function normalize(e, source) {
     // Spotlight is only for events Charlie marks (Review page, events.json or src/data/spotlight.json),
     // not CitySpark's old "picks".
     featured: source !== 'cityspark' && !!e.featured,
-    sponsored: source !== 'cityspark' && !!e.sponsored,
+    // Spotlight given free by Charlie (freeSpotlight): the paid treatment, labeled "Spotlight".
+    sponsored: source !== 'cityspark' && (!!e.sponsored || !!e.freeSpotlight),
+    freeSpotlight: source !== 'cityspark' && !!e.freeSpotlight && !e.sponsored,
     spotlightUntil: e.spotlightUntil || '',
     sample: !!e.sample,
     // Set on dates that come from a repeat rule (see spread above).
@@ -504,12 +506,14 @@ export async function getEvents() {
       e.featured = true;
       // Ticked "Sponsored (paid)" (review page or the admin bar on event pages): a paid Spotlight
       // for an event that didn't come through the form. Shows the Sponsored label like any paid one.
-      if (pick.sponsored) e.sponsored = true;
+      if (pick.sponsored) { e.sponsored = true; e.freeSpotlight = false; }
+      // "Spotlight (free)": the same treatment, labeled Spotlight (Charlie, Nov 28, 2026).
+      else if (pick.freeSpotlight && !e.sponsored) { e.sponsored = true; e.freeSpotlight = true; }
       if (pick.until) e.spotlightUntil = pick.until;
     }
     for (const e of kept) {
       // A Spotlight ends on its "until" date (or with the event itself).
-      if (e.spotlightUntil && e.date > e.spotlightUntil) { e.featured = false; e.sponsored = false; }
+      if (e.spotlightUntil && e.date > e.spotlightUntil) { e.featured = false; e.sponsored = false; e.freeSpotlight = false; }
       e.spotlight = e.featured || e.sponsored;
       // Paid and Featured events always get a full card, even when they repeat.
       e.compact = !e.spotlight && (!!e.series || e.category === 'city-hall');
