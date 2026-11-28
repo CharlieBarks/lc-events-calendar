@@ -83,6 +83,8 @@ const jsonLd = [breadcrumbJsonLd([{ name: 'Events', path: '/' }, { name: 'Weekly
   .weekday h2 { display: flex; align-items: center; gap: var(--space-s); margin-block-end: var(--space-m); padding-block-end: var(--space-xs); border-block-end: 2px solid var(--text-dark); }
   .weekday__today { font-family: var(--text-font-family, inherit); font-size: var(--text-s); font-weight: 700; padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--secondary); color: var(--white); }
   .page-note { color: var(--text-dark-muted); max-inline-size: 70ch; }
+  /* Four cards across at most (Charlie, Nov 28, 2026), fewer as the window narrows (each card at least 15rem). */
+  .regulars { grid-template-columns: repeat(auto-fill, minmax(max(15rem, calc((100% - 3 * var(--grid-gap)) / 4)), 1fr)); }
   .regulars li { display: flex; }
   .regulars__link { flex: 1; display: flex; gap: var(--space-s); align-items: flex-start; padding: var(--space-s); background: var(--bg-light); border: 1px solid var(--neutral-light); border-radius: var(--radius-s); text-decoration: none; color: var(--text-dark); }
   .regulars__link:hover { border-color: var(--text-dark); color: var(--text-dark); }
